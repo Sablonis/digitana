@@ -1,0 +1,74 @@
+{% extends "frontend/base.html" %}
+
+{% block title %}Setup Infomaniak - Digitana{% endblock %}
+
+{% block header %}Setup Infomaniak{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">
+                Connect your Infomaniak Ecosystem
+            </h3>
+            <div class="mt-2 max-w-xl text-sm text-gray-500">
+                <p>
+                    To enable Single Sign-On (SSO) and integrate kChat, kMeet, and kDrive, you need to register Digitana
+                    as an application in your Infomaniak Manager.
+                </p>
+            </div>
+
+            <div class="mt-8 border-t border-gray-200 pt-8">
+                <h4 class="text-md font-medium text-gray-900">Step 1: Create Application</h4>
+                <ol class="mt-4 list-decimal list-inside space-y-2 text-sm text-gray-600">
+                    <li>Go to <a href="https://manager.infomaniak.com" target="_blank"
+                            class="text-indigo-600 hover:text-indigo-500">Infomaniak Manager</a>.</li>
+                    <li>Navigate to <strong>API & Developers</strong> -> <strong>OAuth2 Applications</strong>.</li>
+                    <li>Click <strong>Create Application</strong>.</li>
+                    <li>Enter Name: <strong>Digitana</strong>.</li>
+                    <li>Enter Redirect URI: <code class="bg-gray-100 px-1 py-0.5 rounded">{{ redirect_uri }}</code></li>
+                    <li>Select Scopes: <strong>User</strong> (Profile), <strong>kDrive</strong>, <strong>kChat</strong>,
+                        <strong>kMeet</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="mt-8 border-t border-gray-200 pt-8">
+                <h4 class="text-md font-medium text-gray-900">Step 2: Enter Credentials</h4>
+                <form class="mt-5 space-y-6" method="POST">
+                    {% csrf_token %}
+                    <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                        <div class="sm:col-span-4">
+                            <label for="client_id" class="block text-sm font-medium text-gray-700">
+                                Client ID
+                            </label>
+                            <div class="mt-1">
+                                <input type="text" name="client_id" id="client_id"
+                                    value="{{ config.infomaniak_client_id }}" required
+                                    class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                            </div>
+                        </div>
+
+                        <div class="sm:col-span-4">
+                            <label for="client_secret" class="block text-sm font-medium text-gray-700">
+                                Client Secret
+                            </label>
+                            <div class="mt-1">
+                                <input type="password" name="client_secret" id="client_secret"
+                                    value="{{ config.infomaniak_client_secret }}" required
+                                    class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit"
+                            class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Save Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

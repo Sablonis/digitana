@@ -1,0 +1,167 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">Connect a Service</h1>
+        <p class="text-gray-500">Integrate external tools to sync files and data.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Left Column: Connection Form -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+            <form id="connect-form" class="space-y-6">
+                <div>
+                    <label for="service-select" class="block text-sm font-medium text-gray-700 mb-2">Select
+                        Service</label>
+                    <select id="service-select" name="service"
+                        class="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all">
+                        <option value="" disabled selected>Choose a provider...</option>
+                        {% for service in services %}
+                        <option value="{{ service.id }}" data-auth-method="{{ service.auth_method }}"
+                            data-name="{{ service.name }}">
+                            {{ service.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label for="instance-name" class="block text-sm font-medium text-gray-700 mb-2">Connection
+                        Name</label>
+                    <input type="text" id="instance-name" name="name" placeholder="e.g., My Company Drive"
+                        class="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all">
+                </div>
+
+                <div id="api-key-field" class="hidden">
+                    <label for="api-key" class="block text-sm font-medium text-gray-700 mb-2">API Token</label>
+                    <input type="password" id="api-key" name="api_key" placeholder="Paste your token here"
+                        class="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono">
+                    <p class="mt-2 text-xs text-gray-500">Your token is stored securely and used only for this
+                        connection.</p>
+                </div>
+
+                <div id="oauth-field" class="hidden">
+                    <p class="text-sm text-gray-600 mb-4">This service supports secure connection via OAuth2.</p>
+                    <a id="oauth-btn" href="#"
+                        class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center shadow-sm hover:shadow">
+                        Connect with <span id="oauth-service-name" class="ml-1">Service</span>
+                    </a>
+                </div>
+
+                <div class="pt-4">
+                    <button type="submit"
+                        class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center shadow-sm hover:shadow">
+                        <span id="btn-text">Connect Service</span>
+                        <svg id="btn-spinner" class="animate-spin ml-2 h-5 w-5 text-white hidden"
+                            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div id="error-message"
+                    class="hidden p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"></div>
+            </form>
+        </div>
+
+        <!-- Right Column: Instructions -->
+        <div class="bg-gray-50 rounded-xl border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">How to connect</h3>
+
+            <div id="instruction-placeholder" class="text-gray-500 text-sm">
+                Please select a service on the left to see specific instructions.
+            </div>
+
+            <!-- Infomaniak Instructions (Hidden by default) -->
+            <div id="instruction-infomaniak" class="hidden space-y-4">
+                <div class="flex items-start space-x-3">
+                    <div
+                        class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold border border-indigo-200">
+                        1</div>
+                    <p class="text-sm text-gray-600">Log in to your <a href="https://manager.infomaniak.com"
+                            target="_blank" class="text-indigo-600 hover:underline">Infomaniak Manager</a>.</p>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <div
+                        class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold border border-indigo-200">
+                        2</div>
+                    <p class="text-sm text-gray-600">Navigate to <strong>API</strong> (usually under "Advanced" or via
+                        search).</p>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <div
+                        class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold border border-indigo-200">
+                        3</div>
+                    <p class="text-sm text-gray-600">Click <strong>Generate a Token</strong>.</p>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <div
+                        class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold border border-indigo-200">
+                        4</div>
+                    <div class="text-sm text-gray-600">
+                        <p class="mb-2">Select <strong>kDrive</strong> as the scope/product.</p>
+                        <div class="p-3 bg-white rounded border border-gray-200 font-mono text-xs text-gray-500">
+                            Scope: kdrive (or drive)
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <div
+                        class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold border border-indigo-200">
+                        5</div>
+                    <p class="text-sm text-gray-600">Copy the generated token and paste it into the <strong>API
+                            Token</strong> field on the left.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('service-select').addEventListener('change', function () {
+        const selectedOption = this.options[this.selectedIndex];
+        const serviceId = this.value;
+        const authMethod = selectedOption.dataset.authMethod;
+        const serviceName = selectedOption.dataset.name;
+
+        const apiKeyField = document.getElementById('api-key-field');
+        const oauthField = document.getElementById('oauth-field');
+        const submitBtn = document.querySelector('button[type="submit"]');
+
+        // Reset visibility
+        apiKeyField.classList.add('hidden');
+        oauthField.classList.add('hidden');
+        submitBtn.parentElement.classList.remove('hidden'); // Show submit button container by default
+
+        if (authMethod === 'api_key') {
+            apiKeyField.classList.remove('hidden');
+        } else if (authMethod === 'oauth2') {
+            oauthField.classList.remove('hidden');
+            document.getElementById('oauth-service-name').innerText = serviceName;
+            document.getElementById('oauth-btn').href = `/integrations/connect/${serviceId}/`;
+            submitBtn.parentElement.classList.add('hidden'); // Hide default submit button for OAuth
+        }
+
+        // Instructions logic (simplified for now)
+        const instructionPlaceholder = document.getElementById('instruction-placeholder');
+        const instructionInfomaniak = document.getElementById('instruction-infomaniak');
+
+        if (serviceName && serviceName.toLowerCase().includes('infomaniak') && authMethod === 'api_key') {
+            instructionPlaceholder.classList.add('hidden');
+            instructionInfomaniak.classList.remove('hidden');
+        } else {
+            instructionPlaceholder.classList.remove('hidden');
+            instructionInfomaniak.classList.add('hidden');
+            instructionPlaceholder.innerText = authMethod === 'oauth2'
+                ? `Click the button to securely connect your ${serviceName} account.`
+                : 'Please follow the instructions for this service.';
+        }
+    });
+</script>
+{% endblock %}
