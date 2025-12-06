@@ -52,24 +52,28 @@ class InfomaniakBackend(ModelBackend):
         return user
 
     def _get_user_info(self, access_token):
-        # Try to fetch user profile
-        # Note: The exact endpoint depends on Infomaniak's specific API implementation
-        # Common pattern: https://login.infomaniak.com/api/profile or /oauth2/userinfo
-        
-        # Based on typical OAuth2 implementations:
+        """
+        Retrieves user information from Infomaniak OIDC endpoint.
+        """
         try:
+            # Standard OIDC userinfo endpoint
             response = requests.get(
-                "https://login.infomaniak.com/api/profile", # Hypothetical endpoint, verify if possible
+                "https://login.infomaniak.com/oauth2/userinfo",
                 headers={"Authorization": f"Bearer {access_token}"}
             )
             if response.status_code == 200:
-                return response.json()
+                data = response.json()
+                # OIDC standard claims: sub is unique ID, email is email
+                return {
+                    "id": data.get("sub"),
+                    "email": data.get("email"),
+                    "first_name": data.get("given_name", ""),
+                    "last_name": data.get("family_name", "")
+                }
+            else:
+                # Log error in production
+                pass
         except Exception:
             pass
             
-        # Fallback: If the token_data itself contains user info (id_token claims)
-        # For this implementation, we'll return a mock if in DEBUG mode and real call fails
-        if settings.DEBUG:
-             return {"id": 12345, "email": "demo@infomaniak.com"}
-             
         return None

@@ -10,7 +10,7 @@ def get_auth_url(client_id: str, redirect_uri: str, state: str, scopes: list = N
     """
     Generates the Infomaniak OAuth2 authorization URL.
     """
-    scope_str = " ".join(scopes) if scopes else "kdrive"
+    scope_str = " ".join(scopes) if scopes else "kdrive openid profile email"
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
