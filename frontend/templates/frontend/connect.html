@@ -163,5 +163,86 @@
                 : 'Please follow the instructions for this service.';
         }
     });
+
+    // Handle Form Submission
+    document.getElementById('connect-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const serviceSelect = document.getElementById('service-select');
+        const serviceId = serviceSelect.value;
+        const name = document.getElementById('instance-name').value;
+        const apiKey = document.getElementById('api-key').value;
+        const authMethod = serviceSelect.options[serviceSelect.selectedIndex].dataset.authMethod;
+        const btn = document.querySelector('button[type="submit"]');
+        const btnText = document.getElementById('btn-text');
+        const spinner = document.getElementById('btn-spinner');
+        const errorDiv = document.getElementById('error-message');
+
+        if (!serviceId) {
+            alert("Please select a service.");
+            return;
+        }
+
+        if (authMethod !== 'api_key') return; // Should not happen given UI logic but safe check
+
+        // Reset UI
+        errorDiv.classList.add('hidden');
+        btn.disabled = true;
+        btnText.innerText = 'Connecting...';
+        spinner.classList.remove('hidden');
+
+        try {
+            // 1. Fetch User's Circles to pick one (MVP: First available)
+            // If the user belongs to multiple circles, we should ideally ask them.
+            // For now, we auto-select the first one.
+            const circlesResp = await fetch('/api/circles/');
+            if (!circlesResp.ok) throw new Error("Failed to fetch circles.");
+            const circlesData = await circlesResp.json();
+
+            if (!circlesData.results || circlesData.results.length === 0) {
+                throw new Error("You must belong to at least one Circle to connect integrations.");
+            }
+            const circleId = circlesData.results[0].id;
+
+            // 2. Create Integration Instance
+            const payload = {
+                service_id: serviceId,
+                name: name || `${serviceSelect.options[serviceSelect.selectedIndex].text} Connection`,
+                circle: circleId,
+                configuration: {
+                    api_key: apiKey
+                }
+            };
+
+            // Get CSRF Token
+            const csrftoken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+
+            const createResp = await fetch('/api/instances/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!createResp.ok) {
+                const errData = await createResp.json();
+                throw new Error(JSON.stringify(errData));
+            }
+
+            // Success! Redirect to Dashboard
+            window.location.href = "{% url 'dashboard' %}";
+
+        } catch (err) {
+            console.error(err);
+            errorDiv.innerText = "Connection failed: " + err.message;
+            errorDiv.classList.remove('hidden');
+
+            btn.disabled = false;
+            btnText.innerText = 'Connect Service';
+            spinner.classList.add('hidden');
+        }
+    });
 </script>
 {% endblock %}

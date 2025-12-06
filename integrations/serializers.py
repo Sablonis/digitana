@@ -8,10 +8,13 @@ class IntegrationServiceSerializer(serializers.ModelSerializer):
 
 class IntegrationInstanceSerializer(serializers.ModelSerializer):
     service = IntegrationServiceSerializer(read_only=True)
+    service_id = serializers.PrimaryKeyRelatedField(
+        queryset=IntegrationService.objects.all(), source='service', write_only=True
+    )
 
     class Meta:
         model = IntegrationInstance
-        fields = ['id', 'service', 'name', 'configuration', 'circle', 'created_at']
+        fields = ['id', 'service', 'service_id', 'name', 'configuration', 'circle', 'created_at']
 
 class UserIntegrationIdentitySerializer(serializers.ModelSerializer):
     class Meta:

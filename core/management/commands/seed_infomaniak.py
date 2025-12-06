@@ -5,21 +5,30 @@ class Command(BaseCommand):
     help = 'Seeds the Infomaniak Drive service'
 
     def handle(self, *args, **options):
-        service, created = IntegrationService.objects.get_or_create(
+        # 1. OAuth Service
+        service_oauth, _ = IntegrationService.objects.get_or_create(
             name='Infomaniak Drive',
             defaults={
-                'provider_type': 'STORAGE', # Assuming STORAGE is valid
+                'provider_type': 'STORAGE',
                 'base_url': 'https://api.infomaniak.com',
                 'auth_method': 'OAUTH2',
             }
         )
-        if created:
-            self.stdout.write(self.style.SUCCESS(f'Created service: {service.name}'))
-        else:
-            # Ensure auth method is correct if it already existed
-            if service.auth_method != 'OAUTH2':
-                service.auth_method = 'OAUTH2'
-                service.save()
-                self.stdout.write(self.style.SUCCESS(f'Updated service: {service.name} to OAUTH2'))
-            else:
-                self.stdout.write(self.style.SUCCESS(f'Service already exists: {service.name}'))
+        if service_oauth.auth_method != 'OAUTH2':
+             service_oauth.auth_method = 'OAUTH2'
+             service_oauth.save()
+        self.stdout.write(self.style.SUCCESS(f'Verified: {service_oauth.name} (OAuth)'))
+
+        # 2. API Key Service
+        service_key, created = IntegrationService.objects.get_or_create(
+            name='Infomaniak Drive (API Key)',
+            defaults={
+                'provider_type': 'STORAGE',
+                'base_url': 'https://api.infomaniak.com',
+                'auth_method': 'API_KEY',
+            }
+        )
+        if service_key.auth_method != 'API_KEY':
+             service_key.auth_method = 'API_KEY'
+             service_key.save()
+        self.stdout.write(self.style.SUCCESS(f'Verified: {service_key.name} (API Key)'))
