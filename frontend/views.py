@@ -26,6 +26,12 @@ class SetupWizardView(LoginRequiredMixin, UserPassesTestMixin, View):
         })
 
     def post(self, request):
+        if 'seed_services' in request.POST:
+            from integrations.services import seed_default_services
+            results = seed_default_services()
+            messages.success(request, f"Services initialized: {', '.join(results)}")
+            return redirect('setup_wizard')
+
         client_id = request.POST.get('client_id')
         client_secret = request.POST.get('client_secret')
         
