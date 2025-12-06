@@ -63,3 +63,24 @@ class TestInfomaniakStorageProvider:
         
         file = provider.upload_file('new.txt', b'content')
         assert file.name == 'new.txt'
+
+    def test_delete_file_success(self, mock_instance, mock_requests):
+        provider = InfomaniakStorageProvider(mock_instance)
+        
+        # Mock drive discovery
+        mock_drive_resp = MagicMock()
+        mock_drive_resp.json.return_value = {'result': 'success', 'data': [{'id': 12345}]}
+        
+        # Mock delete response
+        mock_delete_resp = MagicMock()
+        mock_delete_resp.status_code = 204
+        
+        mock_requests.get.return_value = mock_drive_resp
+        mock_requests.delete.return_value = mock_delete_resp
+        
+        result = provider.delete_file('file-123')
+        
+        assert result is True
+        # Verify URL used v3
+        call_args = mock_requests.delete.call_args
+        assert "/3/drive/12345/files/file-123" in call_args[0][0]

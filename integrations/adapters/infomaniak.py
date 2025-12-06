@@ -178,8 +178,8 @@ class InfomaniakStorageProvider(BaseStorageProvider):
             drive_id = self._get_drive_id(token)
             
             headers = {"Authorization": f"Bearer {token}"}
-            # Endpoint: DELETE /2/drive/{drive_id}/files/{file_id}
-            url = f"https://api.infomaniak.com/2/drive/{drive_id}/files/{file_id}"
+            # Endpoint: DELETE /3/drive/{drive_id}/files/{file_id}
+            url = f"https://api.infomaniak.com/3/drive/{drive_id}/files/{file_id}"
             
             self.log.info("deleting_file", file_id=file_id)
             
