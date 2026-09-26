@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Tagesplanungs-Kärtchen: erzeugt die Druckvorlagen als HTML und PDF.
+"""Tagesplanungs-Kärtchen: erzeugt die Druckvorlage als HTML und PDF.
 
 Aufruf:
-    python3 build.py              HTML und PDF (Du- und Sie-Version)
-    python3 build.py --nur-html   nur die HTML-Dateien
+    python3 build.py              HTML und PDF
+    python3 build.py --nur-html   nur die HTML-Datei
 
-Braucht nur Python 3 ohne Zusatzpakete. Für die PDFs wird Google Chrome
+Braucht nur Python 3 ohne Zusatzpakete. Für das PDF wird Google Chrome
 oder Chromium verwendet; den Pfad kann man mit --chrome oder der
-Umgebungsvariable CHROME angeben. Fehlende ARASAAC-Piktogramme werden
-automatisch von static.arasaac.org geladen.
+Umgebungsvariable CHROME angeben. Fehlende Mulberry-Symbole werden
+automatisch heruntergeladen.
 """
 
 import argparse
@@ -17,8 +17,10 @@ import html
 import json
 import os
 import shutil
+import re
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -26,14 +28,17 @@ HIER = Path(__file__).resolve().parent
 PIKTOGRAMME = HIER / "piktogramme"
 AUSGABE = HIER / "druckvorlagen"
 TITEL = "Tagesplanung mit Bildkarten"
+MULBERRY_URL = (
+    "https://cdn.jsdelivr.net/gh/mulberrysymbols/mulberry-symbols@3.6.1/EN/{}.svg"
+)
 LIZENZ_KURZ = (
-    "Piktogramme: Sergio Palao · Herkunft: ARASAAC (arasaac.org) · "
-    "Lizenz: CC BY-NC-SA 4.0 · Eigentum: Regierung von Aragón (Spanien)"
+    "Piktogramme: Mulberry Symbols von Steve Lee (mulberrysymbols.org), teils ergänzt · "
+    "Lizenz: CC BY-SA 4.0"
 )
 LIZENZ_LANG = (
-    "Die verwendeten piktografischen Symbole sind Eigentum der Regierung von Aragón und wurden von "
-    "Sergio Palao für ARASAAC (https://arasaac.org) erstellt, die sie unter der Creative-Commons-Lizenz "
-    "BY-NC-SA 4.0 verbreitet."
+    "Die Piktogramme stammen aus den Mulberry Symbols von Steve Lee (https://mulberrysymbols.org), "
+    "einem freien Symbolsatz für Erwachsene, Lizenz CC BY-SA 4.0. Einige Symbole sind aus "
+    "Mulberry-Symbolen zusammengesetzt oder eigene Zeichnungen im gleichen Stil."
 )
 
 
@@ -55,12 +60,13 @@ def b64(daten):
     return base64.b64encode(daten).decode("ascii")
 
 
-def lade_arasaac(nummer):
-    ziel = PIKTOGRAMME / "arasaac" / f"{nummer}.png"
+def lade_mulberry(name):
+    """Pfad zu einem Mulberry-Symbol; lädt es beim ersten Mal herunter."""
+    ziel = PIKTOGRAMME / "mulberry" / f"{name}.svg"
     if not ziel.exists():
         ziel.parent.mkdir(parents=True, exist_ok=True)
-        url = f"https://static.arasaac.org/pictograms/{nummer}/{nummer}_500.png"
-        print(f"  lade Piktogramm {nummer} …")
+        url = MULBERRY_URL.format(urllib.parse.quote(name))
+        print(f"  lade Mulberry-Symbol {name} …")
         anfrage = urllib.request.Request(
             url, headers={"User-Agent": "tagesplanung-kaertchen"}
         )
@@ -70,7 +76,7 @@ def lade_arasaac(nummer):
 
 
 class Bilder:
-    """Wandelt Bild-Verweise ('arasaac:123', 'eigene:name') in data-URIs um."""
+    """Wandelt Bild-Verweise ('mulberry:name', 'eigene:name') in data-URIs um."""
 
     def __init__(self, schrift_css):
         self.schrift_css = schrift_css
@@ -79,18 +85,18 @@ class Bilder:
     def __call__(self, verweis):
         if verweis not in self.cache:
             quelle, name = verweis.split(":", 1)
-            if quelle == "arasaac":
-                daten = lade_arasaac(name).read_bytes()
-                self.cache[verweis] = "data:image/png;base64," + b64(daten)
+            if quelle == "mulberry":
+                svg = lade_mulberry(name).read_text("utf-8")
             elif quelle == "eigene":
                 svg = (PIKTOGRAMME / "eigene" / f"{name}.svg").read_text("utf-8")
-                if "<text" in svg:  # Schrift einbetten, damit SVG-Texte gleich aussehen
-                    svg = svg.replace(">", f"><style>{self.schrift_css}</style>", 1)
-                self.cache[verweis] = "data:image/svg+xml;base64," + b64(
-                    svg.encode("utf-8")
-                )
             else:
                 raise ValueError(f"Unbekannte Bildquelle: {verweis}")
+            if "<text" in svg:  # Schrift einbetten, damit SVG-Texte gleich aussehen
+                stil = f"<style>{self.schrift_css}</style>"
+                svg = re.sub(r"<svg\b[^>]*>", lambda m: m.group(0) + stil, svg, count=1)
+            self.cache[verweis] = "data:image/svg+xml;base64," + b64(
+                svg.encode("utf-8")
+            )
         return self.cache[verweis]
 
 
@@ -181,8 +187,8 @@ def farben_css(kat):
     )
 
 
-def karte_frage(karte, nr, kat, version, daten, bild):
-    text = karte[version]
+def karte_frage(karte, nr, kat, daten, bild):
+    text = karte["text"]
     return (
         f'<div class="karte frage-karte" style="{farben_css(kat)}">'
         f'<div class="band"><span>{esc(kat["name"])}</span><span class="nr">{nr}</span></div>'
@@ -241,27 +247,22 @@ def schnittmarken():
     return f'<svg class="schnitt" viewBox="0 0 210 297">{"".join(linien)}</svg>'
 
 
-def kartenseite(karten, ueberschrift, seite, seiten, version_name):
+def kartenseite(karten, ueberschrift, seite, seiten):
     zellen = "".join(f'<div class="zelle">{k}</div>' for k in karten)
     zellen += '<div class="zelle"></div>' * (9 - len(karten))
     return (
         f'<section class="page">'
-        f'<div class="kopf"><span>{TITEL} · {esc(ueberschrift)} · {version_name}</span>'
+        f'<div class="kopf"><span>{TITEL} · {esc(ueberschrift)}</span>'
         f"<span>Seite {seite} von {seiten}</span></div>"
         f'<div class="raster">{zellen}</div>{schnittmarken()}'
         f'<div class="fuss">{LIZENZ_KURZ}</div></section>'
     )
 
 
-def deckblatt(daten, kategorien, version, version_name, bild):
+def deckblatt(daten, kategorien, bild):
     fragen = daten["fragekarten"]
     anzahl_bereiche = sum(
         1 for k in kategorien.values() if k["id"] not in ("antwort", "zeit")
-    )
-    beispiel = (
-        "Gehst du heute ins Atelier?"
-        if version == "du"
-        else "Gehen Sie heute ins Atelier?"
     )
     bereiche = "".join(
         f'<li><span class="chip" style="background:{k["farbe"]}"></span>{esc(k["name"])}'
@@ -290,7 +291,7 @@ def deckblatt(daten, kategorien, version, version_name, bild):
     return f"""<section class="page deckblatt">
 <div class="streifen">{streifen}</div>
 <div class="innen">
-  <p class="dachzeile">Bausatz für die Wohnassistenz · {version_name}</p>
+  <p class="dachzeile">Bausatz für die Wohnassistenz</p>
   <h1>{TITEL}</h1>
   <p class="unterzeile">Die wichtigsten Fragen für die Tagesplanung – mit Piktogrammen, zum Ausdrucken,
   Laminieren und Wiederverwenden.</p>
@@ -333,12 +334,11 @@ def deckblatt(daten, kategorien, version, version_name, bild):
     <li>Karten in der Reihenfolge des Tages hinlegen. Die Zeitkarten dienen als Überschriften.</li>
     <li>Antwortkarten helfen, wenn Sprechen schwerfällt: auf «Ja», «Nein» oder «Später» zeigen.</li>
     <li>Mit Klettpunkten auf der Rückseite halten die Karten an einer Pinnwand, einer Tür oder am Kühlschrank.</li>
-    <li>Leere Karten für eigene Fragen nutzen, z. B. «{beispiel}», und ein Bild aufkleben oder zeichnen.</li>
+    <li>Leere Karten für eigene Fragen nutzen, z. B. «Gehst du heute ins Atelier?», und ein Bild aufkleben oder zeichnen.</li>
   </ul>
-  <p class="lizenz">{LIZENZ_LANG} Die Symbole für Tageszeiten, Wetter, Rechnung und Wochenende sind eigene
-  Zeichnungen. Das Kartenset steht ebenfalls unter CC BY-NC-SA 4.0: Verändern und Weitergeben ist erlaubt, wenn die
-  Quellen genannt werden und die gleiche Lizenz gilt. Kommerzielle Nutzung ist nicht erlaubt. Schrift: Atkinson
-  Hyperlegible (Braille Institute, SIL Open Font License).</p>
+  <p class="lizenz">{LIZENZ_LANG} Das Kartenset steht ebenfalls unter CC BY-SA 4.0: Nutzen, Verändern und
+  Weitergeben ist erlaubt, wenn die Quellen genannt werden und die gleiche Lizenz gilt. Schrift: Atkinson Hyperlegible
+  (Braille Institute, SIL Open Font License).</p>
 </div>
 </section>"""
 
@@ -509,14 +509,13 @@ document.addEventListener('change', function (e) {
 """
 
 
-def dokument(daten, version):
-    version_name = "Du-Version" if version == "du" else "Sie-Version"
+def dokument(daten):
     kategorien = {k["id"]: k for k in daten["kategorien"]}
     fcss = schrift_css()
     bild = Bilder(fcss)
 
     fragen = [
-        karte_frage(k, nr, kategorien[k["kat"]], version, daten, bild)
+        karte_frage(k, nr, kategorien[k["kat"]], daten, bild)
         for nr, k in enumerate(daten["fragekarten"], 1)
     ]
     antworten = [
@@ -543,12 +542,12 @@ def dokument(daten, version):
             abschnitte.append((titel, liste[i : i + 9]))
     seiten = len(abschnitte) + 1
 
-    teile = [deckblatt(daten, kategorien, version, version_name, bild)]
+    teile = [deckblatt(daten, kategorien, bild)]
     for nr, (titel, karten) in enumerate(abschnitte, 2):
-        teile.append(kartenseite(karten, titel, nr, seiten, version_name))
+        teile.append(kartenseite(karten, titel, nr, seiten))
 
     werkzeug = (
-        '<div class="werkzeug"><b>' + TITEL + " · " + version_name + "</b>"
+        '<div class="werkzeug"><b>' + TITEL + "</b>"
         "<span>Texte anklicken und ändern. Bei leeren Karten das Bildfeld anklicken, um ein eigenes "
         "Bild einzufügen. Drucken mit «Tatsächliche Grösse / 100 %».</span>"
         '<button onclick="window.print()">Drucken</button></div>'
@@ -556,7 +555,7 @@ def dokument(daten, version):
     return (
         f'<!DOCTYPE html>\n<html lang="de-CH"><head><meta charset="utf-8">'
         f'<meta name="viewport" content="width=device-width, initial-scale=1">'
-        f"<title>{TITEL} ({version_name})</title>"
+        f"<title>{TITEL}</title>"
         f"<style>{fcss}{CSS}</style></head><body>{werkzeug}{''.join(teile)}"
         f"<script>{JS}</script></body></html>\n"
     )
@@ -609,8 +608,8 @@ def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--nur-html", action="store_true", help="keine PDFs erzeugen")
-    parser.add_argument("--chrome", help="Pfad zu Chrome/Chromium für die PDFs")
+    parser.add_argument("--nur-html", action="store_true", help="kein PDF erzeugen")
+    parser.add_argument("--chrome", help="Pfad zu Chrome/Chromium für das PDF")
     args = parser.parse_args()
 
     daten = json.loads((HIER / "karten.json").read_text("utf-8"))
@@ -618,18 +617,17 @@ def main():
     chrome = None if args.nur_html else finde_chrome(args.chrome)
     if not args.nur_html and not chrome:
         print(
-            "Chrome/Chromium nicht gefunden – es werden nur HTML-Dateien erzeugt.",
+            "Chrome/Chromium nicht gefunden – es wird nur die HTML-Datei erzeugt.",
             file=sys.stderr,
         )
 
-    for version, name in (("du", "Du"), ("sie", "Sie")):
-        html_datei = AUSGABE / f"Tagesplanung-Kaertchen_{name}.html"
-        html_datei.write_text(dokument(daten, version), "utf-8")
-        print(f"geschrieben: {html_datei.relative_to(HIER)}")
-        if chrome:
-            pdf_datei = AUSGABE / f"Tagesplanung-Kaertchen_{name}.pdf"
-            drucke_pdf(chrome, html_datei, pdf_datei)
-            print(f"geschrieben: {pdf_datei.relative_to(HIER)}")
+    html_datei = AUSGABE / "Tagesplanung-Kaertchen.html"
+    html_datei.write_text(dokument(daten), "utf-8")
+    print(f"geschrieben: {html_datei.relative_to(HIER)}")
+    if chrome:
+        pdf_datei = AUSGABE / "Tagesplanung-Kaertchen.pdf"
+        drucke_pdf(chrome, html_datei, pdf_datei)
+        print(f"geschrieben: {pdf_datei.relative_to(HIER)}")
 
 
 if __name__ == "__main__":
