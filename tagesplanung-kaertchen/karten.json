@@ -1,0 +1,106 @@
+{
+  "_info": "Inhalte der Tagesplanungs-Kärtchen. Texte hier ändern und danach 'python3 build.py' ausführen. antwort: linie | uhrzeit | janein | gesichter | wochentage | wetter | unterwegs | geld. bild: 'arasaac:<Nummer>' oder 'eigene:<Dateiname ohne .svg>'.",
+  "kategorien": [
+    {"id": "befinden",   "name": "Befinden",            "farbe": "#D63384"},
+    {"id": "tag",        "name": "Tag planen",          "farbe": "#1C7ED6"},
+    {"id": "pflege",     "name": "Körperpflege",        "farbe": "#1098AD"},
+    {"id": "essen",      "name": "Essen & Trinken",     "farbe": "#E8590C"},
+    {"id": "haushalt",   "name": "Haushalt",            "farbe": "#2B8A3E"},
+    {"id": "geld",       "name": "Einkaufen & Geld",    "farbe": "#FAB005", "schrift": "#3D2E00"},
+    {"id": "gesundheit", "name": "Gesundheit",          "farbe": "#E03131"},
+    {"id": "freizeit",   "name": "Freizeit & Kontakte", "farbe": "#7048E8"},
+    {"id": "abend",      "name": "Abend & Nacht",       "farbe": "#1B2A5E"},
+    {"id": "antwort",    "name": "Antwort",             "farbe": "#495057"},
+    {"id": "zeit",       "name": "Zeit",                "farbe": "#8C5A2B"}
+  ],
+  "fragekarten": [
+    {"id": "wie_geht_es",     "kat": "befinden",   "du": "Wie geht es dir heute?",              "sie": "Wie geht es Ihnen heute?",              "antwort": "gesichter",  "bild": "arasaac:10273"},
+    {"id": "geschlafen",      "kat": "befinden",   "du": "Wie hast du geschlafen?",             "sie": "Wie haben Sie geschlafen?",             "antwort": "gesichter",  "bild": "arasaac:2369"},
+    {"id": "sorgen",          "kat": "befinden",   "du": "Was macht dir Sorgen?",               "sie": "Was macht Ihnen Sorgen?",               "antwort": "linie",      "bild": "arasaac:26985"},
+    {"id": "freuen",          "kat": "befinden",   "du": "Worauf freust du dich?",              "sie": "Worauf freuen Sie sich?",               "antwort": "linie",      "bild": "arasaac:9907"},
+    {"id": "hilfe",           "kat": "befinden",   "du": "Brauchst du Hilfe?",                  "sie": "Brauchen Sie Hilfe?",                   "antwort": "janein",     "bild": "arasaac:12252"},
+    {"id": "pause",           "kat": "befinden",   "du": "Brauchst du eine Pause?",             "sie": "Brauchen Sie eine Pause?",              "antwort": "janein",     "bild": "arasaac:3299"},
+
+    {"id": "wochentag",       "kat": "tag",        "du": "Welcher Tag ist heute?",              "sie": "Welcher Tag ist heute?",                "antwort": "wochentage", "bild": "arasaac:37731"},
+    {"id": "wetter",          "kat": "tag",        "du": "Wie ist das Wetter heute?",           "sie": "Wie ist das Wetter heute?",             "antwort": "wetter",     "bild": "arasaac:24721"},
+    {"id": "was_heute",       "kat": "tag",        "du": "Was machst du heute?",                "sie": "Was machen Sie heute?",                 "antwort": "linie",      "bild": "arasaac:37330"},
+    {"id": "wichtig",         "kat": "tag",        "du": "Was ist heute wichtig?",              "sie": "Was ist heute wichtig?",                "antwort": "linie",      "bild": "arasaac:3417"},
+    {"id": "termine",         "kat": "tag",        "du": "Welche Termine hast du heute?",       "sie": "Welche Termine haben Sie heute?",       "antwort": "linie",      "bild": "arasaac:16165"},
+    {"id": "besuch",          "kat": "tag",        "du": "Wer kommt heute zu dir?",             "sie": "Wer kommt heute zu Ihnen?",             "antwort": "linie",      "bild": "arasaac:4772"},
+    {"id": "arbeit",          "kat": "tag",        "du": "Gehst du heute zur Arbeit?",          "sie": "Gehen Sie heute zur Arbeit?",           "antwort": "janein",     "bild": "arasaac:2599"},
+    {"id": "losgehen",        "kat": "tag",        "du": "Wann gehst du aus dem Haus?",         "sie": "Wann gehen Sie aus dem Haus?",          "antwort": "uhrzeit",    "bild": "arasaac:28689"},
+    {"id": "unterwegs",       "kat": "tag",        "du": "Wie kommst du dorthin?",              "sie": "Wie kommen Sie dorthin?",               "antwort": "unterwegs",  "bild": "arasaac:29206"},
+    {"id": "schluessel",      "kat": "tag",        "du": "Hast du den Schlüssel dabei?",        "sie": "Haben Sie den Schlüssel dabei?",        "antwort": "janein",     "bild": "arasaac:2451"},
+    {"id": "morgen",          "kat": "tag",        "du": "Was machst du morgen?",               "sie": "Was machen Sie morgen?",                "antwort": "linie",      "bild": "arasaac:38278"},
+    {"id": "wiedersehen",     "kat": "tag",        "du": "Wann sehen wir uns wieder?",          "sie": "Wann sehen wir uns wieder?",            "antwort": "wochentage", "bild": "arasaac:5896"},
+
+    {"id": "duschen",         "kat": "pflege",     "du": "Wann duschst du?",                    "sie": "Wann duschen Sie?",                     "antwort": "uhrzeit",    "bild": "arasaac:2371"},
+    {"id": "zaehne",          "kat": "pflege",     "du": "Hast du die Zähne geputzt?",          "sie": "Haben Sie die Zähne geputzt?",          "antwort": "janein",     "bild": "arasaac:2326"},
+    {"id": "anziehen",        "kat": "pflege",     "du": "Was ziehst du heute an?",             "sie": "Was ziehen Sie heute an?",              "antwort": "linie",      "bild": "arasaac:27052"},
+    {"id": "frische_kleider", "kat": "pflege",     "du": "Brauchst du frische Kleider?",        "sie": "Brauchen Sie frische Kleider?",         "antwort": "janein",     "bild": "arasaac:38135"},
+
+    {"id": "fruehstueck",     "kat": "essen",      "du": "Was isst du zum Frühstück?",          "sie": "Was essen Sie zum Frühstück?",          "antwort": "linie",      "bild": "arasaac:4626"},
+    {"id": "mittagessen",     "kat": "essen",      "du": "Was isst du zu Mittag?",              "sie": "Was essen Sie zu Mittag?",              "antwort": "linie",      "bild": "arasaac:4611"},
+    {"id": "abendessen",      "kat": "essen",      "du": "Was isst du zu Abend?",               "sie": "Was essen Sie zu Abend?",               "antwort": "linie",      "bild": "arasaac:4592"},
+    {"id": "kochen",          "kat": "essen",      "du": "Was kochst du heute?",                "sie": "Was kochen Sie heute?",                 "antwort": "linie",      "bild": "arasaac:2342"},
+    {"id": "trinken",         "kat": "essen",      "du": "Hast du genug getrunken?",            "sie": "Haben Sie genug getrunken?",            "antwort": "janein",     "bild": "arasaac:2276"},
+
+    {"id": "aufraeumen",      "kat": "haushalt",   "du": "Was räumst du heute auf?",            "sie": "Was räumen Sie heute auf?",             "antwort": "linie",      "bild": "arasaac:37938"},
+    {"id": "putzen",          "kat": "haushalt",   "du": "Was putzt du heute?",                 "sie": "Was putzen Sie heute?",                 "antwort": "linie",      "bild": "arasaac:3323"},
+    {"id": "waesche",         "kat": "haushalt",   "du": "Musst du Wäsche waschen?",            "sie": "Müssen Sie Wäsche waschen?",            "antwort": "janein",     "bild": "arasaac:5496"},
+    {"id": "abwaschen",       "kat": "haushalt",   "du": "Musst du abwaschen?",                 "sie": "Müssen Sie abwaschen?",                 "antwort": "janein",     "bild": "arasaac:8617"},
+    {"id": "abfall",          "kat": "haushalt",   "du": "Musst du den Abfall rausbringen?",    "sie": "Müssen Sie den Abfall rausbringen?",    "antwort": "janein",     "bild": "arasaac:15479"},
+
+    {"id": "einkaufsliste",   "kat": "geld",       "du": "Was musst du einkaufen?",             "sie": "Was müssen Sie einkaufen?",             "antwort": "linie",      "bild": "arasaac:9058"},
+    {"id": "einkaufen_wann",  "kat": "geld",       "du": "Wann gehst du einkaufen?",            "sie": "Wann gehen Sie einkaufen?",             "antwort": "uhrzeit",    "bild": "arasaac:28665"},
+    {"id": "geld_noch",       "kat": "geld",       "du": "Wie viel Geld hast du noch?",         "sie": "Wie viel Geld haben Sie noch?",         "antwort": "geld",       "bild": "arasaac:2689"},
+    {"id": "geld_brauchen",   "kat": "geld",       "du": "Wie viel Geld brauchst du heute?",    "sie": "Wie viel Geld brauchen Sie heute?",     "antwort": "geld",       "bild": "arasaac:30480"},
+    {"id": "post",            "kat": "geld",       "du": "Hast du Post bekommen?",              "sie": "Haben Sie Post bekommen?",              "antwort": "janein",     "bild": "arasaac:9025"},
+    {"id": "rechnung",        "kat": "geld",       "du": "Musst du eine Rechnung bezahlen?",    "sie": "Müssen Sie eine Rechnung bezahlen?",    "antwort": "janein",     "bild": "eigene:rechnung"},
+
+    {"id": "medis_genommen",  "kat": "gesundheit", "du": "Hast du deine Medikamente genommen?", "sie": "Haben Sie Ihre Medikamente genommen?",  "antwort": "janein",     "bild": "arasaac:30117"},
+    {"id": "medis_wann",      "kat": "gesundheit", "du": "Wann nimmst du deine Medikamente?",   "sie": "Wann nehmen Sie Ihre Medikamente?",     "antwort": "uhrzeit",    "bild": "arasaac:39869"},
+    {"id": "schmerzen",       "kat": "gesundheit", "du": "Hast du Schmerzen?",                  "sie": "Haben Sie Schmerzen?",                  "antwort": "janein",     "bild": "arasaac:2367"},
+    {"id": "arzt",            "kat": "gesundheit", "du": "Hast du einen Arzttermin?",           "sie": "Haben Sie einen Arzttermin?",           "antwort": "janein",     "bild": "arasaac:2467"},
+
+    {"id": "schoenes",        "kat": "freizeit",   "du": "Was machst du heute Schönes?",        "sie": "Was machen Sie heute Schönes?",         "antwort": "linie",      "bild": "arasaac:11653"},
+    {"id": "draussen",        "kat": "freizeit",   "du": "Gehst du heute nach draussen?",       "sie": "Gehen Sie heute nach draussen?",        "antwort": "janein",     "bild": "arasaac:8651"},
+    {"id": "treffen",         "kat": "freizeit",   "du": "Wen triffst du heute?",               "sie": "Wen treffen Sie heute?",                "antwort": "linie",      "bild": "arasaac:2255"},
+    {"id": "anrufen",         "kat": "freizeit",   "du": "Wen rufst du heute an?",              "sie": "Wen rufen Sie heute an?",               "antwort": "linie",      "bild": "arasaac:38787"},
+    {"id": "wochenende",      "kat": "freizeit",   "du": "Was machst du am Wochenende?",        "sie": "Was machen Sie am Wochenende?",         "antwort": "linie",      "bild": "eigene:wochenende"},
+
+    {"id": "gut_geklappt",    "kat": "abend",      "du": "Was hat heute gut geklappt?",         "sie": "Was hat heute gut geklappt?",           "antwort": "linie",      "bild": "arasaac:38564"},
+    {"id": "schwierig",       "kat": "abend",      "du": "Was war heute schwierig?",            "sie": "Was war heute schwierig?",              "antwort": "linie",      "bild": "arasaac:4629"},
+    {"id": "herd",            "kat": "abend",      "du": "Ist der Herd aus?",                   "sie": "Ist der Herd aus?",                     "antwort": "janein",     "bild": "arasaac:3373"},
+    {"id": "tuer",            "kat": "abend",      "du": "Ist die Tür abgeschlossen?",          "sie": "Ist die Tür abgeschlossen?",            "antwort": "janein",     "bild": "arasaac:37200"},
+    {"id": "wecker",          "kat": "abend",      "du": "Hast du den Wecker gestellt?",        "sie": "Haben Sie den Wecker gestellt?",        "antwort": "janein",     "bild": "arasaac:7255"},
+    {"id": "ins_bett",        "kat": "abend",      "du": "Wann gehst du ins Bett?",             "sie": "Wann gehen Sie ins Bett?",              "antwort": "uhrzeit",    "bild": "arasaac:4553"},
+    {"id": "aufstehen",       "kat": "abend",      "du": "Wann stehst du auf?",                 "sie": "Wann stehen Sie auf?",                  "antwort": "uhrzeit",    "bild": "arasaac:8988"}
+  ],
+  "antwortkarten": [
+    {"id": "ja",             "text": "Ja",                      "bild": "arasaac:5584"},
+    {"id": "nein",           "text": "Nein",                    "bild": "arasaac:5526"},
+    {"id": "vielleicht",     "text": "Vielleicht",              "bild": "arasaac:11696"},
+    {"id": "weiss_nicht",    "text": "Ich weiss es nicht",      "bild": "arasaac:7180"},
+    {"id": "spaeter",        "text": "Später",                  "bild": "arasaac:32749"},
+    {"id": "fertig",         "text": "Fertig",                  "bild": "arasaac:28429"},
+    {"id": "ich_hilfe",      "text": "Ich brauche Hilfe",       "bild": "arasaac:12252"},
+    {"id": "ich_pause",      "text": "Ich brauche eine Pause",  "bild": "arasaac:3299"},
+    {"id": "verstehe_nicht", "text": "Ich verstehe das nicht",  "bild": "arasaac:27363"}
+  ],
+  "zeitkarten": [
+    {"id": "am_morgen",     "text": "Am Morgen",     "bild": "eigene:morgen"},
+    {"id": "am_mittag",     "text": "Am Mittag",     "bild": "eigene:mittag"},
+    {"id": "am_nachmittag", "text": "Am Nachmittag", "bild": "eigene:nachmittag"},
+    {"id": "am_abend",      "text": "Am Abend",      "bild": "eigene:abend"},
+    {"id": "in_der_nacht",  "text": "In der Nacht",  "bild": "eigene:nacht"},
+    {"id": "heute",         "text": "Heute",         "bild": "arasaac:38276"},
+    {"id": "morgen_tag",    "text": "Morgen",        "zusatz": "der nächste Tag", "bild": "arasaac:38278"},
+    {"id": "zuerst",        "text": "Zuerst",        "bild": "arasaac:37753"},
+    {"id": "dann",          "text": "Dann",          "bild": "arasaac:37748"}
+  ],
+  "symbole": {
+    "wetter":    ["eigene:sonne", "eigene:wolke", "eigene:regen", "eigene:schnee"],
+    "unterwegs": ["arasaac:2432", "arasaac:6935", "arasaac:2263", "arasaac:27082", "arasaac:7282"]
+  }
+}
