@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Erzeugt die eigenen Symbole in piktogramme/eigene/.
 
-Ein Teil sind eigene Zeichnungen (Tageszeiten, Dosett, Kochfeld, Wecker,
-Tram, Rechnung, Wochenende), der Rest setzt Mulberry-Symbole neu zusammen,
-z. B. Teller + Sonne = Mittagessen. Die fertigen SVG-Dateien liegen bereits
-im Ordner; das Skript braucht man nur, wenn man sie ändern will.
+Ein Teil sind eigene Zeichnungen (Rollstuhl, Person im Rollstuhl, Standing,
+Thermometer, Tageszeiten, Wecker, Wochenende), der Rest setzt Mulberry-Symbole
+neu zusammen, z. B. Teller + Sonne = Mittagessen. Die fertigen SVG-Dateien
+liegen bereits im Ordner; das Skript braucht man nur, wenn man sie ändern will.
 
 Aufruf:
     python3 symbole.py
@@ -14,7 +14,6 @@ Konturen #231f20 in 21 bzw. 14 Einheiten Strichstärke, flache Farben.
 """
 
 import math
-import random
 import re
 
 from build import PIKTOGRAMME, lade_mulberry
@@ -189,58 +188,6 @@ def tageszeiten():
 # ---------------------------------------------------------------- eigene Gegenstände
 
 
-def dosett():
-    tage = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
-    teile = [
-        f'<rect x="60" y="250" width="730" height="420" rx="34" fill="{HELLBLAU}" '
-        f'stroke="{LINIE}" stroke-width="{DICK}"/>'
-    ]
-    b, h, luecke = 86, 104, 12
-    x0, y0 = 60 + (730 - (7 * b + 6 * luecke)) / 2, 250 + (420 - (3 * h + 2 * 18)) / 2
-    for s, tag in enumerate(tage):
-        x = x0 + s * (b + luecke)
-        teile.append(
-            f'<text x="{x + b / 2:.1f}" y="222" text-anchor="middle" font-family="{SCHRIFT}" '
-            f'font-weight="700" font-size="46" fill="{LINIE}">{tag}</text>'
-        )
-        for z in range(3):
-            y = y0 + z * (h + 18)
-            teile.append(
-                f'<rect x="{x:.1f}" y="{y:.1f}" width="{b}" height="{h}" rx="14" fill="#fff" '
-                f'stroke="{LINIE}" stroke-width="{DUENN}"/>'
-            )
-            if s >= 2 and (s + z) % 3 != 1:  # Mo und Di sind schon genommen
-                cx, cy = x + b / 2, y + h / 2
-                if z == 1:
-                    teile.append(
-                        f'<rect x="{cx - 26:.1f}" y="{cy - 13:.1f}" width="52" height="26" rx="13" '
-                        f'fill="{ROT}" stroke="{LINIE}" stroke-width="8"/>'
-                    )
-                else:
-                    teile.append(
-                        f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="19" fill="#faa41a" '
-                        f'stroke="{LINIE}" stroke-width="8"/>'
-                    )
-    return svg("".join(teile))
-
-
-def kochfeld():
-    teile = [
-        f'<rect x="85" y="170" width="680" height="510" rx="40" fill="#2b2b2b" '
-        f'stroke="{LINIE}" stroke-width="{DICK}"/>'
-    ]
-    for cx, cy, r in ((270, 330, 110), (590, 300, 76), (590, 486, 92), (270, 530, 66)):
-        teile.append(
-            f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{GRAU}" stroke-width="13"/>'
-            f'<circle cx="{cx}" cy="{cy}" r="{r * 0.58:.0f}" fill="none" stroke="#797878" stroke-width="9"/>'
-        )
-    for k in range(7):
-        teile.append(
-            f'<rect x="{278 + k * 44}" y="616" width="28" height="22" rx="6" fill="#797878"/>'
-        )
-    return svg("".join(teile))
-
-
 def wecker():
     cx, cy, r = 425, 480, 262
     teile = [
@@ -270,29 +217,6 @@ def wecker():
     return svg("".join(teile))
 
 
-def tram():
-    fenster = "".join(
-        f'<rect x="{92 + k * 114}" y="370" width="94" height="104" rx="14" fill="{HELLBLAU}" '
-        f'stroke="{LINIE}" stroke-width="{DUENN}"/>'
-        for k in range(6)
-    )
-    raeder = "".join(
-        f'<circle cx="{x}" cy="600" r="36" fill="{DUNKEL}" stroke="{LINIE}" stroke-width="{DUENN}"/>'
-        for x in (185, 295, 555, 665)
-    )
-    koerper = 'x="55" y="330" width="740" height="262" rx="46"'
-    return svg(
-        f'<path d="M30 196H820" stroke="{LINIE}" stroke-width="12"/>'
-        f'<path d="M378 330L452 268L392 208M338 204H502" fill="none" stroke="{LINIE}" '
-        f'stroke-width="{DICK}" stroke-linecap="round" stroke-linejoin="round"/>'
-        f'<defs><clipPath id="wagen"><rect {koerper}/></clipPath></defs>'
-        f'<rect {koerper} fill="#fff"/><rect x="55" y="505" width="740" height="90" '
-        f'fill="{BLAU}" clip-path="url(#wagen)"/>'
-        f'<rect {koerper} fill="none" stroke="{LINIE}" stroke-width="{DICK}"/>{fenster}{raeder}'
-        f'<path d="M30 646H820" stroke="{LINIE}" stroke-width="{DUENN}"/>'
-    )
-
-
 def einkaufszettel():
     zeilen = []
     for k, y in enumerate((210, 318, 426, 534)):
@@ -311,50 +235,6 @@ def einkaufszettel():
         f'fill="#fff" stroke="{LINIE}" stroke-width="{DICK}"/>{"".join(zeilen)}</g>'
     )
     return svg(zettel + mulberry("basket_2", 420, 410, 410, 418, (66, 62, 776, 784)))
-
-
-def rechnung():
-    """Schweizer QR-Rechnung, vereinfacht (Zeichenfläche 500)."""
-    random.seed(7)
-    n, m, x0, y0 = 17, 7, 146, 282  # 17 × 17 Module à 7 Einheiten
-    raster = [[random.random() < 0.5 for _ in range(n)] for _ in range(n)]
-    for ox, oy in ((0, 0), (n - 7, 0), (0, n - 7)):  # Positionsmarken
-        for i in range(-1, 8):
-            for j in range(-1, 8):
-                if 0 <= oy + i < n and 0 <= ox + j < n:
-                    innen = 0 <= i < 7 and 0 <= j < 7
-                    raster[oy + i][ox + j] = innen and (
-                        i in (0, 6) or j in (0, 6) or (2 <= i <= 4 and 2 <= j <= 4)
-                    )
-    module = "".join(
-        f'<rect x="{x0 + j * m}" y="{y0 + i * m}" width="{m}" height="{m}"/>'
-        for i in range(n)
-        for j in range(n)
-        if raster[i][j]
-    )
-    cx, cy = x0 + n * m / 2, y0 + n * m / 2
-    kreuz = (
-        f'<rect x="{cx - 19}" y="{cy - 19}" width="38" height="38" fill="#fff"/>'
-        f'<rect x="{cx - 15}" y="{cy - 15}" width="30" height="30" fill="{LINIE}"/>'
-        f'<rect x="{cx - 3.5}" y="{cy - 10}" width="7" height="20" fill="#fff"/>'
-        f'<rect x="{cx - 10}" y="{cy - 3.5}" width="20" height="7" fill="#fff"/>'
-    )
-    zeilen = "".join(
-        f'<line x1="150" y1="{y}" x2="350" y2="{y}"/>' for y in (160, 192, 224)
-    )
-    return svg(
-        f'<rect x="112" y="36" width="276" height="428" rx="12" fill="#fff" stroke="{LINIE}" stroke-width="12"/>'
-        f'<g stroke="{LINIE}" stroke-width="9" stroke-linecap="round"><line x1="260" y1="84" x2="350" y2="84"/>'
-        '<line x1="290" y1="112" x2="350" y2="112"/></g>'
-        f'<g stroke="#868E96" stroke-width="9" stroke-linecap="round">{zeilen}</g>'
-        f'<line x1="126" y1="258" x2="374" y2="258" stroke="{LINIE}" stroke-width="5" stroke-dasharray="10 9"/>'
-        f'<g fill="{LINIE}">{module}</g>{kreuz}'
-        f'<text x="324" y="338" text-anchor="middle" font-family="{SCHRIFT}" font-weight="700" '
-        f'font-size="44" fill="{LINIE}">CHF</text>'
-        f'<g stroke="{LINIE}" stroke-width="7" stroke-linecap="round"><line x1="284" y1="388" x2="364" y2="388"/>'
-        '<line x1="284" y1="416" x2="344" y2="416"/></g>',
-        groesse=500,
-    )
 
 
 def wochenende():
@@ -377,21 +257,201 @@ def wochenende():
     return svg("".join(teile), groesse=500)
 
 
+# ---------------------------------------------------------------- Figuren im Mulberry-Stil
+
+HAUT, HAAR, HEMD, HOSE, POLSTER = "#ffeec8", "#9e5c26", "#a9d7f3", "#7a7878", BLAU
+FIGUR = 16  # Strichstärke der Figuren
+
+
+def form(d, fuellung, breite=FIGUR):
+    return (
+        f'<path d="{d}" fill="{fuellung}" stroke="{LINIE}" stroke-width="{breite}" '
+        'stroke-linejoin="round"/>'
+    )
+
+
+def hals(dx=0):
+    return f'<g transform="translate({dx} 0)">{form("M300 240V200H338V240Z", HAUT)}</g>'
+
+
+def kopf(dx=0):
+    """Kopf im Profil mit Blick nach rechts, Mitte etwa bei (320 + dx, 148)."""
+    teile = (
+        form(
+            "M318 72C362 72 388 102 388 138L402 160Q404 167 396 169L388 171"
+            "C384 205 356 226 320 226C282 226 254 196 254 150C254 104 280 72 318 72Z",
+            HAUT,
+        )
+        + form(
+            "M252 162C238 96 280 58 330 60C374 62 398 90 394 118C366 100 334 104 310 126"
+            "C300 136 294 152 290 174C274 178 258 174 252 162Z",
+            HAAR,
+            14,
+        )
+        + f'<ellipse cx="300" cy="160" rx="14" ry="20" fill="{HAUT}" stroke="{LINIE}" stroke-width="10"/>'
+        + f'<circle cx="362" cy="138" r="8" fill="{LINIE}"/>'
+        + f'<path d="M346 118Q361 110 376 117M362 196Q373 200 384 193" fill="none" '
+        f'stroke="{LINIE}" stroke-width="8" stroke-linecap="round"/>'
+    )
+    return f'<g transform="translate({dx} 0)">{teile}</g>'
+
+
+def person_sitzend():
+    """Sitzende Person im Profil, passend zum Rollstuhl."""
+    return (
+        hals()
+        + form("M240 400L238 300Q240 240 300 232H340Q388 240 392 300L398 400Z", HEMD)
+        + form("M524 440L568 430L666 684L614 696Z", HOSE)
+        + form("M604 670Q612 660 660 662Q716 670 736 700H604Z", LINIE)
+        + form(
+            "M238 384H398Q402 392 412 392H540Q568 395 568 426Q568 460 540 462"
+            "H262Q238 462 238 440Z",
+            HOSE,
+        )
+        + kopf()
+        + form(
+            "M292 262Q288 330 312 405Q318 420 336 420L470 418V372H356"
+            "Q342 320 340 262Q330 244 312 244Q296 246 292 262Z",
+            HEMD,
+        )
+        + form("M466 372Q505 366 512 390Q514 414 480 420H466Z", HAUT)
+    )
+
+
+RAD_X, RAD_Y = 330, 605
+
+
+def rollstuhl(mit_person=True):
+    """Rollstuhl im Profil (Fahrtrichtung rechts), wahlweise mit Person."""
+    rahmen = (
+        '<path d="M160 214Q204 205 208 238L222 470H548L562 690L575 733M548 480L660 690'
+        f'M640 700H745" fill="none" stroke="{LINIE}" stroke-width="30" '
+        'stroke-linecap="round" stroke-linejoin="round"/>'
+    )
+    speichen = "".join(
+        f'<line x1="{RAD_X + 26 * math.cos(math.radians(a)):.1f}" y1="{RAD_Y + 26 * math.sin(math.radians(a)):.1f}" '
+        f'x2="{RAD_X + 128 * math.cos(math.radians(a)):.1f}" y2="{RAD_Y + 128 * math.sin(math.radians(a)):.1f}"/>'
+        for a in range(0, 360, 30)
+    )
+    raeder = (
+        f'<circle cx="{RAD_X}" cy="{RAD_Y}" r="160" fill="none" stroke="{LINIE}" stroke-width="30"/>'
+        f'<circle cx="{RAD_X}" cy="{RAD_Y}" r="136" fill="none" stroke="{HOSE}" stroke-width="18"/>'
+        f'<g stroke="{LINIE}" stroke-width="7">{speichen}</g>'
+        f'<circle cx="{RAD_X}" cy="{RAD_Y}" r="26" fill="{HOSE}" stroke="{LINIE}" stroke-width="8"/>'
+        f'<circle cx="575" cy="733" r="40" fill="{HOSE}" stroke="{LINIE}" stroke-width="14"/>'
+        f'<circle cx="575" cy="733" r="9" fill="{LINIE}"/>'
+    )
+    return rahmen + (person_sitzend() if mit_person else "") + raeder
+
+
+def standing():
+    """Stehtrainer im Profil mit Hüft- und Kniepolster, Tisch und Rollen."""
+    dx = 72
+    return (
+        f'<rect x="246" y="480" width="30" height="262" fill="{GRAU}" stroke="{LINIE}" stroke-width="14"/>'
+        f'<rect x="262" y="408" width="56" height="114" rx="22" fill="{POLSTER}" stroke="{LINIE}" stroke-width="14"/>'
+        f'<rect x="200" y="738" width="500" height="34" rx="14" fill="{HOSE}" stroke="{LINIE}" stroke-width="16"/>'
+        f'<circle cx="244" cy="796" r="22" fill="{DUNKEL}" stroke="{LINIE}" stroke-width="12"/>'
+        f'<circle cx="656" cy="796" r="22" fill="{DUNKEL}" stroke="{LINIE}" stroke-width="12"/>'
+        f'<rect x="546" y="446" width="32" height="296" fill="{GRAU}" stroke="{LINIE}" stroke-width="14"/>'
+        + hals(dx)
+        + form("M316 430L312 300Q314 240 372 232H412Q460 240 464 300L470 430Z", HEMD)
+        + form(
+            "M314 418H470L466 520Q462 575 452 612L440 712H368L352 612Q326 530 314 470Z",
+            HOSE,
+        )
+        + form("M360 700H440Q494 706 508 738H354Z", LINIE)
+        + f'<rect x="452" y="556" width="100" height="74" rx="24" fill="{POLSTER}" stroke="{LINIE}" stroke-width="14"/>'
+        + f'<rect x="398" y="420" width="372" height="42" rx="12" fill="#f6cc4b" stroke="{LINIE}" stroke-width="16"/>'
+        + form(
+            "M366 262Q362 330 378 408Q384 422 400 422L540 420V380H422"
+            "Q414 320 414 262Q404 244 388 244Q370 246 366 262Z",
+            HEMD,
+        )
+        + form("M536 380Q578 376 584 400Q586 420 552 422H536Z", HAUT)
+        + kopf(dx)
+    )
+
+
+def pfeilspitze(x, y, richtung_x, richtung_y, laenge=46, breite=24):
+    """Zwei Striche als Pfeilspitze an (x, y) in Richtung (richtung_x, richtung_y)."""
+    winkel = math.atan2(richtung_y, richtung_x)
+    punkte = [
+        (
+            x - laenge * math.cos(winkel + s * 0.6),
+            y - laenge * math.sin(winkel + s * 0.6),
+        )
+        for s in (-1, 1)
+    ]
+    (x1, y1), (x2, y2) = punkte
+    return (
+        f'<path d="M{x1:.1f} {y1:.1f}L{x} {y}L{x2:.1f} {y2:.1f}" fill="none" stroke="{LINIE}" '
+        f'stroke-width="{breite}" stroke-linecap="round" stroke-linejoin="round"/>'
+    )
+
+
+def kurvenpfeil(p0, c1, c2, p1, breite=24):
+    (x0, y0), (a, b), (c, d), (x1, y1) = p0, c1, c2, p1
+    return (
+        f'<path d="M{x0} {y0}C{a} {b} {c} {d} {x1} {y1}" fill="none" stroke="{LINIE}" '
+        f'stroke-width="{breite}" stroke-linecap="round"/>'
+        + pfeilspitze(x1, y1, x1 - c, y1 - d)
+    )
+
+
+def kreispfeile(cx, cy, r):
+    """Zwei gebogene Pfeile im Kreis: «anders, umstellen»."""
+    teile = []
+    for von, bis in ((200, 330), (20, 150)):
+        a0, a1 = math.radians(von), math.radians(bis)
+        x0, y0 = cx + r * math.cos(a0), cy + r * math.sin(a0)
+        x1, y1 = cx + r * math.cos(a1), cy + r * math.sin(a1)
+        teile.append(
+            f'<path d="M{x0:.1f} {y0:.1f}A{r} {r} 0 0 1 {x1:.1f} {y1:.1f}" fill="none" '
+            f'stroke="{LINIE}" stroke-width="24" stroke-linecap="round"/>'
+            + pfeilspitze(round(x1, 1), round(y1, 1), -math.sin(a1), math.cos(a1), 40)
+        )
+    return "".join(teile)
+
+
+def schneeflocke(cx, cy, r, farbe="#1c7ed6"):
+    wege = []
+    for a in range(0, 360, 60):
+        t = math.radians(a - 90)
+        wege.append(f"M{cx} {cy}L{cx + r * math.cos(t):.1f} {cy + r * math.sin(t):.1f}")
+        bx, by = cx + 0.58 * r * math.cos(t), cy + 0.58 * r * math.sin(t)
+        for seite in (-1, 1):
+            u = t + seite * math.radians(45)
+            wege.append(
+                f"M{bx:.1f} {by:.1f}L{bx + 0.34 * r * math.cos(u):.1f} {by + 0.34 * r * math.sin(u):.1f}"
+            )
+    return (
+        f'<path d="{"".join(wege)}" fill="none" stroke="{farbe}" stroke-width="20" '
+        'stroke-linecap="round"/>'
+    )
+
+
+def thermometer():
+    skala = "".join(
+        f'<line x1="484" y1="{y}" x2="{524 if k % 2 == 0 else 508}" y2="{y}"/>'
+        for k, y in enumerate(range(200, 540, 56))
+    )
+    return svg(
+        f'<path d="M385 150A40 40 0 0 1 465 150V568A90 90 0 1 1 385 568Z" fill="#fff" '
+        f'stroke="{LINIE}" stroke-width="{DICK}" stroke-linejoin="round"/>'
+        f'<rect x="408" y="330" width="34" height="320" rx="17" fill="{ROT}"/>'
+        f'<circle cx="425" cy="649" r="64" fill="{ROT}"/>'
+        f'<g stroke="{LINIE}" stroke-width="{DUENN}" stroke-linecap="round">{skala}</g>'
+        + schneeflocke(200, 560, 104)
+        + sonne(672, 205, r=54)
+    )
+
+
 # ---------------------------------------------------------------- Kombinationen aus Mulberry
 
 
 def kombinationen():
-    zeichen = (
-        '<g transform="translate(418 372) rotate(23)"><rect x="-30" y="-165" width="60" height="205" '
-        f'rx="30" fill="{ROT}"/><circle cx="0" cy="112" r="34" fill="{ROT}"/></g>'
-    )
-    gedanke = lade_mulberry("wrong_thought").read_text("utf-8")
-    gedanke = re.sub(
-        r'<path stroke-width="21"[^>]*d="M5[0-9.]+ [0-9.]+l[^"]*"/>', "", gedanke
-    )
-    gedanke = gedanke.replace(
-        "</svg>", fragezeichen(598, 150, 150, strich=24) + "</svg>"
-    )
+    klein = 0.66  # Rollstuhl mit Person im Bild «draussen»
     return {
         "wie_geht_es": svg(
             fragezeichen(60, 150, 540)
@@ -406,9 +466,6 @@ def kombinationen():
             + '<circle cx="640" cy="600" r="182" fill="#fff"/>'
             + mulberry("clock", 470, 430, 340, 340, (49, 55, 797, 803))
         ),
-        "wichtig": svg(
-            mulberry("post-it", 40, 40, 770, 745, (70, 79, 785, 770)) + zeichen
-        ),
         "mittagessen": svg(
             mulberry("dinner", 40, 310, 640, 450, (79, 179, 765, 661))
             + mulberry("sun", 555, 40, 265, 265, (88, 89, 762, 759))
@@ -417,26 +474,41 @@ def kombinationen():
             mulberry("dinner", 40, 310, 640, 450, (79, 179, 765, 661))
             + mulberry("night", 540, 60, 280, 241, (88, 78, 760, 656))
         ),
-        "freizeit": svg(
-            mulberry("music", 40, 80, 390, 309, (105, 168, 746, 676))
-            + mulberry("playing_cards", 455, 40, 355, 363, (66, 62, 780, 792))
-            + mulberry("read_book_,_to", 280, 405, 290, 410, (166, 58, 683, 789))
+        "was_trinken": svg(
+            fragezeichen(50, 150, 540)
+            + mulberry("water", 320, 70, 245, 402, (222, 91, 649, 793))
+            + mulberry("tea", 480, 400, 330, 330, (71, 67, 780, 780))
         ),
-        "vielleicht": svg(
-            fragezeichen(300, 40, 500)
-            + mulberry("correct", 50, 590, 330, 217, (94, 204, 762, 643), farbe=GRUEN)
-            + mulberry(
-                "mistake_no_wrong", 545, 565, 250, 241, (90, 111, 749, 746), farbe=ROT
-            )
+        "rollstuhl": svg(
+            rollstuhl(mit_person=False)
+            + kurvenpfeil((720, 110), (730, 300), (620, 390), (452, 410))
         ),
-        "weiss_nicht": gedanke,
-        "ja": svg(
-            mulberry("correct", 60, 190, 730, 480, (94, 204, 762, 643), farbe=GRUEN)
+        "sitzt_bequem": svg(rollstuhl() + fragezeichen(600, 60, 300)),
+        "anders_sitzen": svg(rollstuhl() + kreispfeile(650, 220, 115)),
+        "standing": svg(standing()),
+        "hinlegen": svg(
+            mulberry("lie_on_back_,_to", 40, 232, 770, 385, (81, 254, 769, 598))
         ),
-        "nein": svg(
-            mulberry(
-                "mistake_no_wrong", 110, 110, 630, 607, (90, 111, 749, 746), farbe=ROT
-            )
+        "liegst_bequem": svg(
+            mulberry("lie_on_back_,_to", 40, 330, 770, 385, (81, 254, 769, 598))
+            + fragezeichen(600, 40, 260)
+        ),
+        "anders_liegen": svg(
+            mulberry("lie_on_back_,_to", 40, 330, 770, 385, (81, 254, 769, 598))
+            + kreispfeile(650, 175, 115)
+        ),
+        "draussen": svg(
+            f'<rect x="30" y="742" width="790" height="40" rx="20" fill="#abd153" '
+            f'stroke="{LINIE}" stroke-width="{DUENN}"/>'
+            + mulberry("tree", 482, 277, 330, 465, (170, 70, 675, 781))
+            + mulberry("sun", 60, 40, 190, 190, (88, 89, 762, 759))
+            + f'<g transform="translate({40 - 145 * klein:.1f} {745 - 787 * klein:.1f}) scale({klein})">'
+            + rollstuhl()
+            + "</g>"
+        ),
+        "wie_war_tag": svg(
+            mulberry("good", 40, 60, 390, 404, (107, 94, 754, 764))
+            + mulberry("bad", 450, 360, 350, 471, (149, 70, 670, 783))
         ),
     }
 
@@ -445,12 +517,9 @@ def main():
     EIGENE.mkdir(parents=True, exist_ok=True)
     symbole = {
         **tageszeiten(),
-        "dosett": dosett(),
-        "kochfeld": kochfeld(),
         "wecker": wecker(),
-        "tram": tram(),
+        "thermometer": thermometer(),
         "einkaufszettel": einkaufszettel(),
-        "rechnung": rechnung(),
         "wochenende": wochenende(),
         **kombinationen(),
     }

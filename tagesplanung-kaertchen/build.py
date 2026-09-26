@@ -100,83 +100,7 @@ class Bilder:
         return self.cache[verweis]
 
 
-# ---------------------------------------------------------------- Symbole (inline SVG)
-
-HAKEN = (
-    '<svg class="ico" viewBox="0 0 24 24"><path d="M4.5 12.5 10 18 19.5 6.5" fill="none" '
-    'stroke="#2B8A3E" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-)
-KREUZ = (
-    '<svg class="ico" viewBox="0 0 24 24"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" '
-    'stroke="#E03131" stroke-width="3.6" stroke-linecap="round"/></svg>'
-)
-UHR = (
-    '<svg class="ico uhr" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="#fff" '
-    'stroke="#212529" stroke-width="2"/><path d="M12 6.5V12l3.8 2.4" fill="none" stroke="#212529" '
-    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-)
-STIFT = (
-    '<svg class="ico stift" viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L15.8 4.8a2 2 0 0 1 2.8 0'
-    'l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z" fill="#fff" stroke="#495057" stroke-width="1.8" '
-    'stroke-linejoin="round"/><path d="M14 6.6l3.4 3.4" stroke="#495057" stroke-width="1.8"/></svg>'
-)
-
-
-def gesicht(stimmung):
-    farben = {"gut": "#8CE99A", "mittel": "#FFE066", "schlecht": "#FFA8A8"}
-    mund = {
-        "gut": "M12.5 24.5Q20 31.5 27.5 24.5",
-        "mittel": "M13 26.5H27",
-        "schlecht": "M12.5 29Q20 22 27.5 29",
-    }
-    return (
-        f'<svg class="gesicht" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17.5" '
-        f'fill="{farben[stimmung]}" stroke="#212529" stroke-width="2.6"/>'
-        '<circle cx="14" cy="16" r="2.5" fill="#212529"/><circle cx="26" cy="16" r="2.5" fill="#212529"/>'
-        f'<path d="{mund[stimmung]}" fill="none" stroke="#212529" stroke-width="2.6" '
-        'stroke-linecap="round"/></svg>'
-    )
-
-
 # ---------------------------------------------------------------- Karten-Bausteine
-
-
-def antwortfeld(art, daten, bild):
-    if art == "linie":
-        return (
-            f'<div class="af af-linie">{STIFT}<span class="schreiblinie"></span></div>'
-        )
-    if art == "uhrzeit":
-        return (
-            f'<div class="af">{UHR}<span class="feld"></span><span class="dp">:</span>'
-            '<span class="feld"></span><span>Uhr</span></div>'
-        )
-    if art == "janein":
-        return (
-            f'<div class="af"><span class="wahl">{HAKEN}Ja</span>'
-            f'<span class="wahl">{KREUZ}Nein</span></div>'
-        )
-    if art == "gesichter":
-        return (
-            '<div class="af af-gesichter">'
-            + "".join(gesicht(s) for s in ("gut", "mittel", "schlecht"))
-            + "</div>"
-        )
-    if art == "wochentage":
-        tage = "".join(
-            f'<span class="wt{" we" if t in ("Sa", "So") else ""}">{t}</span>'
-            for t in ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
-        )
-        return f'<div class="af af-wochentage">{tage}</div>'
-    if art in ("wetter", "unterwegs"):
-        symbole = "".join(
-            f'<span class="sym"><img src="{bild(v)}" alt=""></span>'
-            for v in daten["symbole"][art]
-        )
-        return f'<div class="af af-symbole">{symbole}</div>'
-    if art == "geld":
-        return '<div class="af"><span>Fr.</span><span class="feld lang"></span></div>'
-    raise ValueError(f"Unbekanntes Antwortfeld: {art}")
 
 
 def farben_css(kat):
@@ -187,14 +111,13 @@ def farben_css(kat):
     )
 
 
-def karte_frage(karte, nr, kat, daten, bild):
-    text = karte["text"]
+def karte_frage(karte, nr, kat, bild):
     return (
         f'<div class="karte frage-karte" style="{farben_css(kat)}">'
         f'<div class="band"><span>{esc(kat["name"])}</span><span class="nr">{nr}</span></div>'
         f'<div class="bild"><img src="{bild(karte["bild"])}" alt=""></div>'
-        f'<div class="frage fit" contenteditable="true" spellcheck="false">{esc(text)}</div>'
-        f"{antwortfeld(karte['antwort'], daten, bild)}</div>"
+        f'<div class="frage fit" contenteditable="true" spellcheck="false">{esc(karte["text"])}</div>'
+        "</div>"
     )
 
 
@@ -219,8 +142,7 @@ def karte_leer(kat):
         f'<div class="band"><span>{esc(kat["name"])}</span><span class="nr"></span></div>'
         '<label class="bild platzhalter"><input type="file" accept="image/*">'
         '<span class="hinweis">Bild aufkleben<br>oder zeichnen<span class="nur-bildschirm"><br>– oder hier klicken</span></span></label>'
-        '<div class="frage fit leer" contenteditable="true" spellcheck="false"></div>'
-        f'<div class="af af-linie">{STIFT}<span class="schreiblinie"></span></div></div>'
+        '<div class="frage fit leer" contenteditable="true" spellcheck="false"></div></div>'
     )
 
 
@@ -259,31 +181,33 @@ def kartenseite(karten, ueberschrift, seite, seiten):
     )
 
 
+def beispiel(daten, kategorien, bild):
+    """Frage- und Zeitkarten verkleinert nebeneinander, als Beispiel fürs Deckblatt."""
+    fragen = {k["id"]: (nr, k) for nr, k in enumerate(daten["fragekarten"], 1)}
+    zeiten = {k["id"]: (nr, k) for nr, k in enumerate(daten["zeitkarten"], 1)}
+    if "hinlegen" not in fragen or not {"jetzt", "spaeter"} <= zeiten.keys():
+        return ""
+    nr, frage = fragen["hinlegen"]
+    karten = [karte_frage(frage, nr, kategorien[frage["kat"]], bild)]
+    for zid in ("jetzt", "spaeter"):
+        nr, zeit = zeiten[zid]
+        karten.append(karte_gross(zeit, f"Z{nr}", kategorien["zeit"], bild))
+    mini = [f'<div class="mini"><div class="zelle">{k}</div></div>' for k in karten]
+    return (
+        '<h2>Beispiel</h2><div class="beispiel">'
+        f'{mini[0]}<span class="zeichen">+</span>{mini[1]}<span class="zeichen oder">oder</span>{mini[2]}'
+        '</div><p class="klein">Zuerst die Frage zeigen. Geht es um das «Wann», eine oder zwei Zeitkarten'
+        " dazulegen. Die Antwort kommt mündlich.</p>"
+    )
+
+
 def deckblatt(daten, kategorien, bild):
     fragen = daten["fragekarten"]
-    anzahl_bereiche = sum(
-        1 for k in kategorien.values() if k["id"] not in ("antwort", "zeit")
-    )
+    bereiche_liste = [k for k in kategorien.values() if k["id"] != "zeit"]
     bereiche = "".join(
         f'<li><span class="chip" style="background:{k["farbe"]}"></span>{esc(k["name"])}'
         f'<span class="anzahl">{sum(1 for f in fragen if f["kat"] == k["id"])}</span></li>'
-        for k in kategorien.values()
-        if k["id"] not in ("antwort", "zeit")
-    )
-    muster_stil = farben_css(kategorien["tag"])
-    felder = [
-        ("janein", "Ja oder Nein ankreuzen"),
-        ("gesichter", "Gefühl zeigen oder einkreisen"),
-        ("uhrzeit", "Uhrzeit eintragen"),
-        ("linie", "Kurze Antwort schreiben"),
-        ("wochentage", "Wochentag einkreisen"),
-        ("unterwegs", "Bild einkreisen (auch Wetter)"),
-        ("geld", "Betrag eintragen"),
-    ]
-    legende = "".join(
-        f'<div class="legende-zeile"><div class="muster" style="{muster_stil}">'
-        f"{antwortfeld(art, daten, bild)}</div><span>{text}</span></div>"
-        for art, text in felder
+        for k in bereiche_liste
     )
     streifen = "".join(
         f'<span style="background:{k["farbe"]}"></span>' for k in kategorien.values()
@@ -293,26 +217,37 @@ def deckblatt(daten, kategorien, bild):
 <div class="innen">
   <p class="dachzeile">Bausatz für die Wohnassistenz</p>
   <h1>{TITEL}</h1>
-  <p class="unterzeile">Die wichtigsten Fragen für die Tagesplanung – mit Piktogrammen, zum Ausdrucken,
-  Laminieren und Wiederverwenden.</p>
+  <p class="unterzeile">Fragen für den Tag – gross geschrieben und mit Piktogramm. Zum Ausdrucken, Laminieren
+  und Wiederverwenden.</p>
   <div class="spalten">
     <div>
       <h2>Was ist drin?</h2>
       <ul class="inhalt">
-        <li><b>{len(fragen)} Fragekarten</b> in {anzahl_bereiche} Bereichen</li>
-        <li><b>{len(daten["antwortkarten"])} Antwortkarten</b>, z. B. Ja, Nein, Später</li>
-        <li><b>{len(daten["zeitkarten"])} Zeitkarten</b>, z. B. Am Morgen, Heute, Zuerst</li>
-        <li><b>{anzahl_bereiche} leere Karten</b> für eigene Fragen</li>
+        <li><b>{len(fragen)} Fragekarten</b> in {len(bereiche_liste)} Bereichen</li>
+        <li><b>{len(daten["zeitkarten"])} Zeitkarten</b> für das «Wann?», z. B. Jetzt, Später, Am Abend</li>
+        <li><b>{len(kategorien)} leere Karten</b> für eigene Fragen</li>
       </ul>
       <h2>Die Bereiche</h2>
       <ul class="bereiche">{bereiche}</ul>
       <p class="klein">Jeder Bereich hat eine eigene Farbe. So findet man die Karten schnell, und die Farbe
-      hilft zusätzlich beim Wiedererkennen.</p>
+      hilft beim Wiedererkennen.</p>
     </div>
     <div>
-      <h2>Antwortfelder</h2>
-      <p class="klein">Unten auf jeder Fragekarte. Mit abwischbarem Stift ausfüllen, später abwischen.</p>
-      <div class="legende">{legende}</div>
+      <h2>So werden die Karten benutzt</h2>
+      <ul class="tipps">
+        <li><b>Zeigen und lesen lassen.</b> Die Karte auf Augenhöhe halten oder auf den Rollstuhltisch legen.
+        Die Frage wird selbst gelesen und mündlich beantwortet.</li>
+        <li><b>Immer dieselbe Karte</b> für dieselbe Frage. So wird das Bild vertraut, und die Frage wird mit
+        der Zeit schneller erkannt.</li>
+        <li><b>Das «Wann» klären.</b> Zeitkarten dazulegen: «Willst du dich hinlegen?» – «Jetzt» oder
+        «Später»?</li>
+        <li><b>Bilder mit System.</b> Kreispfeile heissen «anders» («Willst du anders sitzen?»), das
+        Fragezeichen fragt nach («Sitzt du bequem?»).</li>
+        <li><b>Halter nutzen.</b> Ein Tischkartenhalter oder ein kleiner Bilderständer hält die Karte
+        aufrecht.</li>
+        <li><b>Eigene Fragen</b> auf die leeren Karten schreiben, z. B. «Willst du heute ins Atelier?», und ein
+        Bild aufkleben oder zeichnen.</li>
+      </ul>
     </div>
   </div>
   <h2>So entstehen die Karten</h2>
@@ -323,19 +258,10 @@ def deckblatt(daten, kategorien, bild):
     Die Striche am Rand zeigen, wo geschnitten wird.</li>
     <li><b>Laminieren.</b> Karten mit etwa 5 mm Abstand auf eine A4-Laminierfolie legen, laminieren und
     mit 2–3 mm Rand ausschneiden. Mit abgerundeten Ecken halten sie länger.</li>
-    <li><b>Ausfüllen.</b> Antworten mit einem abwischbaren Folienstift oder Whiteboard-Marker eintragen.
-    Mit einem feuchten Tuch wieder abwischen.</li>
+    <li><b>Aufbewahren.</b> Nach Farben sortiert in einer Box, oder in einer Ecke lochen und auf einen
+    Kartenring ziehen.</li>
   </ol>
-  <h2>Tipps für den Alltag</h2>
-  <ul class="tipps">
-    <li>Immer dieselbe Karte für dieselbe Frage verwenden. So wird das Bild vertraut, und die Frage wird
-    mit der Zeit schneller erkannt.</li>
-    <li>Mit wenigen Karten anfangen und nach und nach ergänzen.</li>
-    <li>Karten in der Reihenfolge des Tages hinlegen. Die Zeitkarten dienen als Überschriften.</li>
-    <li>Antwortkarten helfen, wenn Sprechen schwerfällt: auf «Ja», «Nein» oder «Später» zeigen.</li>
-    <li>Mit Klettpunkten auf der Rückseite halten die Karten an einer Pinnwand, einer Tür oder am Kühlschrank.</li>
-    <li>Leere Karten für eigene Fragen nutzen, z. B. «Gehst du heute ins Atelier?», und ein Bild aufkleben oder zeichnen.</li>
-  </ul>
+  {beispiel(daten, kategorien, bild)}
   <p class="lizenz">{LIZENZ_LANG} Das Kartenset steht ebenfalls unter CC BY-SA 4.0: Nutzen, Verändern und
   Weitergeben ist erlaubt, wenn die Quellen genannt werden und die gleiche Lizenz gilt. Schrift: Atkinson Hyperlegible
   (Braille Institute, SIL Open Font License).</p>
@@ -387,35 +313,11 @@ body { font-family: 'Atkinson Hyperlegible', Arial, Helvetica, sans-serif; color
   justify-content: space-between; padding: 0 2.4mm; font-size: 6.8pt; font-weight: 700;
   letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
 .band .nr { letter-spacing: 0; opacity: .85; }
-.bild { position: absolute; left: 50%; transform: translateX(-50%); top: 8.2mm; width: 40mm; height: 40mm; }
+.bild { position: absolute; left: 50%; transform: translateX(-50%); top: 8.4mm; width: 44mm; height: 44mm; }
 .bild img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.frage { position: absolute; left: 1.8mm; right: 1.8mm; top: 49.2mm; height: 16.2mm; display: flex;
-  align-items: center; justify-content: center; text-align: center; font-weight: 700; font-size: 13.5pt;
-  line-height: 1.12; outline: none; text-wrap: balance; }
-
-.af { position: absolute; left: 2mm; right: 2mm; bottom: 2mm; height: 11.4mm; border-radius: 2.4mm;
-  background: var(--tint); display: flex; align-items: center; justify-content: center; gap: 1.5mm;
-  font-weight: 700; font-size: 9.5pt; color: #343A40; }
-.af .ico { width: 5mm; height: 5mm; flex: none; }
-.af .uhr { width: 5.6mm; height: 5.6mm; }
-.af-linie { justify-content: flex-start; padding-left: 2.2mm; }
-.af-linie .stift { width: 4.2mm; height: 4.2mm; align-self: flex-end; margin-bottom: 2.2mm; }
-.schreiblinie { flex: 1; align-self: flex-end; margin: 0 2.8mm 2.6mm .6mm; border-bottom: .35mm solid #8A939B; }
-.feld { width: 9mm; height: 6.4mm; border-bottom: .35mm solid #8A939B; }
-.feld.lang { width: 31mm; }
-.dp { margin: 0 -.6mm; }
-.wahl { background: #fff; border: .3mm solid #CED4DA; border-radius: 1.8mm; height: 7.6mm;
-  padding: 0 2.6mm 0 1.2mm; display: flex; align-items: center; gap: .8mm; }
-.af-gesichter { gap: 4.5mm; }
-.gesicht { width: 8.6mm; height: 8.6mm; }
-.af-wochentage { gap: .7mm; }
-.wt { background: #fff; border: .3mm solid #CED4DA; border-radius: 1.3mm; width: 6.5mm; height: 7mm;
-  display: flex; align-items: center; justify-content: center; font-size: 7.6pt; }
-.wt.we { color: #C92A2A; }
-.af-symbole { gap: 1mm; }
-.sym { background: #fff; border: .3mm solid #CED4DA; border-radius: 1.6mm; width: 8.8mm; height: 8.8mm;
-  padding: .5mm; display: flex; }
-.sym img { width: 100%; height: 100%; object-fit: contain; }
+.frage { position: absolute; left: 1.8mm; right: 1.8mm; top: 54mm; bottom: 2.4mm; display: flex;
+  align-items: center; justify-content: center; text-align: center; font-weight: 700; font-size: 16.5pt;
+  line-height: 1.1; outline: none; text-wrap: balance; }
 
 .gross-karte .bild { top: 9.5mm; width: 45mm; height: 45mm; }
 .gross-text { position: absolute; left: 1.8mm; right: 1.8mm; top: 56.5mm; bottom: 2.5mm; display: flex;
@@ -431,8 +333,8 @@ body { font-family: 'Atkinson Hyperlegible', Arial, Helvetica, sans-serif; color
 .leer-karte .platzhalter.hat-bild { border-color: transparent; background: none; }
 .leer-karte .platzhalter.hat-bild .hinweis { display: none; }
 .frage.leer:empty { background:
-  linear-gradient(#ADB5BD, #ADB5BD) left 3mm top 6mm / calc(100% - 6mm) .3mm no-repeat,
-  linear-gradient(#ADB5BD, #ADB5BD) left 3mm top 12.5mm / calc(100% - 6mm) .3mm no-repeat; }
+  linear-gradient(#ADB5BD, #ADB5BD) left 3mm top 8mm / calc(100% - 6mm) .3mm no-repeat,
+  linear-gradient(#ADB5BD, #ADB5BD) left 3mm top 16mm / calc(100% - 6mm) .3mm no-repeat; }
 
 .deckblatt .streifen { display: flex; height: 7mm; }
 .deckblatt .streifen span { flex: 1; }
@@ -445,17 +347,19 @@ body { font-family: 'Atkinson Hyperlegible', Arial, Helvetica, sans-serif; color
 .spalten { display: grid; grid-template-columns: 1fr 1fr; gap: 9mm; }
 .spalten h2:first-child { margin-top: 1mm; }
 .inhalt, .tipps { margin: 0; padding-left: 5mm; }
-.inhalt li, .tipps li { margin: .8mm 0; }
+.inhalt li, .tipps li { margin: .9mm 0; }
 .bereiche { list-style: none; margin: 0; padding: 0; }
 .bereiche li { display: flex; align-items: center; gap: 2.4mm; margin: 1mm 0; }
 .bereiche .chip { width: 6mm; height: 4.2mm; border-radius: 1.2mm; flex: none; }
 .bereiche .anzahl { margin-left: auto; color: #6C757D; }
 .klein { font-size: 8.6pt; color: #495057; margin: 1.5mm 0; }
-.legende-zeile { display: flex; align-items: center; gap: 3mm; margin: 1.6mm 0; font-size: 8.8pt; }
-.muster { position: relative; width: 55.4mm; height: 13mm; flex: none; }
-.muster .af { bottom: .8mm; }
 .schritte { margin: 0; padding-left: 5mm; }
 .schritte li { margin: 1mm 0; }
+.beispiel { display: flex; align-items: center; gap: 4mm; }
+.beispiel .mini { width: 44.1mm; height: 61.6mm; flex: none; }
+.beispiel .zelle { width: 63mm; height: 88mm; transform: scale(.7); transform-origin: 0 0; }
+.beispiel .zeichen { font-size: 20pt; font-weight: 700; color: #495057; }
+.beispiel .zeichen.oder { font-size: 11pt; }
 .lizenz { margin-top: 5mm; padding-top: 2.5mm; border-top: .3mm solid #DEE2E6; font-size: 7.4pt;
   color: #6C757D; line-height: 1.35; }
 
@@ -515,29 +419,19 @@ def dokument(daten):
     bild = Bilder(fcss)
 
     fragen = [
-        karte_frage(k, nr, kategorien[k["kat"]], daten, bild)
+        karte_frage(k, nr, kategorien[k["kat"]], bild)
         for nr, k in enumerate(daten["fragekarten"], 1)
-    ]
-    antworten = [
-        karte_gross(k, f"A{nr}", kategorien["antwort"], bild)
-        for nr, k in enumerate(daten["antwortkarten"], 1)
     ]
     zeiten = [
         karte_gross(k, f"Z{nr}", kategorien["zeit"], bild)
         for nr, k in enumerate(daten["zeitkarten"], 1)
     ]
-    leere = [
-        karte_leer(k) for k in daten["kategorien"] if k["id"] not in ("antwort", "zeit")
-    ]
+    leere = [karte_leer(k) for k in daten["kategorien"]]
 
     abschnitte = []
     for i in range(0, len(fragen), 9):
         abschnitte.append(("Fragekarten", fragen[i : i + 9]))
-    for titel, liste in (
-        ("Antwortkarten", antworten),
-        ("Zeitkarten", zeiten),
-        ("Leere Karten", leere),
-    ):
+    for titel, liste in (("Zeitkarten", zeiten), ("Leere Karten", leere)):
         for i in range(0, len(liste), 9):
             abschnitte.append((titel, liste[i : i + 9]))
     seiten = len(abschnitte) + 1

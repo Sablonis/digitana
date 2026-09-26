@@ -1,9 +1,10 @@
 # Tagesplanung mit Bildkarten
 
-Ein Kartenset für die Wohnassistenz: Es enthält die wichtigsten Fragen für die Tagesplanung in der Du-Form,
-jeweils mit Piktogramm. Die Karten sind zum Ausdrucken, Laminieren und Wiederverwenden gedacht. Immer
-dieselbe Karte für dieselbe Frage: So wird das Bild vertraut, und die Frage wird mit der Zeit schneller
-erkannt.
+Ein Kartenset für die Wohnassistenz: Es enthält Fragen für die Tagesplanung in der Du-Form, jeweils mit
+Piktogramm, etwa «Was willst du heute essen?», «Willst du dich hinlegen?» oder «Willst du am Standing stehen?».
+Das Set ist für Menschen gedacht, die selbst lesen und mündlich antworten, auch wenn sie nicht zeigen
+können, zum Beispiel im Rollstuhl. Immer dieselbe Karte für dieselbe Frage: So wird das Bild vertraut, und
+die Frage wird mit der Zeit schneller erkannt.
 
 Die Piktogramme stammen aus den **Mulberry Symbols**. Das ist ein freier Symbolsatz, der für Erwachsene
 gestaltet wurde: erwachsene Figuren, schlichte Formen, keine Comic-Kinder.
@@ -15,19 +16,22 @@ gestaltet wurde: erwachsene Figuren, schlichte Formen, keine Comic-Kinder.
 | `druckvorlagen/Tagesplanung-Kaertchen.pdf` | Druckfertig |
 | `druckvorlagen/Tagesplanung-Kaertchen.html` | Zum Bearbeiten im Browser |
 
-Das PDF hat 10 A4-Seiten: ein Deckblatt mit Anleitung und 9 Seiten mit je 9 Karten (6,3 × 8,8 cm,
-Spielkartenformat). Alle Bilder sind Vektorgrafiken und werden in jeder Grösse scharf gedruckt.
+Das PDF hat 9 A4-Seiten: ein Deckblatt mit Anleitung und Beispiel sowie 8 Seiten mit je 9 Karten
+(6,3 × 8,8 cm, Spielkartenformat). Die Fragen stehen gross auf der Karte, ohne Antwortfelder: Die Antwort
+kommt mündlich. Alle Bilder sind Vektorgrafiken und werden in jeder Grösse scharf gedruckt.
 
-- **54 Fragekarten** in 9 Bereichen: Befinden, Tag planen, Körperpflege, Essen & Trinken, Haushalt,
-  Einkaufen & Geld, Gesundheit, Freizeit & Kontakte sowie Abend & Nacht. Jeder Bereich hat eine eigene
-  Farbe.
-- **Antwortfelder** unten auf jeder Fragekarte: Ja/Nein, drei Gesichter, Uhrzeit, Schreiblinie,
-  Wochentage, Verkehrsmittel, Wetter oder Geldbetrag. Man füllt sie mit einem abwischbaren Stift aus.
-- **9 Antwortkarten**: Ja, Nein, Vielleicht, Ich weiss es nicht, Später, Fertig, Ich brauche Hilfe,
-  Ich brauche eine Pause, Ich verstehe das nicht.
-- **9 Zeitkarten**: Am Morgen, Am Mittag, Am Nachmittag, Am Abend, In der Nacht, Heute, Morgen, Zuerst,
-  Dann.
-- **9 leere Karten** für eigene Fragen, eine pro Bereich.
+- **54 Fragekarten** in 8 Bereichen, jeder mit eigener Farbe:
+  - Befinden (6), zum Beispiel «Ist dir kalt oder warm?»
+  - Essen & Trinken (8)
+  - Körperpflege (7), zum Beispiel «Musst du aufs WC?»
+  - Liegen, Sitzen, Stehen (9), zum Beispiel «Willst du in den Rollstuhl?», «Willst du anders liegen?»
+  - Tag planen (7)
+  - Freizeit & Kontakte (8)
+  - Wohnung (5), zum Beispiel «Soll ich die Storen runterlassen?»
+  - Abend & Nacht (4)
+- **9 Zeitkarten** für das «Wann?»: Jetzt, Später, Heute, Morgen, Am Morgen, Am Mittag, Am Nachmittag,
+  Am Abend, In der Nacht.
+- **9 leere Karten** für eigene Fragen, eine pro Farbe.
 
 ## Drucken und Laminieren
 
@@ -36,8 +40,15 @@ Spielkartenformat). Alle Bilder sind Vektorgrafiken und werden in jeder Grösse 
 2. Entlang der gestrichelten Linien ausschneiden. Die Striche am Rand zeigen, wo geschnitten wird.
 3. Die Karten mit etwa 5 mm Abstand auf eine A4-Laminierfolie legen, laminieren und mit 2–3 mm Rand
    ausschneiden.
-4. Antworten mit einem abwischbaren Folienstift oder Whiteboard-Marker eintragen und später mit einem
-   feuchten Tuch wieder abwischen.
+4. Nach Farben sortiert in einer Box aufbewahren, oder in einer Ecke lochen und auf einen Kartenring ziehen.
+
+## Im Alltag
+
+- Die Karte auf Augenhöhe halten oder auf den Rollstuhltisch legen. Die Frage wird selbst gelesen und
+  mündlich beantwortet. Ein Tischkartenhalter hält die Karte aufrecht.
+- Geht es um das «Wann», eine Zeitkarte dazulegen: «Willst du dich hinlegen?» – «Jetzt» oder «Später»?
+- Die Bilder folgen einem System: Kreispfeile heissen «anders» («Willst du anders sitzen?»), das
+  Fragezeichen fragt nach («Sitzt du bequem?»).
 
 ## Anpassen
 
@@ -68,7 +79,8 @@ lädt das Symbol automatisch herunter. Eigene Symbole liegen als `eigene:<Name>`
   enthält unveränderte Kopien (Version 3.6.1).
 - **Eigene Symbole** (`piktogramme/eigene/`): Einige Symbole sind aus Mulberry-Symbolen
   zusammengesetzt, etwa «Mittagessen» aus Teller und Sonne. Andere sind eigene Zeichnungen im gleichen
-  Stil: Tageszeiten, Dosett, Kochfeld, Wecker, Tram, Rechnung und Wochenende.
+  Stil: Rollstuhl, Person im Rollstuhl, Standing (Stehtrainer), Thermometer, Tageszeiten, Wecker und
+  Wochenende.
 - **Schrift:** Atkinson Hyperlegible, Braille Institute of America, SIL Open Font License 1.1
   (`schrift/OFL.txt`).
 - **Das Kartenset** steht ebenfalls unter [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.de).
