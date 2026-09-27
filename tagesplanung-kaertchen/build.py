@@ -236,16 +236,16 @@ def deckblatt(daten, kategorien, bild):
       <h2>So werden die Karten benutzt</h2>
       <ul class="tipps">
         <li><b>Zeigen und lesen lassen.</b> Die Karte auf Augenhöhe halten oder auf den Rollstuhltisch legen.
-        Die Frage wird selbst gelesen und mündlich beantwortet.</li>
+        Lesen und antworten geht so ganz ohne Zeigen.</li>
         <li><b>Immer dieselbe Karte</b> für dieselbe Frage. So wird das Bild vertraut, und die Frage wird mit
         der Zeit schneller erkannt.</li>
-        <li><b>Das «Wann» klären.</b> Zeitkarten dazulegen: «Willst du dich hinlegen?» – «Jetzt» oder
+        <li><b>Das «Wann» klären.</b> Zeitkarten dazulegen: «Möchtest du dich hinlegen?» – «Jetzt» oder
         «Später»?</li>
-        <li><b>Bilder mit System.</b> Kreispfeile heissen «anders» («Willst du anders sitzen?»), das
+        <li><b>Bilder mit System.</b> Kreispfeile heissen «anders» («Möchtest du anders sitzen?»), das
         Fragezeichen fragt nach («Sitzt du bequem?»).</li>
         <li><b>Halter nutzen.</b> Ein Tischkartenhalter oder ein kleiner Bilderständer hält die Karte
         aufrecht.</li>
-        <li><b>Eigene Fragen</b> auf die leeren Karten schreiben, z. B. «Willst du heute ins Atelier?», und ein
+        <li><b>Eigene Fragen</b> auf die leeren Karten schreiben, z. B. «Möchtest du heute ins Atelier?», und ein
         Bild aufkleben oder zeichnen.</li>
       </ul>
     </div>

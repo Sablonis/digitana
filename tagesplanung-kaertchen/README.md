@@ -1,7 +1,7 @@
 # Tagesplanung mit Bildkarten
 
 Ein Kartenset für die Wohnassistenz: Es enthält Fragen für die Tagesplanung in der Du-Form, jeweils mit
-Piktogramm, etwa «Was willst du heute essen?», «Willst du dich hinlegen?» oder «Willst du am Standing stehen?».
+Piktogramm, etwa «Was möchtest du heute essen?», «Möchtest du dich hinlegen?» oder «Möchtest du am Standing stehen?».
 Das Set ist für Menschen gedacht, die selbst lesen und mündlich antworten, auch wenn sie nicht zeigen
 können, zum Beispiel im Rollstuhl. Immer dieselbe Karte für dieselbe Frage: So wird das Bild vertraut, und
 die Frage wird mit der Zeit schneller erkannt.
@@ -24,10 +24,10 @@ kommt mündlich. Alle Bilder sind Vektorgrafiken und werden in jeder Grösse sch
   - Befinden (6), zum Beispiel «Ist dir kalt oder warm?»
   - Essen & Trinken (8)
   - Körperpflege (7), zum Beispiel «Musst du aufs WC?»
-  - Liegen, Sitzen, Stehen (9), zum Beispiel «Willst du in den Rollstuhl?», «Willst du anders liegen?»
+  - Liegen, Sitzen, Stehen (9), zum Beispiel «Möchtest du in den Rollstuhl?», «Möchtest du anders liegen?»
   - Tag planen (7)
   - Freizeit & Kontakte (8)
-  - Wohnung (5), zum Beispiel «Soll ich die Storen runterlassen?»
+  - Wohnung (5), zum Beispiel «Soll ich die Storen herunterlassen?»
   - Abend & Nacht (4)
 - **9 Zeitkarten** für das «Wann?»: Jetzt, Später, Heute, Morgen, Am Morgen, Am Mittag, Am Nachmittag,
   Am Abend, In der Nacht.
@@ -44,10 +44,10 @@ kommt mündlich. Alle Bilder sind Vektorgrafiken und werden in jeder Grösse sch
 
 ## Im Alltag
 
-- Die Karte auf Augenhöhe halten oder auf den Rollstuhltisch legen. Die Frage wird selbst gelesen und
-  mündlich beantwortet. Ein Tischkartenhalter hält die Karte aufrecht.
-- Geht es um das «Wann», eine Zeitkarte dazulegen: «Willst du dich hinlegen?» – «Jetzt» oder «Später»?
-- Die Bilder folgen einem System: Kreispfeile heissen «anders» («Willst du anders sitzen?»), das
+- Die Karte auf Augenhöhe halten oder auf den Rollstuhltisch legen. Lesen und antworten geht so ganz ohne
+  Zeigen. Ein Tischkartenhalter hält die Karte aufrecht.
+- Geht es um das «Wann», eine Zeitkarte dazulegen: «Möchtest du dich hinlegen?» – «Jetzt» oder «Später»?
+- Die Bilder folgen einem System: Kreispfeile heissen «anders» («Möchtest du anders sitzen?»), das
   Fragezeichen fragt nach («Sitzt du bequem?»).
 
 ## Anpassen
