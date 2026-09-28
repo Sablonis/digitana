@@ -1,0 +1,21 @@
+# Gradle / Android Studio
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signierschlüssel und Zugangsdaten – niemals einchecken
+keystore.properties
+*.jks
+*.keystore
+*.p12
+
+# Erzeugte APKs/Bundles
+*.apk
+*.aab
+*.idsig

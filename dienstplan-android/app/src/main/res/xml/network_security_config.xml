@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Kein Klartext, nur vorinstallierte System-CAs (keine vom Nutzer oder per MDM
+    hinzugefügten CAs, die einen TLS-Proxy ermöglichen würden).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

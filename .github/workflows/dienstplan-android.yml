@@ -1,0 +1,61 @@
+name: Dienstplan Android
+
+on:
+  push:
+    paths:
+      - 'dienstplan-android/**'
+      - '.github/workflows/dienstplan-android.yml'
+  pull_request:
+    paths:
+      - 'dienstplan-android/**'
+      - '.github/workflows/dienstplan-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dienstplan-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Tests, Lint und APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: dienstplan-android
+    steps:
+      - uses: actions/checkout@v7
+
+      # JDK 21: AGP 9 braucht mindestens 17; die JNI-Tests von secp256k1 laufen ab 21.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Prüft auch die Checksumme von gradle-wrapper.jar.
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Kern-Tests (JVM, inkl. lokaler TLS-Relays)
+        run: ./gradlew --stacktrace :core:test
+
+      - name: App bauen (Debug), Lint, Release mit R8 (unsigniert)
+        run: ./gradlew --stacktrace :app:assembleDebug :app:lintDebug :app:assembleRelease
+
+      - name: Berichte hochladen
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: berichte
+          path: |
+            dienstplan-android/core/build/reports/tests/
+            dienstplan-android/app/build/reports/
+          if-no-files-found: ignore
+
+      - name: Debug-APK hochladen
+        uses: actions/upload-artifact@v7
+        with:
+          name: dienstplan-debug-apk
+          path: dienstplan-android/app/build/outputs/apk/debug/*.apk

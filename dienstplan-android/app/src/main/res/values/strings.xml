@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Dienstplan</string>
+
+    <!-- Allgemein -->
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_ok">OK</string>
+    <string name="action_save">Speichern</string>
+    <string name="action_add">Hinzufügen</string>
+    <string name="action_delete">Löschen</string>
+    <string name="action_back">Zurück</string>
+    <string name="loading">Lade …</string>
+    <string name="error_generic">Das hat nicht geklappt. Bitte erneut versuchen.</string>
+
+    <!-- Start ohne Team -->
+    <string name="onboarding_title">Willkommen beim Dienstplan</string>
+    <string name="onboarding_text">Plane die Schichten deines Teams ohne eigenen Server. Die Geräte gleichen sich Ende-zu-Ende-verschlüsselt über öffentliche Nostr-Relays ab und funktionieren auch offline.</string>
+    <string name="onboarding_new_team">Neues Team</string>
+    <string name="onboarding_new_team_hint">Erzeugt ein neues Team und einen Einladungscode für die anderen.</string>
+    <string name="onboarding_join_title">Einem Team beitreten</string>
+    <string name="invite_code_label">Einladungscode (DP2-…)</string>
+    <string name="action_join">Beitreten</string>
+
+    <!-- Fehler beim Einladungscode -->
+    <string name="invite_error_empty">Bitte einen Einladungscode eingeben.</string>
+    <string name="invite_error_prefix">Der Code muss mit „DP2-“ beginnen.</string>
+    <string name="invite_error_characters">Der Code enthält ungültige Zeichen.</string>
+    <string name="invite_error_length">Der Code ist unvollständig oder zu lang.</string>
+    <string name="invite_error_checksum">Der Code ist fehlerhaft (Prüfsumme). Bitte auf Tippfehler prüfen.</string>
+    <string name="invite_error_same_team">Du bist bereits in diesem Team.</string>
+
+    <!-- Wochenplan -->
+    <string name="menu_more">Weitere Optionen</string>
+    <string name="menu_copy_week">Woche kopieren</string>
+    <string name="menu_team">Team und Einladung</string>
+    <string name="menu_diagnostics">Sync-Diagnose</string>
+    <string name="action_add_member">Person hinzufügen</string>
+    <string name="week_previous">Vorherige Woche</string>
+    <string name="week_next">Nächste Woche</string>
+    <string name="week_today_hint">Zur aktuellen Woche springen</string>
+    <string name="column_name">Name</string>
+    <string name="column_hours">Std.</string>
+    <string name="hours_value">%1$d h</string>
+    <string name="coverage_label">Besetzung</string>
+    <string name="empty_members">Noch keine Mitarbeitenden. Tippe auf +, um jemanden hinzuzufügen.</string>
+    <string name="legend">Tippen: F → S → N → X → U → leer · Lange drücken: leeren</string>
+    <string name="cell_click_label">Schicht wechseln</string>
+    <string name="cell_long_click_label">Feld leeren</string>
+    <string name="cell_description">%1$s, %2$s: %3$s</string>
+    <string name="cell_empty">kein Eintrag</string>
+    <string name="coverage_description">%1$s: Früh %2$d, Spät %3$d, Nacht %4$d</string>
+    <string name="member_click_label">Umbenennen oder löschen</string>
+    <string name="member_hours_description">%1$s, %2$d Stunden diese Woche</string>
+    <string name="today_marker">heute</string>
+
+    <!-- Woche kopieren -->
+    <string name="copy_week_title">Woche kopieren?</string>
+    <string name="copy_week_text">Die nächste Woche (%1$s) enthält bereits Einträge. Sie wird vollständig durch diese Woche ersetzt, auch leere Felder.</string>
+    <string name="copy_week_confirm">Ersetzen</string>
+    <string name="copy_week_done">In %1$s übernommen: %2$d Felder geändert.</string>
+    <string name="copy_week_nothing">Die nächste Woche ist bereits identisch.</string>
+
+    <!-- Personen -->
+    <string name="member_add_title">Person hinzufügen</string>
+    <string name="member_edit_title">Person bearbeiten</string>
+    <string name="member_name_label">Name</string>
+    <string name="member_name_counter">%1$d/%2$d</string>
+    <string name="member_error_empty">Bitte einen Namen eingeben.</string>
+    <string name="member_error_too_long">Höchstens %1$d Zeichen.</string>
+    <string name="member_error_invalid">Der Name enthält unzulässige Zeichen.</string>
+    <string name="member_delete_title">%1$s löschen?</string>
+    <string name="member_delete_text">Die Person verschwindet auf allen Geräten aus dem Plan.</string>
+
+    <!-- Sync-Status -->
+    <string name="sync_live">Live · %1$d/%2$d Relays</string>
+    <string name="sync_connecting">Verbinde … · %1$d/%2$d Relays</string>
+    <string name="sync_offline">Offline</string>
+    <string name="sync_stopped">Sync pausiert</string>
+    <string name="sync_pending">%1$d ausstehend</string>
+    <string name="sync_status_description">Sync-Status: %1$s. Tippen für Details.</string>
+
+    <!-- Team -->
+    <string name="team_title">Team und Einladung</string>
+    <string name="team_invite_title">Einladungscode</string>
+    <string name="team_invite_text">Wer diesen Code hat, kann den Plan lesen und ändern. Teile ihn nur über einen sicheren Kanal, z. B. einen Ende-zu-Ende-verschlüsselten Messenger. Hier wird er nur gekürzt angezeigt.</string>
+    <string name="action_share">Teilen</string>
+    <string name="action_copy">Kopieren</string>
+    <string name="copied_sensitive">Code kopiert und als vertraulich markiert.</string>
+    <string name="share_title">Einladungscode teilen</string>
+    <string name="share_text">Einladung zum Dienstplan. Diesen Code in der App unter „Beitreten“ eingeben:\n\n%1$s</string>
+    <string name="clipboard_label">Dienstplan-Einladungscode</string>
+    <string name="team_rotate_title">Neuen Code erstellen</string>
+    <string name="team_rotate_text">Erzeugt ein neues Team-Geheimnis. Geräte mit dem alten Code sehen danach keine Änderungen mehr. So entfernst du Mitglieder: Den neuen Code nur an die verbleibenden Personen senden.</string>
+    <string name="team_rotate_confirm_title">Neuen Code erstellen?</string>
+    <string name="team_rotate_confirm_text">Alle anderen Geräte müssen danach mit dem neuen Code beitreten und ihre Daten übernehmen. Wer entfernt wird, behält, was er bereits gesehen hat.</string>
+    <string name="team_rotate_confirm">Neuen Code erstellen</string>
+    <string name="team_rotated">Neuer Code erstellt. Bitte an alle verbleibenden Mitglieder senden.</string>
+    <string name="team_join_other_title">Anderem Team beitreten</string>
+    <string name="team_join_other_text">Mit dem Code eines anderen Teams oder dem neuen Code nach einem Schlüsselwechsel.</string>
+    <string name="team_leave_title">Team verlassen</string>
+    <string name="team_leave_text">Löscht Team-Geheimnis und Plan von diesem Gerät. Die anderen Geräte behalten ihre Daten.</string>
+    <string name="team_leave_confirm_title">Team verlassen?</string>
+    <string name="team_leave_confirm_text">Alle Plandaten und Schlüssel werden von diesem Gerät gelöscht. Zurück kommst du nur mit einem Einladungscode.</string>
+    <string name="team_leave_confirm">Verlassen</string>
+    <string name="team_limits_title">Grenzen der Sicherheit</string>
+    <string name="team_limits_text">• Wer den Code hat, hat Zugriff.\n• Entfernte Mitglieder behalten, was sie schon gesehen haben.\n• Relays sehen Metadaten: IP-Adressen, Zeitpunkte und Paketgrössen, aber keine Namen oder Schichten.\n• Wer das entsperrte Gerät in der Hand hat, sieht den Plan.</string>
+    <string name="team_device_id">Geräte-ID: %1$s</string>
+    <string name="joined">Team beigetreten.</string>
+    <string name="team_created">Team erstellt. Teile jetzt den Einladungscode.</string>
+
+    <!-- Beitreten mit vorhandenen Daten -->
+    <string name="join_keep_title">Vorhandene Daten übernehmen?</string>
+    <string name="join_keep_text">Auf diesem Gerät ist bereits ein Plan gespeichert. Übernehmen ist richtig nach einem Schlüsselwechsel im selben Team. Beim Wechsel in ein anderes Team: Verwerfen.</string>
+    <string name="join_keep">Übernehmen</string>
+    <string name="join_discard">Verwerfen</string>
+
+    <!-- Diagnose -->
+    <string name="diagnostics_title">Sync-Diagnose</string>
+    <string name="diagnostics_reconnect">Jetzt neu verbinden</string>
+    <string name="diagnostics_hint">Der Sync läuft, solange die App geöffnet ist. Änderungen ohne Verbindung werden gespeichert und später gesendet.</string>
+    <string name="relay_state_connecting">Verbinde …</string>
+    <string name="relay_state_syncing">Verbunden, gleiche ab …</string>
+    <string name="relay_state_live">Verbunden (live)</string>
+    <string name="relay_state_disconnected">Getrennt</string>
+    <string name="relay_last_sync">Letzte Synchronisierung: %1$s</string>
+    <string name="relay_last_sync_never">Noch nicht synchronisiert</string>
+    <string name="relay_error">Fehler: %1$s</string>
+    <string name="relay_notice">Meldung des Relays: %1$s</string>
+    <string name="relay_counters">Empfangen %1$d · Bestätigt %2$d · Abgelehnt %3$d</string>
+    <string name="relay_counters_dropped">Unlesbar %1$d · Ungültig %2$d · Verworfene Einträge %3$d</string>
+    <string name="diagnostics_local">Dieses Gerät</string>
+    <string name="diagnostics_entries">Lokale Einträge: %1$d in %2$d Buckets</string>
+    <string name="diagnostics_pubkey">Team-Kennung (öffentlich): %1$s</string>
+    <string name="diagnostics_version">App-Version: %1$s</string>
+    <string name="time_seconds_ago">%1$s (vor %2$d s)</string>
+    <string name="time_minutes_ago">%1$s (vor %2$d min)</string>
+
+    <!-- Absturzbericht -->
+    <string name="crash_title">Die App ist abgestürzt</string>
+    <string name="crash_text">Beim letzten Mal ist ein Fehler aufgetreten. Du kannst einen Bericht ohne persönliche Daten kopieren und weitergeben.</string>
+    <string name="crash_copy">Bericht kopieren</string>
+    <string name="crash_discard">Verwerfen</string>
+    <string name="crash_clipboard_label">Dienstplan-Absturzbericht</string>
+
+    <!-- Speicher zurückgesetzt -->
+    <string name="storage_reset_title">Lokale Daten zurückgesetzt</string>
+    <string name="storage_reset_text">Die gespeicherten Daten liessen sich nicht mehr entschlüsseln (z. B. nach einem Zurücksetzen des Schlüsselspeichers). Sie wurden gelöscht. Tritt dem Team erneut mit dem Einladungscode bei – der Plan wird dann von den Relays geladen.</string>
+</resources>

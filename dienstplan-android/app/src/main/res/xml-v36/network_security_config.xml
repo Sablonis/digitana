@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Ab Android 16: zusätzlich Certificate Transparency. Relay-Zertifikate müssen in
+    öffentlichen CT-Logs stehen (ab Android 17 ohnehin Standard für targetSdk 37).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <certificateTransparency enabled="true" />
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
