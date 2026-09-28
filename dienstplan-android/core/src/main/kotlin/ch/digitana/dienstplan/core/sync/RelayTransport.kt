@@ -94,6 +94,13 @@ class OkHttpRelayTransport(private val client: OkHttpClient) : RelayTransport {
         /** Verständlicher Fehlertext für die Diagnose (ohne Geheimnisse). */
         fun describeFailure(t: Throwable, response: Response?): String {
             response?.let { if (it.code != 101) return "HTTP ${it.code} statt WebSocket-Upgrade" }
+            // OkHttp probiert mehrere Adressen (z. B. IPv6, dann IPv4) und wirft den ersten Fehler;
+            // TLS-Fehler späterer Versuche hängen als „suppressed“ daran. Sie sind aussagekräftiger.
+            val related = relatedThrowables(t)
+            if (related.any { it is SSLPeerUnverifiedException }) return "TLS: Zertifikat passt nicht zum Hostnamen"
+            if (related.any { it is SSLHandshakeException }) {
+                return "TLS-Handshake fehlgeschlagen (Zertifikat ungültig oder abgelaufen)"
+            }
             return when (t) {
                 is SSLPeerUnverifiedException -> "TLS: Zertifikat passt nicht zum Hostnamen"
                 is SSLHandshakeException -> "TLS-Handshake fehlgeschlagen (Zertifikat ungültig oder abgelaufen)"
@@ -109,6 +116,20 @@ class OkHttpRelayTransport(private val client: OkHttpClient) : RelayTransport {
                 }
                 else -> "Fehler (${t.javaClass.simpleName})"
             }
+        }
+
+        /** Die Ausnahme selbst, ihre Ursachen und unterdrückten Ausnahmen (begrenzt, ohne Zyklen). */
+        private fun relatedThrowables(root: Throwable): List<Throwable> {
+            val result = ArrayList<Throwable>()
+            val queue = ArrayDeque<Throwable>().apply { add(root) }
+            while (queue.isNotEmpty() && result.size < 32) {
+                val current = queue.removeFirst()
+                if (result.any { it === current }) continue
+                result += current
+                current.cause?.let { queue.addLast(it) }
+                current.suppressed.forEach { queue.addLast(it) }
+            }
+            return result
         }
     }
 }

@@ -33,20 +33,23 @@ class TlsLocalTest {
         return MockWebServer().apply {
             useHttps(handshake.sslSocketFactory())
             enqueue(MockResponse.Builder().body("ok").build())
-            start()
+            TestTls.startOnLoopback(this)
         }
     }
 
     private fun trustingTestCa(): OkHttpClient = TestTls.client()
 
-    private fun get(client: OkHttpClient, server: MockWebServer) =
-        client.newCall(Request.Builder().url(server.url("/")).build()).execute().use { it.body.string() }
+    /** Produktions-Client (nur System-/JDK-CAs); lediglich „localhost“ zeigt fest auf 127.0.0.1. */
+    private fun production(): OkHttpClient = TestTls.productionClient()
+
+    private fun get(client: OkHttpClient, server: MockWebServer, scheme: String = "https") =
+        client.newCall(Request.Builder().url("$scheme://localhost:${server.port}/").build()).execute().use { it.body.string() }
 
     @Test
     fun `selbstsigniertes Zertifikat wird vom Produktions-Client abgelehnt`() {
         val selfSigned = HeldCertificate.Builder().commonName("localhost").addSubjectAlternativeName("localhost").build()
         server(selfSigned, chain = null).use { server ->
-            assertThrows<SSLHandshakeException> { get(SecureHttp.newClient(), server) }
+            assertThrows<SSLHandshakeException> { get(production(), server) }
         }
     }
 
@@ -54,7 +57,7 @@ class TlsLocalTest {
     fun `Zertifikat einer unbekannten CA wird abgelehnt`() {
         // Gültig signiert – aber von einer CA, der der Produktions-Client nicht vertraut.
         server(TestTls.localhostCertificate).use { server ->
-            assertThrows<SSLHandshakeException> { get(SecureHttp.newClient(), server) }
+            assertThrows<SSLHandshakeException> { get(production(), server) }
         }
     }
 
@@ -101,8 +104,8 @@ class TlsLocalTest {
         assertFalse(client.followRedirects)
         MockWebServer().use { plain ->
             plain.enqueue(MockResponse.Builder().body("klartext").build())
-            plain.start()
-            assertThrows<UnknownServiceException> { get(client, plain) }
+            TestTls.startOnLoopback(plain)
+            assertThrows<UnknownServiceException> { get(production(), plain, scheme = "http") }
         }
     }
 
@@ -124,12 +127,23 @@ class TlsLocalTest {
     }
 
     @Test
+    fun `Diagnose bevorzugt TLS-Fehler, auch wenn ein frueherer Adressversuch scheiterte`() {
+        // So meldet OkHttp einen Dual-Stack-Fehlschlag: erst ::1 abgelehnt, dann TLS-Fehler auf IPv4.
+        val connect = java.net.ConnectException("Failed to connect to localhost/[::1]")
+        connect.addSuppressed(SSLHandshakeException("PKIX path building failed"))
+        assertTrue(OkHttpRelayTransport.describeFailure(connect, null).startsWith("TLS-Handshake"))
+        val peer = java.io.IOException("x", SSLPeerUnverifiedException("Hostname localhost not verified"))
+        assertTrue(OkHttpRelayTransport.describeFailure(peer, null).contains("Hostnamen"))
+        assertEquals("Verbindung abgelehnt", OkHttpRelayTransport.describeFailure(java.net.ConnectException("refused"), null))
+    }
+
+    @Test
     fun `WebSocket zu einem Relay mit ungueltigem Zertifikat meldet einen TLS-Fehler`() {
         val selfSigned = HeldCertificate.Builder().addSubjectAlternativeName("localhost").build()
         server(selfSigned, chain = null).use { server ->
             val result = CompletableFuture<String?>()
-            val socket = OkHttpRelayTransport(SecureHttp.newClient()).connect(
-                "wss://${server.hostName}:${server.port}/",
+            val socket = OkHttpRelayTransport(production()).connect(
+                "wss://localhost:${server.port}/",
                 object : RelayTransport.Listener {
                     override fun onOpen(socket: RelaySocket) {
                         result.complete("verbunden")

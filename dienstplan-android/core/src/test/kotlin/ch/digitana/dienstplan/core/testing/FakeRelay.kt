@@ -49,7 +49,7 @@ class FakeRelay(private val label: String) : Closeable {
     val rejected = AtomicInteger()
     val connectionsOpened = AtomicInteger()
 
-    val url: String get() = "wss://${server.hostName}:${server.port}/"
+    val url: String get() = "wss://localhost:${server.port}/"
 
     fun start(): FakeRelay {
         server.useHttps(TestTls.serverCertificates.sslSocketFactory())
@@ -61,7 +61,7 @@ class FakeRelay(private val label: String) : Closeable {
                     MockResponse.Builder().webSocketUpgrade(Listener()).build()
                 }
         }
-        server.start()
+        TestTls.startOnLoopback(server)
         return this
     }
 
