@@ -78,6 +78,13 @@ cd dienstplan-android
 ./gradlew :app:assembleRelease          # Release mit R8 (signiert, wenn konfiguriert)
 ```
 
+### Automatischer Build (GitHub Actions)
+
+Der Workflow `.github/workflows/dienstplan-android.yml` (im Wurzelverzeichnis des
+Repositorys) läuft bei jedem Push, der `dienstplan-android/` betrifft: Kern-Tests,
+Debug-APK, Lint und Release-Build mit R8 (unsigniert, ohne Keystore). Die Debug-APK
+liegt danach als Artefakt `dienstplan-debug-apk` beim jeweiligen Lauf.
+
 Signierte Release-APK (Signaturschemas v1, v2, v3): **[docs/RELEASE.md](docs/RELEASE.md)**.
 Installation per Sideloading und Hilfe bei „App nicht installiert“:
 **[docs/INSTALLATION.md](docs/INSTALLATION.md)**.
