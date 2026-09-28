@@ -44,6 +44,14 @@ jobs:
       - name: App bauen (Debug), Lint, Release mit R8 (unsigniert)
         run: ./gradlew --stacktrace :app:assembleDebug :app:lintDebug :app:assembleRelease
 
+      # Gradle nennt bei Lint-Fehlern nur den ersten; hier steht die vollständige Liste im Log.
+      - name: Lint-Befunde ausgeben
+        if: always()
+        run: |
+          if [ -d app/build ]; then
+            find app/build -name 'lint-results-*.txt' -print -exec cat {} \;
+          fi
+
       - name: Berichte hochladen
         if: always()
         uses: actions/upload-artifact@v7

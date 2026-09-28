@@ -21,7 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,11 +33,11 @@ import ch.digitana.dienstplan.ui.components.SecureWindow
 fun OnboardingScreen(viewModel: TeamViewModel) {
     SecureWindow()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
-            if (event == TeamEvent.Failed) snackbar.showSnackbar(context.getString(R.string.error_generic))
+            if (event == TeamEvent.Failed) snackbar.showSnackbar(resources.getString(R.string.error_generic))
         }
     }
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->

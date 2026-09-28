@@ -36,7 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -57,7 +57,7 @@ fun PlanScreen(
     onOpenDiagnostics: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     var menuOpen by remember { mutableStateOf(false) }
     var showAddMember by rememberSaveable { mutableStateOf(false) }
@@ -76,11 +76,11 @@ fun PlanScreen(
             val text = when (message) {
                 is PlanMessage.WeekCopied ->
                     if (message.changedFields == 0) {
-                        context.getString(R.string.copy_week_nothing)
+                        resources.getString(R.string.copy_week_nothing)
                     } else {
-                        context.getString(R.string.copy_week_done, WeekFormat.weekLabel(message.target), message.changedFields)
+                        resources.getString(R.string.copy_week_done, WeekFormat.weekLabel(message.target), message.changedFields)
                     }
-                PlanMessage.Failed -> context.getString(R.string.error_generic)
+                PlanMessage.Failed -> resources.getString(R.string.error_generic)
             }
             snackbar.showSnackbar(text)
         }

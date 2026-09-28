@@ -38,7 +38,8 @@ fun MemberNameDialog(
 ) {
     var text by rememberSaveable { mutableStateOf(initialName) }
     val problem = nameProblem(text)
-    val showProblem = problem != null && text.isNotEmpty()
+    // Solange das Feld leer ist, nur den Zähler zeigen – noch keine Fehlermeldung.
+    val visibleProblem = problem.takeIf { text.isNotEmpty() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -50,11 +51,11 @@ fun MemberNameDialog(
                     onValueChange = { text = it.take(MAX_INPUT_CHARS) },
                     label = { Text(stringResource(R.string.member_name_label)) },
                     singleLine = true,
-                    isError = showProblem,
+                    isError = visibleProblem != null,
                     supportingText = {
                         Text(
-                            if (showProblem && problem != null) {
-                                nameProblemText(problem)
+                            if (visibleProblem != null) {
+                                nameProblemText(visibleProblem)
                             } else {
                                 stringResource(
                                     R.string.member_name_counter,

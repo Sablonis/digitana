@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<!-- Die Oberfläche ist deutsch; tools:locale sagt das Lint und der Rechtschreibprüfung. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="de">
     <string name="app_name">Dienstplan</string>
 
     <!-- Allgemein -->
@@ -42,7 +43,7 @@
     <string name="column_hours">Std.</string>
     <string name="hours_value">%1$d h</string>
     <string name="coverage_label">Besetzung</string>
-    <string name="empty_members">Noch keine Mitarbeitenden. Tippe auf +, um jemanden hinzuzufügen.</string>
+    <string name="empty_members">Noch keine Mitarbeitenden. Tippe unten auf „Person hinzufügen“.</string>
     <string name="legend">Tippen: F → S → N → X → U → leer · Lange drücken: leeren</string>
     <string name="cell_click_label">Schicht wechseln</string>
     <string name="cell_long_click_label">Feld leeren</string>

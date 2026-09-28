@@ -40,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -64,6 +65,7 @@ fun TeamScreen(
     val team by viewModel.team.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var confirmRotate by remember { mutableStateOf(false) }
@@ -73,7 +75,7 @@ fun TeamScreen(
     LaunchedEffect(Unit) {
         if (showCreatedHint) {
             onCreatedHintShown()
-            snackbar.showSnackbar(context.getString(R.string.team_created))
+            snackbar.showSnackbar(resources.getString(R.string.team_created))
         }
     }
     LaunchedEffect(viewModel) {
@@ -85,7 +87,7 @@ fun TeamScreen(
                 TeamEvent.Failed -> R.string.error_generic
                 TeamEvent.Left -> null
             }
-            if (message != null) snackbar.showSnackbar(context.getString(message))
+            if (message != null) snackbar.showSnackbar(resources.getString(message))
         }
     }
 
