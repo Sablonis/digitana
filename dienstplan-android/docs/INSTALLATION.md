@@ -34,7 +34,7 @@ Installation auf Android 8 bis 17.
 ### Entwickler-Verifizierung von Google (2026/2027)
 
 Google führt eine Pflicht zur Entwickler-Verifizierung für Apps auf zertifizierten
-Android-Geräten ein. Stand September 2026: Seit dem 30. September 2026 gilt sie in
+Android-Geräten ein. Stand Ende September 2026: Ab dem 30. September 2026 gilt sie in
 Brasilien, Indonesien, Singapur und Thailand – und zunächst nur für Installationen aus
 teilnehmenden App-Stores. Direktes Sideloading ist davon **noch nicht** betroffen; die
 weltweite Einführung ist für 2027 angekündigt. Danach gibt es drei Wege:

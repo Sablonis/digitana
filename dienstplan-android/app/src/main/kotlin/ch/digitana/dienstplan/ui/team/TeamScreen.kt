@@ -54,7 +54,12 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TeamScreen(viewModel: TeamViewModel, onBack: () -> Unit) {
+fun TeamScreen(
+    viewModel: TeamViewModel,
+    onBack: () -> Unit,
+    showCreatedHint: Boolean = false,
+    onCreatedHintShown: () -> Unit = {},
+) {
     SecureWindow()
     val team by viewModel.team.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
@@ -64,6 +69,13 @@ fun TeamScreen(viewModel: TeamViewModel, onBack: () -> Unit) {
     var confirmRotate by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
 
+    // Fester Schlüssel: Das Zurücksetzen des Hinweises darf die laufende Snackbar nicht abbrechen.
+    LaunchedEffect(Unit) {
+        if (showCreatedHint) {
+            onCreatedHintShown()
+            snackbar.showSnackbar(context.getString(R.string.team_created))
+        }
+    }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             val message = when (event) {

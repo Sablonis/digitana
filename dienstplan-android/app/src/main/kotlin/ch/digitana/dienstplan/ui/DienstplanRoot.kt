@@ -15,6 +15,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -86,7 +87,9 @@ fun DienstplanRoot(container: AppContainer) {
 
 @Composable
 private fun MainNavigation(container: AppContainer, startWithTeam: () -> Boolean) {
-    var screen by rememberSaveable { mutableStateOf(if (startWithTeam()) Screen.TEAM else Screen.PLAN) }
+    // Nach „Neues Team“ zuerst den Einladungscode zeigen – mit einmaligem Hinweis.
+    var createdHintPending by remember { mutableStateOf(startWithTeam()) }
+    var screen by rememberSaveable { mutableStateOf(if (createdHintPending) Screen.TEAM else Screen.PLAN) }
     BackHandler(enabled = screen != Screen.PLAN) { screen = Screen.PLAN }
     when (screen) {
         Screen.PLAN -> {
@@ -99,7 +102,12 @@ private fun MainNavigation(container: AppContainer, startWithTeam: () -> Boolean
         }
         Screen.TEAM -> {
             val teamViewModel: TeamViewModel = viewModel { TeamViewModel(container) }
-            TeamScreen(viewModel = teamViewModel, onBack = { screen = Screen.PLAN })
+            TeamScreen(
+                viewModel = teamViewModel,
+                onBack = { screen = Screen.PLAN },
+                showCreatedHint = createdHintPending,
+                onCreatedHintShown = { createdHintPending = false },
+            )
         }
         Screen.DIAGNOSTICS -> DiagnosticsScreen(container = container, onBack = { screen = Screen.PLAN })
     }
