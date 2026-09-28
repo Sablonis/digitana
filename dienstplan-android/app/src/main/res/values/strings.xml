@@ -145,5 +145,5 @@
 
     <!-- Speicher zurückgesetzt -->
     <string name="storage_reset_title">Lokale Daten zurückgesetzt</string>
-    <string name="storage_reset_text">Die gespeicherten Daten liessen sich nicht mehr entschlüsseln (z. B. nach einem Zurücksetzen des Schlüsselspeichers). Sie wurden gelöscht. Tritt dem Team erneut mit dem Einladungscode bei – der Plan wird dann von den Relays geladen.</string>
+    <string name="storage_reset_text">Die gespeicherten Daten konnten nicht mehr entschlüsselt werden (z. B. nach einem Zurücksetzen des Schlüsselspeichers). Sie wurden gelöscht. Tritt dem Team erneut mit dem Einladungscode bei – der Plan wird dann von den Relays geladen.</string>
 </resources>
