@@ -5,16 +5,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.digitana.dienstplan.AppContainer
 import ch.digitana.dienstplan.R
+import ch.digitana.dienstplan.core.crdt.Member
 import ch.digitana.dienstplan.core.crypto.InviteCode
 import ch.digitana.dienstplan.core.crypto.TeamSecret
+import ch.digitana.dienstplan.core.data.DeviceSettings
 import ch.digitana.dienstplan.core.data.Team
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Ergebnis der Prüfung eines eingegebenen Einladungscodes. */
@@ -36,6 +41,12 @@ sealed interface TeamEvent {
 class TeamViewModel(private val container: AppContainer) : ViewModel() {
 
     val team: StateFlow<Team?> = container.teamRepository.team
+
+    val members: StateFlow<List<Member>> = container.planRepository.state
+        .map { it.members() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), container.planRepository.state.value.members())
+
+    val settings: StateFlow<DeviceSettings> = container.settingsRepository.settings
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
@@ -59,6 +70,15 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
     fun rotate() = perform(TeamEvent.Rotated) { container.rotateTeamKey() }
 
     fun leave() = perform(TeamEvent.Left) { container.leaveTeam() }
+
+    /** „Das bin ich“; null = niemand. */
+    fun setMyMember(memberId: String?) {
+        viewModelScope.launch { container.shiftAlerts.configure(memberId, settings.value.notifyOnChanges) }
+    }
+
+    fun setNotifyOnChanges(enabled: Boolean) {
+        viewModelScope.launch { container.shiftAlerts.configure(settings.value.myMemberId, enabled) }
+    }
 
     private fun perform(success: TeamEvent, action: suspend () -> Any) {
         if (_busy.value) return

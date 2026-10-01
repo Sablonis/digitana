@@ -28,6 +28,8 @@ data class PlanUiState(
     val sync: SyncStatus,
     val canGoBack: Boolean,
     val canGoForward: Boolean,
+    /** Person, die dieses Gerät benutzt („Das bin ich“). */
+    val myMemberId: String? = null,
 )
 
 sealed interface PlanMessage {
@@ -45,12 +47,19 @@ class PlanViewModel(private val container: AppContainer) : ViewModel() {
     val messages: SharedFlow<PlanMessage> = _messages.asSharedFlow()
 
     val uiState: StateFlow<PlanUiState> =
-        combine(repository.state, selectedWeek, today, container.syncController.status) { state, week, day, sync ->
+        combine(
+            repository.state,
+            selectedWeek,
+            today,
+            container.syncController.status,
+            container.settingsRepository.settings,
+        ) { state, week, day, sync, settings ->
             PlanUiState(
                 week = WeekModel.build(state, week, day),
                 sync = sync,
                 canGoBack = week > WeekModel.FIRST_WEEK,
                 canGoForward = week < WeekModel.LAST_WEEK,
+                myMemberId = settings.myMemberId,
             )
         }
             .flowOn(Dispatchers.Default)
@@ -62,6 +71,7 @@ class PlanViewModel(private val container: AppContainer) : ViewModel() {
                     sync = container.syncController.status.value,
                     canGoBack = selectedWeek.value > WeekModel.FIRST_WEEK,
                     canGoForward = selectedWeek.value < WeekModel.LAST_WEEK,
+                    myMemberId = container.settingsRepository.settings.value.myMemberId,
                 ),
             )
 

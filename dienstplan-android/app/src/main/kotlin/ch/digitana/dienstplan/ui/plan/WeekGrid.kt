@@ -56,6 +56,7 @@ fun WeekGrid(
     onCellClick: (memberId: String, date: LocalDate) -> Unit,
     onCellLongClick: (memberId: String, date: LocalDate) -> Unit,
     onMemberClick: (Member) -> Unit,
+    myMemberId: String?,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalShiftColors.current
@@ -74,7 +75,7 @@ fun WeekGrid(
         } else {
             LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
                 items(model.rows, key = { it.member.id }) { row ->
-                    MemberRowView(row, model.days, colors, onCellClick, onCellLongClick, onMemberClick)
+                    MemberRowView(row, model.days, colors, row.member.id == myMemberId, onCellClick, onCellLongClick, onMemberClick)
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                 }
             }
@@ -140,21 +141,27 @@ private fun MemberRowView(
     row: WeekModel.MemberRow,
     days: List<WeekModel.DayInfo>,
     colors: ShiftColors,
+    isMe: Boolean,
     onCellClick: (String, LocalDate) -> Unit,
     onCellLongClick: (String, LocalDate) -> Unit,
     onMemberClick: (Member) -> Unit,
 ) {
     val hoursDescription = stringResource(R.string.member_hours_description, row.member.name, row.hours)
+    val meDescription = stringResource(R.string.member_me_description, row.member.name)
     Row(Modifier.fillMaxWidth().height(ROW_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = row.member.name,
             style = MaterialTheme.typography.bodyMedium,
+            // Die eigene Zeile ist hervorgehoben.
+            fontWeight = if (isMe) FontWeight.Bold else null,
+            color = if (isMe) MaterialTheme.colorScheme.primary else Color.Unspecified,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .weight(NAME_WEIGHT)
                 .fillMaxHeight()
                 .clickable(onClickLabel = stringResource(R.string.member_click_label)) { onMemberClick(row.member) }
+                .semantics { if (isMe) contentDescription = meDescription }
                 .padding(horizontal = 12.dp)
                 .wrapContentHeight(Alignment.CenterVertically),
         )

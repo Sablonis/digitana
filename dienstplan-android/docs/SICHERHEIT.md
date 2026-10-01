@@ -104,6 +104,12 @@ automatisch gesendet.
 (Square), kotlinx, AndroidX. Versionen stehen fest im Version Catalog, die
 Gradle-Distribution ist per SHA-256 festgelegt, und die CI prüft das Wrapper-JAR.
 
+**15. Benachrichtigungen ohne Server.** Ob sich eigene Dienste geändert haben, berechnet
+die App lokal nach einem Abgleich im Hintergrund (WorkManager, etwa alle 15 Minuten, nur mit
+Netz). Kein Push-Dienst erfährt etwas. Auf dem gesperrten Bildschirm steht nur „Dein
+Dienstplan hat sich geändert“, ohne Namen, Daten oder Schichten. Wer man im Plan ist,
+speichert jedes Gerät verschlüsselt für sich; es wird nicht synchronisiert.
+
 ## Grenzen
 
 - **Wer den Code hat, hat Zugriff** – lesend und schreibend. Der Code ist der Schlüssel.
@@ -128,7 +134,8 @@ Gradle-Distribution ist per SHA-256 festgelegt, und die CI prüft das Wrapper-JA
   Root-Zugriff oder Schadsoftware können Schlüssel aus dem Arbeitsspeicher lesen.
 - **Grosse Nachrichten:** OkHttp liest eine WebSocket-Nachricht vollständig ein, bevor die
   2-MB-Grenze greift; ein böswilliges Relay kann so kurzzeitig Speicher belegen.
-- **Sync nur bei offener App** (plus rund 10–30 s Nachlauf). Änderungen bleiben lokal
-  gespeichert und gehen beim nächsten Öffnen raus.
+- **Abgleich bei geschlossener App nur etwa alle 15 Minuten.** Android kann ihn im
+  Energiesparmodus verschieben. Echte Push-Nachrichten bräuchten einen eigenen Server.
+  Änderungen bleiben lokal gespeichert und gehen beim nächsten Abgleich raus.
 - **„Team verlassen“** löscht nur die Daten auf diesem Gerät. Die verschlüsselten Events auf
   den Relays bleiben bestehen.

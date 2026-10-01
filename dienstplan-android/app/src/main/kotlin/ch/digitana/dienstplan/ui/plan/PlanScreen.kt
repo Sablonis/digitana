@@ -156,6 +156,7 @@ fun PlanScreen(
                 onCellClick = viewModel::cycleShift,
                 onCellLongClick = viewModel::clearShift,
                 onMemberClick = { editMember = it },
+                myMemberId = state.myMemberId,
                 modifier = Modifier.weight(1f),
             )
         }

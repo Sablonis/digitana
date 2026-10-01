@@ -24,6 +24,10 @@ Nostr-Relays. Die App funktioniert auch offline; Änderungen werden später gese
   „Team verlassen“. Beim Beitreten mit vorhandenen Daten fragt die App, ob diese
   übernommen oder verworfen werden.
 - Statusanzeige („Live · 3/3 Relays“) und Diagnose pro Relay.
+- Benachrichtigungen: Wer unter „Team und Einladung“ wählt, wer man im Plan ist, wird
+  benachrichtigt, wenn jemand die eigenen künftigen Dienste ändert. Dafür gleicht die App
+  etwa alle 15 Minuten im Hintergrund ab (WorkManager, nur mit Netz). Die eigene Zeile
+  ist im Plan hervorgehoben.
 
 ## Aufbau
 

@@ -93,6 +93,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(platform(libs.androidx.compose.bom))

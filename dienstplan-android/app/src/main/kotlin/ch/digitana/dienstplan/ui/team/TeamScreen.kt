@@ -64,6 +64,8 @@ fun TeamScreen(
     SecureWindow()
     val team by viewModel.team.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
+    val members by viewModel.members.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
@@ -151,6 +153,13 @@ fun TeamScreen(
                     }
                 }
             }
+
+            NotificationSection(
+                members = members,
+                settings = settings,
+                onSelectMember = viewModel::setMyMember,
+                onNotifyChange = viewModel::setNotifyOnChanges,
+            )
 
             Section(
                 title = stringResource(R.string.team_rotate_title),

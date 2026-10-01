@@ -118,7 +118,7 @@
     <!-- Diagnose -->
     <string name="diagnostics_title">Sync-Diagnose</string>
     <string name="diagnostics_reconnect">Jetzt neu verbinden</string>
-    <string name="diagnostics_hint">Der Sync läuft, solange die App geöffnet ist. Änderungen ohne Verbindung werden gespeichert und später gesendet.</string>
+    <string name="diagnostics_hint">Der Sync läuft, solange die App geöffnet ist, und etwa alle 15 Minuten im Hintergrund. Änderungen ohne Verbindung werden gespeichert und später gesendet.</string>
     <string name="relay_state_connecting">Verbinde …</string>
     <string name="relay_state_syncing">Verbunden, gleiche ab …</string>
     <string name="relay_state_live">Verbunden (live)</string>
@@ -135,6 +135,22 @@
     <string name="diagnostics_version">App-Version: %1$s</string>
     <string name="time_seconds_ago">%1$s (vor %2$d s)</string>
     <string name="time_minutes_ago">%1$s (vor %2$d min)</string>
+
+    <!-- Benachrichtigungen -->
+    <string name="notify_section_title">Benachrichtigungen</string>
+    <string name="notify_section_text">Wähle, wer du im Plan bist. Ändert jemand deine künftigen Dienste, meldet sich die App, auch wenn sie geschlossen ist. Im Hintergrund gleicht sie sich etwa alle 15 Minuten ab.</string>
+    <string name="notify_me_label">Ich bin: %1$s</string>
+    <string name="notify_me_choose">Person wählen</string>
+    <string name="notify_me_nobody">Niemand</string>
+    <string name="notify_no_members">Lege zuerst Personen im Plan an.</string>
+    <string name="notify_switch">Bei Änderungen meiner Dienste benachrichtigen</string>
+    <string name="notify_blocked">Benachrichtigungen sind für diese App ausgeschaltet.</string>
+    <string name="notify_open_settings">Benachrichtigungen erlauben</string>
+    <string name="notification_channel_name">Änderungen an meinen Diensten</string>
+    <string name="notification_channel_description">Meldet, wenn jemand deine künftigen Dienste ändert.</string>
+    <string name="notification_public_text">Dein Dienstplan hat sich geändert.</string>
+    <string name="notification_more">und %1$d weitere</string>
+    <string name="member_me_description">%1$s, das bist du</string>
 
     <!-- Absturzbericht -->
     <string name="crash_title">Die App ist abgestürzt</string>

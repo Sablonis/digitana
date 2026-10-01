@@ -30,6 +30,11 @@ Installation auf Android 8 bis 17.
    Protect scannen“* vorübergehend ausschalten und nach der Installation wieder einschalten.
    Play Protect kann anbieten, die App zur Prüfung an Google zu senden; das ist optional.
 6. Installieren, öffnen, „Neues Team“ oder mit dem Code beitreten.
+7. Optional unter *Team und Einladung → Benachrichtigungen* die eigene Person wählen und den
+   Schalter einschalten. Ab Android 13 fragt das System dann nach der Erlaubnis für
+   Benachrichtigungen. Für pünktliche Hinweise die App vom Energiesparen ausnehmen:
+   *Einstellungen → Apps → Dienstplan → Akku → Nicht eingeschränkt*; bei Samsung zusätzlich
+   nicht unter „Schlafende Apps“ führen.
 
 ### Entwickler-Verifizierung von Google (2026/2027)
 

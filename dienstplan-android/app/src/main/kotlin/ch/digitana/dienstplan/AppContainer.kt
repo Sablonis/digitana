@@ -5,16 +5,21 @@ import android.os.Build
 import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crypto.TeamSecret
 import ch.digitana.dienstplan.core.data.EncryptedPlanStore
+import ch.digitana.dienstplan.core.data.EncryptedSettingsStore
 import ch.digitana.dienstplan.core.data.EncryptedTeamStore
 import ch.digitana.dienstplan.core.data.PlanRepository
 import ch.digitana.dienstplan.core.data.SecureFileStore
+import ch.digitana.dienstplan.core.data.SettingsRepository
 import ch.digitana.dienstplan.core.data.Team
 import ch.digitana.dienstplan.core.data.TeamRepository
 import ch.digitana.dienstplan.core.sync.OkHttpRelayTransport
 import ch.digitana.dienstplan.core.sync.RelayUrls
 import ch.digitana.dienstplan.core.sync.SecureHttp
 import ch.digitana.dienstplan.core.util.Logger
+import ch.digitana.dienstplan.notify.ShiftAlerts
+import ch.digitana.dienstplan.notify.ShiftNotifications
 import ch.digitana.dienstplan.security.AndroidKeystoreKeyWrapper
+import ch.digitana.dienstplan.sync.BackgroundSyncScheduler
 import ch.digitana.dienstplan.sync.SyncController
 import ch.digitana.dienstplan.util.AndroidLogger
 import kotlinx.coroutines.CancellationException
@@ -24,10 +29,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -51,6 +60,10 @@ class AppContainer(context: Context) {
 
     val teamRepository = TeamRepository(EncryptedTeamStore(secureFiles))
     val planRepository = PlanRepository(EncryptedPlanStore(secureFiles), scope, logger = logger)
+    val settingsRepository = SettingsRepository(EncryptedSettingsStore(secureFiles))
+
+    private val notifications = ShiftNotifications(this.context)
+    val shiftAlerts = ShiftAlerts(settingsRepository, planRepository, notifications)
 
     private val httpClient by lazy { SecureHttp.newClient() }
 
@@ -70,6 +83,7 @@ class AppContainer(context: Context) {
     private val justCreatedTeam = AtomicBoolean(false)
 
     fun initialize() {
+        notifications.createChannel()
         scope.launch {
             val readable = try {
                 loadAll()
@@ -87,6 +101,12 @@ class AppContainer(context: Context) {
             }
             planRepository.deviceId = teamRepository.team.value?.deviceId
             launch { teamRepository.team.collect { planRepository.deviceId = it?.deviceId } }
+            // Hintergrund-Abgleich nur, solange ein Team existiert.
+            launch {
+                teamRepository.team.map { it != null }.distinctUntilChanged().collect { hasTeam ->
+                    BackgroundSyncScheduler.update(context, enabled = hasTeam)
+                }
+            }
             syncController.start()
             _storageState.value = if (readable) StorageState.READY else StorageState.RESET_AFTER_ERROR
         }
@@ -95,7 +115,12 @@ class AppContainer(context: Context) {
     private suspend fun loadAll() {
         teamRepository.load()
         planRepository.load()
+        settingsRepository.load()
     }
+
+    /** Wartet, bis die lokalen Daten geladen sind (oder nach einem Fehler zurückgesetzt wurden). */
+    suspend fun awaitReady(timeoutMillis: Long): Boolean =
+        withTimeoutOrNull(timeoutMillis) { storageState.first { it != StorageState.LOADING } } != null
 
     fun acknowledgeStorageReset() {
         _storageState.value = StorageState.READY
@@ -113,7 +138,12 @@ class AppContainer(context: Context) {
 
     /** @param keepLocalData lokale Einträge ins Team übernehmen (z. B. nach einem Schlüsselwechsel). */
     suspend fun joinTeam(secret: TeamSecret, keepLocalData: Boolean): Team = teamMutex.withLock {
-        if (!keepLocalData) planRepository.replaceAll(PlanState.EMPTY)
+        if (!keepLocalData) {
+            planRepository.replaceAll(PlanState.EMPTY)
+            // „Das bin ich“ bezieht sich auf Personen des bisherigen Plans.
+            settingsRepository.clear()
+            notifications.cancel()
+        }
         teamRepository.join(secret).also { planRepository.deviceId = it.deviceId }
     }
 
@@ -126,6 +156,8 @@ class AppContainer(context: Context) {
         teamRepository.leave()
         planRepository.deviceId = null
         planRepository.replaceAll(PlanState.EMPTY)
+        settingsRepository.clear()
+        notifications.cancel()
         withContext(Dispatchers.IO) { secureFiles.wipe() }
     }
 
