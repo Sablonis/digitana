@@ -22,6 +22,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.OkHttpClient
 import java.io.File
 
 /**
@@ -34,6 +35,8 @@ class GroupDevice(
     private val dir: File,
     private val clock: Clock = Clock.System,
     private val config: GroupSyncConfig = FAST,
+    /** Standard: vertraut nur der Test-CA der lokalen Relays. */
+    private val client: OkHttpClient = TestTls.client(),
 ) {
     private class MemoryStore : PlanStore {
         @Volatile var snapshot: PlanSnapshot? = null
@@ -84,7 +87,7 @@ class GroupDevice(
 
     fun startEngine(): GroupSyncEngine {
         check(engine == null) { "Engine läuft schon" }
-        return GroupSyncEngine(team, plan, relayUrls, OkHttpRelayTransport(TestTls.client()), clock, config, logger)
+        return GroupSyncEngine(team, plan, relayUrls, OkHttpRelayTransport(client), clock, config, logger)
             .also {
                 engine = it
                 it.start()

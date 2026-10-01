@@ -128,7 +128,7 @@ fun EditMemberDialog(
 }
 
 @Composable
-private fun nameProblemText(problem: NameProblem): String = when (problem) {
+internal fun nameProblemText(problem: NameProblem): String = when (problem) {
     NameProblem.EMPTY -> stringResource(R.string.member_error_empty)
     NameProblem.TOO_LONG -> stringResource(R.string.member_error_too_long, Limits.MAX_NAME_LENGTH_LOCAL)
     NameProblem.INVALID_CHARACTERS -> stringResource(R.string.member_error_invalid)

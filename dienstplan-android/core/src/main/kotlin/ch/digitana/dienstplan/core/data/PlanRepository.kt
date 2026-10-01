@@ -9,7 +9,6 @@ import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crdt.Shift
 import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.group.PlanSync
-import ch.digitana.dienstplan.core.sync.SyncEngine
 import ch.digitana.dienstplan.core.util.Clock
 import ch.digitana.dienstplan.core.util.Logger
 import kotlinx.coroutines.CoroutineDispatcher
@@ -46,7 +45,7 @@ class PlanRepository(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val saveDelayMillis: Long = 300,
     private val logger: Logger = Logger.None,
-) : SyncEngine.SyncStore, PlanSync {
+) : PlanSync {
 
     private val mutex = Mutex()
     private val hybridClock = HybridClock(clock)

@@ -58,6 +58,8 @@ fun WeekGrid(
     onMemberClick: (Member) -> Unit,
     myMemberId: String?,
     modifier: Modifier = Modifier,
+    /** Nur lesen (z. B. nach dem Entfernen aus dem Team): keine Eingaben. */
+    readOnly: Boolean = false,
 ) {
     val colors = LocalShiftColors.current
     Column(modifier.fillMaxWidth()) {
@@ -75,7 +77,7 @@ fun WeekGrid(
         } else {
             LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
                 items(model.rows, key = { it.member.id }) { row ->
-                    MemberRowView(row, model.days, colors, row.member.id == myMemberId, onCellClick, onCellLongClick, onMemberClick)
+                    MemberRowView(row, model.days, colors, row.member.id == myMemberId, readOnly, onCellClick, onCellLongClick, onMemberClick)
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                 }
             }
@@ -142,6 +144,7 @@ private fun MemberRowView(
     days: List<WeekModel.DayInfo>,
     colors: ShiftColors,
     isMe: Boolean,
+    readOnly: Boolean,
     onCellClick: (String, LocalDate) -> Unit,
     onCellLongClick: (String, LocalDate) -> Unit,
     onMemberClick: (Member) -> Unit,
@@ -160,7 +163,7 @@ private fun MemberRowView(
             modifier = Modifier
                 .weight(NAME_WEIGHT)
                 .fillMaxHeight()
-                .clickable(onClickLabel = stringResource(R.string.member_click_label)) { onMemberClick(row.member) }
+                .clickable(enabled = !readOnly, onClickLabel = stringResource(R.string.member_click_label)) { onMemberClick(row.member) }
                 .semantics { if (isMe) contentDescription = meDescription }
                 .padding(horizontal = 12.dp)
                 .wrapContentHeight(Alignment.CenterVertically),
@@ -171,6 +174,7 @@ private fun MemberRowView(
                 day = day,
                 memberName = row.member.name,
                 colors = colors,
+                enabled = day.editable && !readOnly,
                 onClick = { onCellClick(row.member.id, day.date) },
                 onLongClick = { onCellLongClick(row.member.id, day.date) },
                 modifier = Modifier.weight(DAY_WEIGHT),
@@ -194,6 +198,7 @@ private fun ShiftCell(
     day: WeekModel.DayInfo,
     memberName: String,
     colors: ShiftColors,
+    enabled: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -216,7 +221,7 @@ private fun ShiftCell(
                 .clip(RoundedCornerShape(8.dp))
                 .background(shift?.let { colors[it].container } ?: Color.Transparent)
                 .combinedClickable(
-                    enabled = day.editable,
+                    enabled = enabled,
                     onClickLabel = stringResource(R.string.cell_click_label),
                     onLongClickLabel = stringResource(R.string.cell_long_click_label),
                     // Haptische Rückmeldung beim langen Drücken liefert combinedClickable selbst.

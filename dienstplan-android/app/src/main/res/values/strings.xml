@@ -15,25 +15,56 @@
 
     <!-- Start ohne Team -->
     <string name="onboarding_title">Willkommen beim Dienstplan</string>
-    <string name="onboarding_text">Plane die Schichten deines Teams ohne eigenen Server. Die Geräte gleichen sich Ende-zu-Ende-verschlüsselt über öffentliche Nostr-Relays ab und funktionieren auch offline.</string>
-    <string name="onboarding_new_team">Neues Team</string>
-    <string name="onboarding_new_team_hint">Erzeugt ein neues Team und einen Einladungscode für die anderen.</string>
+    <string name="onboarding_text">Plane die Schichten deines Teams ohne eigenen Server. Die Geräte gleichen sich Ende-zu-Ende-verschlüsselt (MLS) über öffentliche Nostr-Relays ab und funktionieren auch offline.</string>
+    <string name="onboarding_new_team">Neues Team gründen</string>
+    <string name="onboarding_new_team_hint">Dieses Gerät wird Admin und kann die Geräte der anderen hinzufügen.</string>
     <string name="onboarding_join_title">Einem Team beitreten</string>
-    <string name="invite_code_label">Einladungscode (DP2-…)</string>
+    <string name="onboarding_join_hint">Dein Gerät erhält einen Beitrittscode. Damit fügt es ein Admin des Teams hinzu.</string>
+    <string name="action_start_join">Beitrittscode erstellen</string>
     <string name="action_join">Beitreten</string>
 
-    <!-- Fehler beim Einladungscode -->
-    <string name="invite_error_empty">Bitte einen Einladungscode eingeben.</string>
-    <string name="invite_error_prefix">Der Code muss mit „DP2-“ beginnen.</string>
-    <string name="invite_error_characters">Der Code enthält ungültige Zeichen.</string>
-    <string name="invite_error_length">Der Code ist unvollständig oder zu lang.</string>
-    <string name="invite_error_checksum">Der Code ist fehlerhaft (Prüfsumme). Bitte auf Tippfehler prüfen.</string>
-    <string name="invite_error_same_team">Du bist bereits in diesem Team.</string>
+    <!-- Neues Team -->
+    <string name="create_team_title">Neues Team</string>
+    <string name="create_team_name">Name des Teams</string>
+    <string name="create_team_name_hint">Sehen nur Mitglieder, z. B. „Pflege Station 3“.</string>
+    <string name="action_create">Gründen</string>
+    <string name="device_label_own">Dein Name (für die Geräteliste)</string>
+    <string name="device_label_hint">Freiwillig. So erkennen die anderen dieses Gerät.</string>
+
+    <!-- Beitreten -->
+    <string name="join_title">Einem Team beitreten</string>
+    <string name="join_steps">1. Schicke diesen Beitrittscode an eine Person mit Admin-Rechten im Team.\n2. Sie fügt dein Gerät damit hinzu.\n3. Bestätige danach hier die Einladung.</string>
+    <string name="join_code_title">Dein Beitrittscode</string>
+    <string name="join_code_text">Der Code ist kein Geheimnis: Er sagt nur, welches Gerät hinzugefügt werden soll. Zugang bekommt es erst durch einen Admin.</string>
+    <string name="fingerprint_label">Fingerabdruck: %1$s</string>
+    <string name="join_status_publishing">Code wird bereitgestellt …</string>
+    <string name="join_status_waiting">Bereit. Warte auf die Einladung …</string>
+    <string name="join_cancel">Beitritt abbrechen</string>
+    <string name="join_share_title">Beitrittscode teilen</string>
+    <string name="join_share_text">Bitte füge mein Gerät zum Dienstplan hinzu (Team und Geräte → Gerät hinzufügen):\n\n%1$s</string>
+    <string name="join_clipboard_label">Dienstplan-Beitrittscode</string>
+    <string name="copied">Code kopiert.</string>
+
+    <!-- Einladung -->
+    <string name="invite_title">Einladung ins Team „%1$s“</string>
+    <string name="invite_text">Eingeladen von Gerät %1$s. Das Team hat %2$d Geräte. Vergleiche den Fingerabdruck bei Bedarf mit der Person, die dich eingeladen hat.</string>
+    <string name="invite_keep">Plan auf diesem Gerät ins Team übernehmen</string>
+    <string name="invite_keep_hint">Sonst wird der Plan auf diesem Gerät verworfen.</string>
+    <string name="invite_decline">Ablehnen</string>
+
+    <!-- Fehler beim Beitrittscode -->
+    <string name="join_error_empty">Bitte einen Beitrittscode eingeben.</string>
+    <string name="join_error_prefix">Der Code muss mit „DP3-“ beginnen.</string>
+    <string name="join_error_old">Das ist ein Einladungscode der alten Version. Das neue Gerät zeigt einen Beitrittscode „DP3-…“.</string>
+    <string name="join_error_characters">Der Code enthält ungültige Zeichen.</string>
+    <string name="join_error_length">Der Code ist unvollständig oder zu lang.</string>
+    <string name="join_error_checksum">Der Code ist fehlerhaft (Prüfsumme). Bitte auf Tippfehler prüfen.</string>
+    <string name="join_error_self">Das ist der Code dieses Geräts.</string>
 
     <!-- Wochenplan -->
     <string name="menu_more">Weitere Optionen</string>
     <string name="menu_copy_week">Woche kopieren</string>
-    <string name="menu_team">Team und Einladung</string>
+    <string name="menu_team">Team und Geräte</string>
     <string name="menu_diagnostics">Sync-Diagnose</string>
     <string name="action_add_member">Person hinzufügen</string>
     <string name="week_previous">Vorherige Woche</string>
@@ -81,39 +112,66 @@
     <string name="sync_status_description">Sync-Status: %1$s. Tippen für Details.</string>
 
     <!-- Team -->
-    <string name="team_title">Team und Einladung</string>
-    <string name="team_invite_title">Einladungscode</string>
-    <string name="team_invite_text">Wer diesen Code hat, kann den Plan lesen und ändern. Teile ihn nur über einen sicheren Kanal, z. B. einen Ende-zu-Ende-verschlüsselten Messenger. Hier wird er nur gekürzt angezeigt.</string>
+    <string name="team_title">Team und Geräte</string>
+    <string name="team_role_admin">Dieses Gerät ist Admin.</string>
+    <string name="team_role_member">Dieses Gerät ist Mitglied.</string>
+    <string name="devices_title">Geräte im Team (%1$d)</string>
+    <string name="device_unnamed">Gerät ohne Namen</string>
+    <string name="device_admin">Admin</string>
+    <string name="device_me">Dieses Gerät</string>
+    <string name="device_click_label">Aktionen für dieses Gerät</string>
+    <string name="device_add">Gerät hinzufügen</string>
+    <string name="device_add_hint_member">Neue Geräte kann nur ein Admin hinzufügen.</string>
+    <string name="device_add_text">Lass dir den Beitrittscode vom neuen Gerät schicken. Prüfe, dass er wirklich von der richtigen Person stammt.</string>
+    <string name="device_add_code_label">Beitrittscode (DP3-…)</string>
+    <string name="device_label_other">Name in der Geräteliste (freiwillig)</string>
+    <string name="device_added">Gerät hinzugefügt. Es erhält jetzt die Einladung.</string>
+    <string name="device_rename">Umbenennen</string>
+    <string name="device_rename_title">Gerät umbenennen</string>
+    <string name="device_make_admin">Admin-Rechte geben</string>
+    <string name="device_revoke_admin">Admin-Rechte entziehen</string>
+    <string name="device_remove">Aus dem Team entfernen</string>
+    <string name="device_remove_title">%1$s entfernen?</string>
+    <string name="device_remove_text">Das Gerät kann danach keine Änderungen mehr lesen. Was es bereits gesehen hat, bleibt darauf gespeichert.</string>
+    <string name="device_removed">Gerät entfernt.</string>
+    <string name="admin_changed">Admin-Rechte geändert.</string>
     <string name="action_share">Teilen</string>
     <string name="action_copy">Kopieren</string>
-    <string name="copied_sensitive">Code kopiert und als vertraulich markiert.</string>
-    <string name="share_title">Einladungscode teilen</string>
-    <string name="share_text">Einladung zum Dienstplan. Diesen Code in der App unter „Beitreten“ eingeben:\n\n%1$s</string>
-    <string name="clipboard_label">Dienstplan-Einladungscode</string>
-    <string name="team_rotate_title">Neuen Code erstellen</string>
-    <string name="team_rotate_text">Erzeugt ein neues Team-Geheimnis. Geräte mit dem alten Code sehen danach keine Änderungen mehr. So entfernst du Mitglieder: Den neuen Code nur an die verbleibenden Personen senden.</string>
-    <string name="team_rotate_confirm_title">Neuen Code erstellen?</string>
-    <string name="team_rotate_confirm_text">Alle anderen Geräte müssen danach mit dem neuen Code beitreten und ihre Daten übernehmen. Wer entfernt wird, behält, was er bereits gesehen hat.</string>
-    <string name="team_rotate_confirm">Neuen Code erstellen</string>
-    <string name="team_rotated">Neuer Code erstellt. Bitte an alle verbleibenden Mitglieder senden.</string>
-    <string name="team_join_other_title">Anderem Team beitreten</string>
-    <string name="team_join_other_text">Mit dem Code eines anderen Teams oder dem neuen Code nach einem Schlüsselwechsel.</string>
     <string name="team_leave_title">Team verlassen</string>
-    <string name="team_leave_text">Löscht Team-Geheimnis und Plan von diesem Gerät. Die anderen Geräte behalten ihre Daten.</string>
+    <string name="team_leave_text">Die Admins werden gebeten, dieses Gerät zu entfernen. Danach werden Plan und Schlüssel von diesem Gerät gelöscht. Die anderen Geräte behalten ihre Daten.</string>
     <string name="team_leave_confirm_title">Team verlassen?</string>
-    <string name="team_leave_confirm_text">Alle Plandaten und Schlüssel werden von diesem Gerät gelöscht. Zurück kommst du nur mit einem Einladungscode.</string>
+    <string name="team_leave_confirm_text">Alle Plandaten und Schlüssel werden von diesem Gerät gelöscht. Zurück kommst du nur, wenn dich ein Admin erneut hinzufügt.</string>
     <string name="team_leave_confirm">Verlassen</string>
+    <string name="team_leave_offline_title">Austritt nicht gesendet</string>
+    <string name="team_leave_offline_text">Die Relays sind gerade nicht erreichbar. Du kannst die Daten trotzdem nur auf diesem Gerät löschen. Ein Admin sollte das Gerät dann aus dem Team entfernen.</string>
+    <string name="team_delete_local">Nur hier löschen</string>
     <string name="team_limits_title">Grenzen der Sicherheit</string>
-    <string name="team_limits_text">• Wer den Code hat, hat Zugriff.\n• Entfernte Mitglieder behalten, was sie schon gesehen haben.\n• Relays sehen Metadaten: IP-Adressen, Zeitpunkte und Paketgrössen, aber keine Namen oder Schichten.\n• Wer das entsperrte Gerät in der Hand hat, sieht den Plan.</string>
-    <string name="team_device_id">Geräte-ID: %1$s</string>
+    <string name="team_limits_text">• Admins entscheiden, wer dazukommt. Prüfe, dass ein Beitrittscode wirklich vom richtigen Gerät stammt.\n• Entfernte Geräte behalten, was sie schon gesehen haben.\n• Relays sehen Metadaten: IP-Adressen, Zeitpunkte und Paketgrössen, aber keine Namen oder Schichten.\n• Wer das entsperrte Gerät in der Hand hat, sieht den Plan.</string>
+    <string name="team_my_fingerprint">Fingerabdruck dieses Geräts: %1$s</string>
     <string name="joined">Team beigetreten.</string>
-    <string name="team_created">Team erstellt. Teile jetzt den Einladungscode.</string>
+    <string name="team_created">Team gegründet. Füge jetzt die Geräte der anderen hinzu.</string>
 
-    <!-- Beitreten mit vorhandenen Daten -->
-    <string name="join_keep_title">Vorhandene Daten übernehmen?</string>
-    <string name="join_keep_text">Auf diesem Gerät ist bereits ein Plan gespeichert. Übernehmen ist richtig nach einem Schlüsselwechsel im selben Team. Beim Wechsel in ein anderes Team: Verwerfen.</string>
-    <string name="join_keep">Übernehmen</string>
-    <string name="join_discard">Verwerfen</string>
+    <!-- Fehler bei Teamaktionen -->
+    <string name="error_not_connected">Keine Verbindung zu den Relays. Bitte später erneut versuchen.</string>
+    <string name="error_not_member">Dieses Gerät ist nicht mehr im Team.</string>
+    <string name="error_not_admin">Das darf nur ein Admin.</string>
+    <string name="error_last_admin">Du bist das einzige Admin-Gerät. Gib zuerst einem anderen Gerät Admin-Rechte.</string>
+    <string name="error_already_member">Dieses Gerät ist bereits im Team.</string>
+    <string name="error_key_package">Zu diesem Code wurde kein Gerät gefunden. Ist die App auf dem neuen Gerät geöffnet und der Code vollständig?</string>
+    <string name="error_publish">Die Relays haben die Änderung nicht bestätigt. Bitte erneut versuchen.</string>
+    <string name="error_conflict">Ein anderes Gerät hat gleichzeitig etwas geändert. Bitte erneut versuchen.</string>
+    <string name="error_invite_not_delivered">Das Gerät ist im Team, die Einladung kam aber noch nicht an. Entferne es und füge es erneut hinzu.</string>
+
+    <!-- Entfernt, Anschluss verloren, neue Version -->
+    <string name="removed_title">Aus dem Team entfernt</string>
+    <string name="removed_text">Dieses Gerät wurde aus dem Team „%1$s“ entfernt. Der Plan ist nur noch lesbar und wird nicht mehr aktualisiert.</string>
+    <string name="removed_delete">Daten löschen</string>
+    <string name="removed_delete_title">Daten löschen?</string>
+    <string name="removed_delete_text">Plan und Schlüssel werden von diesem Gerät gelöscht. Danach kannst du einem Team neu beitreten.</string>
+    <string name="forked_title">Anschluss an das Team verloren</string>
+    <string name="forked_text">Zwei Geräte haben gleichzeitig das Team geändert, und die Änderung dieses Geräts hat verloren. Es kann neue Nachrichten nicht mehr lesen. Lösche die Daten auf diesem Gerät und lass es von einem Admin neu hinzufügen.</string>
+    <string name="upgrade_title">Neue Team-Sicherheit</string>
+    <string name="upgrade_text">Teams sind jetzt mit MLS gesichert: Jedes Gerät hat eigene Schlüssel, und Admins fügen Geräte hinzu oder entfernen sie. Bitte gründe das Team neu oder lass dich hinzufügen. Dein bisheriger Plan bleibt auf diesem Gerät und kann übernommen werden.</string>
 
     <!-- Diagnose -->
     <string name="diagnostics_title">Sync-Diagnose</string>
@@ -131,7 +189,8 @@
     <string name="relay_counters_dropped">Unlesbar %1$d · Ungültig %2$d · Verworfene Einträge %3$d</string>
     <string name="diagnostics_local">Dieses Gerät</string>
     <string name="diagnostics_entries">Lokale Einträge: %1$d in %2$d Buckets</string>
-    <string name="diagnostics_pubkey">Team-Kennung (öffentlich): %1$s</string>
+    <string name="diagnostics_epoch">MLS-Epoche %1$d · %2$d Geräte im Team</string>
+    <string name="diagnostics_group_counters">Zurückgestellt %1$d · Verworfen %2$d · Rücksprünge %3$d · Ungültig %4$d</string>
     <string name="diagnostics_version">App-Version: %1$s</string>
     <string name="time_seconds_ago">%1$s (vor %2$d s)</string>
     <string name="time_minutes_ago">%1$s (vor %2$d min)</string>
@@ -161,5 +220,5 @@
 
     <!-- Speicher zurückgesetzt -->
     <string name="storage_reset_title">Lokale Daten zurückgesetzt</string>
-    <string name="storage_reset_text">Die gespeicherten Daten konnten nicht mehr entschlüsselt werden (z. B. nach einem Zurücksetzen des Schlüsselspeichers). Sie wurden gelöscht. Tritt dem Team erneut mit dem Einladungscode bei – der Plan wird dann von den Relays geladen.</string>
+    <string name="storage_reset_text">Die gespeicherten Daten konnten nicht mehr entschlüsselt werden (z. B. nach einem Zurücksetzen des Schlüsselspeichers). Sie wurden gelöscht. Lass dieses Gerät von einem Admin neu hinzufügen – der Plan kommt dann von den anderen Geräten.</string>
 </resources>

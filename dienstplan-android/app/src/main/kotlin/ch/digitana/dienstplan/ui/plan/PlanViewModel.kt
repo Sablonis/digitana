@@ -6,6 +6,7 @@ import ch.digitana.dienstplan.AppContainer
 import ch.digitana.dienstplan.core.crdt.NameProblem
 import ch.digitana.dienstplan.core.crdt.Names
 import ch.digitana.dienstplan.core.crdt.WeekId
+import ch.digitana.dienstplan.core.group.TeamState
 import ch.digitana.dienstplan.core.plan.WeekModel
 import ch.digitana.dienstplan.core.sync.SyncStatus
 import kotlinx.coroutines.CancellationException
@@ -30,7 +31,11 @@ data class PlanUiState(
     val canGoForward: Boolean,
     /** Person, die dieses Gerät benutzt („Das bin ich“). */
     val myMemberId: String? = null,
-)
+    /** Aus dem Team entfernt: Name des Teams; der Plan ist dann nur noch lesbar. */
+    val removedFrom: String? = null,
+) {
+    val readOnly: Boolean get() = removedFrom != null
+}
 
 sealed interface PlanMessage {
     data class WeekCopied(val target: WeekId, val changedFields: Int) : PlanMessage
@@ -52,14 +57,15 @@ class PlanViewModel(private val container: AppContainer) : ViewModel() {
             selectedWeek,
             today,
             container.syncController.status,
-            container.settingsRepository.settings,
-        ) { state, week, day, sync, settings ->
+            combine(container.settingsRepository.settings, container.teamRepository.state) { settings, team -> settings to team },
+        ) { state, week, day, sync, (settings, team) ->
             PlanUiState(
                 week = WeekModel.build(state, week, day),
                 sync = sync,
                 canGoBack = week > WeekModel.FIRST_WEEK,
                 canGoForward = week < WeekModel.LAST_WEEK,
                 myMemberId = settings.myMemberId,
+                removedFrom = (team as? TeamState.Removed)?.teamName,
             )
         }
             .flowOn(Dispatchers.Default)
@@ -72,6 +78,7 @@ class PlanViewModel(private val container: AppContainer) : ViewModel() {
                     canGoBack = selectedWeek.value > WeekModel.FIRST_WEEK,
                     canGoForward = selectedWeek.value < WeekModel.LAST_WEEK,
                     myMemberId = container.settingsRepository.settings.value.myMemberId,
+                    removedFrom = (container.teamRepository.state.value as? TeamState.Removed)?.teamName,
                 ),
             )
 
@@ -112,6 +119,9 @@ class PlanViewModel(private val container: AppContainer) : ViewModel() {
         val changed = repository.copyWeekToNext(source)
         _messages.emit(PlanMessage.WeekCopied(source.next(), changed))
     }
+
+    /** Nach dem Entfernen aus dem Team: alles Lokale löschen. */
+    fun deleteLocalData() = launchWrite { container.deleteLocalData() }
 
     private fun launchWrite(block: suspend () -> Unit) {
         viewModelScope.launch {

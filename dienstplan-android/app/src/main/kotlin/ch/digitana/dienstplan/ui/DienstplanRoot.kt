@@ -27,9 +27,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.digitana.dienstplan.AppContainer
 import ch.digitana.dienstplan.R
+import ch.digitana.dienstplan.core.group.TeamState
 import ch.digitana.dienstplan.ui.diagnostics.DiagnosticsScreen
 import ch.digitana.dienstplan.ui.plan.PlanScreen
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
+import ch.digitana.dienstplan.ui.team.JoiningScreen
 import ch.digitana.dienstplan.ui.team.OnboardingScreen
 import ch.digitana.dienstplan.ui.team.TeamScreen
 import ch.digitana.dienstplan.ui.team.TeamViewModel
@@ -44,14 +46,24 @@ fun DienstplanRoot(container: AppContainer) {
     val crashReport by mainViewModel.crashReport.collectAsStateWithLifecycle()
 
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+        val team = state.team
         when {
             state.loading -> LoadingScreen()
-            !state.hasTeam -> {
-                val teamViewModel: TeamViewModel = viewModel { TeamViewModel(container) }
-                OnboardingScreen(teamViewModel)
-            }
+            team is TeamState.None -> OnboardingScreen(viewModel { TeamViewModel(container) })
+            team is TeamState.Joining -> JoiningScreen(viewModel { TeamViewModel(container) }, team)
             else -> MainNavigation(container, startWithTeam = mainViewModel::consumeJustCreatedTeam)
         }
+    }
+
+    if (state.upgraded && !state.loading) {
+        AlertDialog(
+            onDismissRequest = mainViewModel::acknowledgeUpgrade,
+            title = { Text(stringResource(R.string.upgrade_title)) },
+            text = { Text(stringResource(R.string.upgrade_text)) },
+            confirmButton = {
+                TextButton(onClick = mainViewModel::acknowledgeUpgrade) { Text(stringResource(R.string.action_ok)) }
+            },
+        )
     }
 
     if (state.storageReset) {
@@ -87,7 +99,7 @@ fun DienstplanRoot(container: AppContainer) {
 
 @Composable
 private fun MainNavigation(container: AppContainer, startWithTeam: () -> Boolean) {
-    // Nach „Neues Team“ zuerst den Einladungscode zeigen – mit einmaligem Hinweis.
+    // Nach „Neues Team“ zuerst die Teamseite zeigen (Geräte hinzufügen) – mit einmaligem Hinweis.
     var createdHintPending by remember { mutableStateOf(startWithTeam()) }
     var screen by rememberSaveable { mutableStateOf(if (createdHintPending) Screen.TEAM else Screen.PLAN) }
     BackHandler(enabled = screen != Screen.PLAN) { screen = Screen.PLAN }

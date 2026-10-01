@@ -3,8 +3,10 @@ package ch.digitana.dienstplan.core.crypto
 import fr.acinq.secp256k1.Secp256k1
 
 /**
- * BIP-340-Schnorr-Signaturen über secp256k1 (libsecp256k1 via ACINQ secp256k1-kmp).
- * Die Bibliothek signiert nur 32-Byte-Nachrichten – bei Nostr ist das immer die Event-ID.
+ * BIP-340-Schnorr-Signaturen über secp256k1 (libsecp256k1 via ACINQ secp256k1-kmp), nur für
+ * Tests: Die App signiert und prüft über die MLS-Bibliothek (rust-nostr); hier prüfen das
+ * Test-Relay und die NIP-01-Tests unabhängig davon. Die Bibliothek signiert nur 32-Byte-
+ * Nachrichten – bei Nostr ist das immer die Event-ID.
  */
 object Schnorr {
     const val SECRET_KEY_SIZE = 32

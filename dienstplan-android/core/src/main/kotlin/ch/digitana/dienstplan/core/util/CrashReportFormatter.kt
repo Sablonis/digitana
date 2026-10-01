@@ -4,7 +4,7 @@ import java.time.Instant
 
 /**
  * Erstellt einen lokalen Absturzbericht ohne sensible Daten: Klassen, Methoden und
- * Zeilennummern bleiben erhalten; Meldungstexte werden bereinigt (Einladungscodes,
+ * Zeilennummern bleiben erhalten; Meldungstexte werden bereinigt (Codes,
  * Hex- und Base64-Folgen entfernt) und gekürzt. Meldungen von JSON-Parsern entfallen
  * ganz, weil sie Ausschnitte der Eingabe enthalten können.
  */
@@ -14,7 +14,8 @@ object CrashReportFormatter {
     private const val MAX_MESSAGE = 160
     private const val MAX_REPORT = 16_000
 
-    private val INVITE = Regex("DP2-[A-Za-z0-9_-]*", RegexOption.IGNORE_CASE)
+    /** Einladungs- (DP2) und Beitrittscodes (DP3). */
+    private val CODE = Regex("DP([23])-[A-Za-z0-9_-]*", RegexOption.IGNORE_CASE)
     private val HEX_RUN = Regex("[0-9a-fA-F]{16,}")
     private val TOKEN_RUN = Regex("[A-Za-z0-9+/_-]{24,}={0,2}")
     private val SUPPRESSED_MESSAGE_PACKAGES = listOf("kotlinx.serialization.", "org.json.")
@@ -52,7 +53,7 @@ object CrashReportFormatter {
 
     fun sanitize(text: String): String {
         var result = text.filter { !it.isISOControl() || it == ' ' }
-        result = INVITE.replace(result, "DP2-[entfernt]")
+        result = CODE.replace(result) { "DP${it.groupValues[1]}-[entfernt]" }
         result = HEX_RUN.replace(result, "[hex]")
         result = TOKEN_RUN.replace(result) { match ->
             val value = match.value

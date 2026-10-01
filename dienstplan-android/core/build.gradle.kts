@@ -20,10 +20,7 @@ dependencies {
     api(libs.kotlinx.coroutines.core)
     api(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
-    // BIP-340-Schnorr über die JNI-Bindung von libsecp256k1 (ACINQ). Die nativen
-    // Bibliotheken kommen je Plattform dazu: jni-jvm für Tests, jni-android in :app.
-    implementation(libs.secp256k1.kmp)
-    // HKDF und AES-256-GCM aus Google Tink.
+    // AES-256-GCM für die lokal verschlüsselten Dateien aus Google Tink.
     implementation(libs.tink.android) {
         // Enthält nur Annotationen (@RequiresApi …). In der App kommen sie ohnehin
         // über AndroidX; so bleibt :core ohne Google-Maven-Abhängigkeit baubar.
@@ -35,6 +32,9 @@ dependencies {
     compileOnly(libs.jna)
     testImplementation(libs.jna)
 
+    // Nur in Tests: unabhängige BIP-340-Prüfung im Test-Relay und in den NIP-01-Tests
+    // (die App signiert über die MLS-Bibliothek).
+    testImplementation(libs.secp256k1.kmp)
     testRuntimeOnly(libs.secp256k1.kmp.jni.jvm)
     testImplementation(kotlin("test"))
     testImplementation(platform(libs.junit.bom))

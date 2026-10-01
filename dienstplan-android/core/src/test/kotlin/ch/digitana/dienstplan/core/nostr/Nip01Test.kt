@@ -1,7 +1,7 @@
 package ch.digitana.dienstplan.core.nostr
 
-import ch.digitana.dienstplan.core.crypto.TeamKeys
-import ch.digitana.dienstplan.core.crypto.TeamSecret
+import ch.digitana.dienstplan.core.crypto.Schnorr
+import ch.digitana.dienstplan.core.testing.TestEvents
 import ch.digitana.dienstplan.core.util.Hex
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -48,19 +48,19 @@ class Nip01Test {
 
     @Test
     fun `Signieren und Pruefen`() {
-        val keys = TeamKeys.derive(TeamSecret(ByteArray(32) { 5 }))
-        val event = Nip01.sign(keys, 1_790_000_000, NostrEvent.KIND_APP_DATA, listOf(listOf("d", "ab".repeat(32))), "SGFsbG8=")
-        assertTrue(Nip01.verify(event))
-        assertEquals(keys.publicKeyHex, event.pubkey)
+        val keys = ByteArray(32) { 5 }
+        val event = TestEvents.sign(keys, 1_790_000_000, 30078, listOf(listOf("d", "ab".repeat(32))), "SGFsbG8=")
+        assertTrue(TestEvents.verify(event))
+        assertEquals(Hex.encode(Schnorr.xOnlyPublicKey(keys)), event.pubkey)
         assertTrue(Hex.isLowerHex(event.id, 64))
         assertTrue(Hex.isLowerHex(event.sig, 128))
     }
 
     @Test
     fun `jede Manipulation macht das Event ungueltig`() {
-        val keys = TeamKeys.derive(TeamSecret(ByteArray(32) { 5 }))
-        val other = TeamKeys.derive(TeamSecret(ByteArray(32) { 6 }))
-        val event = Nip01.sign(keys, 1_790_000_000, 30078, listOf(listOf("d", "ab".repeat(32))), "SGFsbG8=")
+        val keys = ByteArray(32) { 5 }
+        val other = ByteArray(32) { 6 }
+        val event = TestEvents.sign(keys, 1_790_000_000, 30078, listOf(listOf("d", "ab".repeat(32))), "SGFsbG8=")
         val flippedSig = event.sig.substring(0, 10) + (if (event.sig[10] == '0') '1' else '0') + event.sig.substring(11)
         val flippedId = event.id.substring(0, 5) + (if (event.id[5] == '0') '1' else '0') + event.id.substring(6)
         val tampered = listOf(
@@ -71,25 +71,25 @@ class Nip01Test {
             event.copy(tags = emptyList()) to "Tags entfernt",
             event.copy(sig = flippedSig) to "Signatur",
             event.copy(id = flippedId) to "ID",
-            event.copy(pubkey = other.publicKeyHex) to "fremder Pubkey",
+            event.copy(pubkey = Hex.encode(Schnorr.xOnlyPublicKey(other))) to "fremder Pubkey",
             event.copy(id = event.id.uppercase()) to "ID in Grossbuchstaben",
             event.copy(sig = event.sig.dropLast(2)) to "Signatur zu kurz",
             event.copy(pubkey = "zz" + event.pubkey.drop(2)) to "Pubkey kein Hex",
         )
-        for ((candidate, what) in tampered) assertFalse(Nip01.verify(candidate), what)
+        for ((candidate, what) in tampered) assertFalse(TestEvents.verify(candidate), what)
         // Ein von einem fremden Schlüssel korrekt signiertes Event ist gültig – aber mit anderem Pubkey.
-        val foreign = Nip01.sign(other, event.createdAt, event.kind, event.tags, event.content)
-        assertTrue(Nip01.verify(foreign))
-        assertTrue(foreign.pubkey != keys.publicKeyHex)
+        val foreign = TestEvents.sign(other, event.createdAt, event.kind, event.tags, event.content)
+        assertTrue(TestEvents.verify(foreign))
+        assertTrue(foreign.pubkey != Hex.encode(Schnorr.xOnlyPublicKey(keys)))
     }
 
     @Test
     fun `Parsen ist streng typisiert`() {
-        val keys = TeamKeys.derive(TeamSecret(ByteArray(32) { 5 }))
-        val event = Nip01.sign(keys, 1_790_000_000, 30078, listOf(listOf("d", "ab".repeat(32))), "SGFsbG8=")
+        val keys = ByteArray(32) { 5 }
+        val event = TestEvents.sign(keys, 1_790_000_000, 30078, listOf(listOf("d", "ab".repeat(32))), "SGFsbG8=")
         val json = event.toJson()
         assertEquals(event, Nip01.parseEvent(json))
-        assertTrue(Nip01.verify(Nip01.parseEvent(Json.parseToJsonElement(json.toString()))!!))
+        assertTrue(TestEvents.verify(Nip01.parseEvent(Json.parseToJsonElement(json.toString()))!!))
 
         fun with(name: String, value: kotlinx.serialization.json.JsonElement) =
             JsonObject(json.toMutableMap().apply { put(name, value) })
@@ -110,11 +110,11 @@ class Nip01Test {
 
     @Test
     fun `Umlaute und Emojis im Inhalt sind nach dem Rundlauf ueber JSON pruefbar`() {
-        val keys = TeamKeys.derive(TeamSecret(ByteArray(32) { 5 }))
-        val event = Nip01.sign(keys, 1_790_000_000, 1, listOf(listOf("t", "ä\"\\")), "Grüße 😀\n\t\u0001")
+        val keys = ByteArray(32) { 5 }
+        val event = TestEvents.sign(keys, 1_790_000_000, 1, listOf(listOf("t", "ä\"\\")), "Grüße 😀\n\t\u0001")
         val wire = RelayMessages.event(event)
         val parsed = Nip01.parseEvent(Json.parseToJsonElement(wire).let { (it as kotlinx.serialization.json.JsonArray)[1].jsonObject })
         assertNotNull(parsed)
-        assertTrue(Nip01.verify(parsed))
+        assertTrue(TestEvents.verify(parsed))
     }
 }

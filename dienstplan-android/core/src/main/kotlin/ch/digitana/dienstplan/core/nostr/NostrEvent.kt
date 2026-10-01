@@ -1,7 +1,5 @@
 package ch.digitana.dienstplan.core.nostr
 
-import ch.digitana.dienstplan.core.crypto.Schnorr
-import ch.digitana.dienstplan.core.crypto.TeamKeys
 import ch.digitana.dienstplan.core.util.Hex
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -36,13 +34,12 @@ data class NostrEvent(
         put("sig", sig)
     }
 
-    companion object {
-        /** NIP-78: anwendungsspezifische Daten, adressierbar über (kind, pubkey, d-Tag). */
-        const val KIND_APP_DATA = 30078
-    }
 }
 
-/** Event-ID, Signatur und Parsing exakt nach NIP-01. */
+/**
+ * Event-ID und Parsing exakt nach NIP-01. Signieren und Prüfen übernimmt die MLS-Bibliothek
+ * (rust-nostr), die auch die Gruppen-Events verarbeitet.
+ */
 object Nip01 {
 
     /**
@@ -87,29 +84,11 @@ object Nip01 {
     ): ByteArray = MessageDigest.getInstance("SHA-256")
         .digest(serializeForId(pubkey, createdAt, kind, tags, content).toByteArray(Charsets.UTF_8))
 
-    fun sign(
-        keys: TeamKeys,
-        createdAt: Long,
-        kind: Int,
-        tags: List<List<String>>,
-        content: String,
-    ): NostrEvent {
-        val id = computeId(keys.publicKeyHex, createdAt, kind, tags, content)
-        val sig = keys.sign(id)
-        return NostrEvent(Hex.encode(id), keys.publicKeyHex, createdAt, kind, tags, content, Hex.encode(sig))
-    }
-
-    /** Prüft Format, ID (neu berechnet) und BIP-340-Signatur. */
-    fun verify(event: NostrEvent): Boolean {
-        if (!Hex.isLowerHex(event.id, 64) ||
-            !Hex.isLowerHex(event.pubkey, 64) ||
-            !Hex.isLowerHex(event.sig, 128)
-        ) {
-            return false
-        }
+    /** true, wenn die ID zum Inhalt passt (Format und Neuberechnung, ohne Signatur). */
+    fun hasValidId(event: NostrEvent): Boolean {
+        if (!Hex.isLowerHex(event.id, 64) || !Hex.isLowerHex(event.pubkey, 64)) return false
         val id = computeId(event.pubkey, event.createdAt, event.kind, event.tags, event.content)
-        if (!MessageDigest.isEqual(id, Hex.decode(event.id))) return false
-        return Schnorr.verify(Hex.decode(event.sig), id, Hex.decode(event.pubkey))
+        return MessageDigest.isEqual(id, Hex.decode(event.id))
     }
 
     /** Streng typisiertes Parsing. Unbekannte zusätzliche Felder werden ignoriert. */

@@ -2,10 +2,6 @@
 # OkHttp, Okio, Tink (Protobuf) und kotlinx.serialization bringen eigene Regeln mit.
 # Die App verwendet keine @Serializable-Klassen, nur JsonElement.
 
-# secp256k1-kmp lädt die JNI-Implementierung per Reflection (Class.forName), und der native
-# Code wirft Exceptions über ihren Klassennamen. Das ganze Paket bleibt deshalb unverändert.
--keep class fr.acinq.secp256k1.** { *; }
-
 # JNA und die UniFFI-Bindings der MLS-Bibliothek: JNA greift per Reflection auf Klassen,
 # Felder und Methoden zu (Structure, Callback, Library-Schnittstellen).
 -keep class com.sun.jna.** { *; }

@@ -29,8 +29,12 @@ Installation auf Android 8 bis 17.
    wird: *Play Store → Profilbild → Play Protect → Einstellungen (Zahnrad) → „Apps mit Play
    Protect scannen“* vorübergehend ausschalten und nach der Installation wieder einschalten.
    Play Protect kann anbieten, die App zur Prüfung an Google zu senden; das ist optional.
-6. Installieren, öffnen, „Neues Team“ oder mit dem Code beitreten.
-7. Optional unter *Team und Einladung → Benachrichtigungen* die eigene Person wählen und den
+6. Installieren und öffnen. Die erste Person wählt **„Neues Team gründen“**; ihr Gerät ist
+   Admin. Alle anderen tippen auf **„Beitrittscode erstellen“** und schicken den Code an
+   ein Admin-Gerät. Dort: *Team und Geräte → Gerät hinzufügen*, Code einfügen, Name
+   eintragen. Danach erscheint auf dem neuen Gerät die Einladung; nach dem Bestätigen kommt
+   der Plan automatisch. Beide Geräte zeigen Fingerabdrücke, die sich vergleichen lassen.
+7. Optional unter *Team und Geräte → Benachrichtigungen* die eigene Person wählen und den
    Schalter einschalten. Ab Android 13 fragt das System dann nach der Erlaubnis für
    Benachrichtigungen. Für pünktliche Hinweise die App vom Energiesparen ausnehmen:
    *Einstellungen → Apps → Dienstplan → Akku → Nicht eingeschränkt*; bei Samsung zusätzlich

@@ -13,13 +13,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -63,6 +67,7 @@ fun PlanScreen(
     var showAddMember by rememberSaveable { mutableStateOf(false) }
     var editMember by remember { mutableStateOf<Member?>(null) }
     var confirmCopy by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshToday() }
     LaunchedEffect(Unit) {
@@ -97,20 +102,22 @@ fun PlanScreen(
                             Icon(painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.menu_more))
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.menu_copy_week)) },
-                                onClick = {
-                                    menuOpen = false
-                                    if (viewModel.nextWeekHasEntries()) confirmCopy = true else viewModel.copyWeekToNext()
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.menu_team)) },
-                                onClick = {
-                                    menuOpen = false
-                                    onOpenTeam()
-                                },
-                            )
+                            if (!state.readOnly) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.menu_copy_week)) },
+                                    onClick = {
+                                        menuOpen = false
+                                        if (viewModel.nextWeekHasEntries()) confirmCopy = true else viewModel.copyWeekToNext()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.menu_team)) },
+                                    onClick = {
+                                        menuOpen = false
+                                        onOpenTeam()
+                                    },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.menu_diagnostics)) },
                                 onClick = {
@@ -132,16 +139,21 @@ fun PlanScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
-                FilledTonalButton(onClick = { showAddMember = true }) {
-                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.action_add_member))
+                if (!state.readOnly) {
+                    FilledTonalButton(onClick = { showAddMember = true }) {
+                        Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.action_add_member))
+                    }
                 }
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            state.removedFrom?.let { teamName ->
+                RemovedBanner(teamName = teamName, onDelete = { confirmDelete = true })
+            }
             WeekHeader(
                 weekLabel = WeekFormat.weekLabel(state.week.week),
                 rangeLabel = WeekFormat.rangeLabel(state.week.week),
@@ -158,6 +170,7 @@ fun PlanScreen(
                 onMemberClick = { editMember = it },
                 myMemberId = state.myMemberId,
                 modifier = Modifier.weight(1f),
+                readOnly = state.readOnly,
             )
         }
     }
@@ -192,6 +205,26 @@ fun PlanScreen(
         )
     }
 
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(stringResource(R.string.removed_delete_title)) },
+            text = { Text(stringResource(R.string.removed_delete_text)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDelete = false
+                        viewModel.deleteLocalData()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(R.string.removed_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+
     if (confirmCopy) {
         AlertDialog(
             onDismissRequest = { confirmCopy = false },
@@ -207,6 +240,26 @@ fun PlanScreen(
                 TextButton(onClick = { confirmCopy = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
+    }
+}
+
+/** Hinweis nach dem Entfernen aus dem Team: Plan nur noch lesbar, Daten löschen möglich. */
+@Composable
+private fun RemovedBanner(teamName: String, onDelete: () -> Unit) {
+    ElevatedCard(
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        modifier = Modifier.fillMaxWidth().padding(8.dp),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(stringResource(R.string.removed_title), style = MaterialTheme.typography.titleSmall)
+            Text(
+                stringResource(R.string.removed_text, teamName.ifBlank { "–" }),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedButton(onClick = onDelete, modifier = Modifier.padding(top = 8.dp)) {
+                Text(stringResource(R.string.removed_delete))
+            }
+        }
     }
 }
 

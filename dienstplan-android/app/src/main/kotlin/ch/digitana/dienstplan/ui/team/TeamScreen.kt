@@ -1,6 +1,6 @@
 package ch.digitana.dienstplan.ui.team
 
-import android.os.Build
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -15,44 +15,46 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.digitana.dienstplan.R
-import ch.digitana.dienstplan.core.crypto.InviteCode
+import ch.digitana.dienstplan.core.group.Fingerprint
+import ch.digitana.dienstplan.core.group.TeamState
 import ch.digitana.dienstplan.ui.components.SecureWindow
-import ch.digitana.dienstplan.util.copyToClipboard
-import ch.digitana.dienstplan.util.shareText
-import kotlinx.coroutines.launch
 
+/** Team und Geräte: Geräteliste mit Admin-Aktionen, Benachrichtigungen, Austritt. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeamScreen(
@@ -62,16 +64,21 @@ fun TeamScreen(
     onCreatedHintShown: () -> Unit = {},
 ) {
     SecureWindow()
-    val team by viewModel.team.collectAsStateWithLifecycle()
+    val state by viewModel.teamState.collectAsStateWithLifecycle()
+    val devices by viewModel.devices.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val members by viewModel.members.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    val group by viewModel.groupDiagnostics.collectAsStateWithLifecycle()
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    var confirmRotate by remember { mutableStateOf(false) }
+    var addOpen by rememberSaveable { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<DeviceItem?>(null) }
+    var renaming by remember { mutableStateOf<DeviceItem?>(null) }
+    var removing by remember { mutableStateOf<DeviceItem?>(null) }
     var confirmLeave by remember { mutableStateOf(false) }
+    var offerLocalDelete by remember { mutableStateOf(false) }
+    val member = state as? TeamState.Member
 
     // Fester Schlüssel: Das Zurücksetzen des Hinweises darf die laufende Snackbar nicht abbrechen.
     LaunchedEffect(Unit) {
@@ -84,9 +91,15 @@ fun TeamScreen(
         viewModel.events.collect { event ->
             val message = when (event) {
                 TeamEvent.Created -> R.string.team_created
-                TeamEvent.Rotated -> R.string.team_rotated
                 TeamEvent.Joined -> R.string.joined
-                TeamEvent.Failed -> R.string.error_generic
+                TeamEvent.DeviceAdded -> R.string.device_added
+                TeamEvent.DeviceRemoved -> R.string.device_removed
+                TeamEvent.AdminChanged -> R.string.admin_changed
+                is TeamEvent.Failed -> event.message
+                TeamEvent.LeaveNotSent -> {
+                    offerLocalDelete = true
+                    null
+                }
                 TeamEvent.Left -> null
             }
             if (message != null) snackbar.showSnackbar(resources.getString(message))
@@ -96,7 +109,7 @@ fun TeamScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.team_title)) },
+                title = { Text(member?.team?.name?.ifBlank { null } ?: stringResource(R.string.team_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.action_back))
@@ -116,39 +129,46 @@ fun TeamScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            team?.let { current ->
-                val code = current.inviteCode
-                val shareTitle = stringResource(R.string.share_title)
-                val shareMessage = stringResource(R.string.share_text, code)
-                val clipLabel = stringResource(R.string.clipboard_label)
-                val copiedText = stringResource(R.string.copied_sensitive)
+            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (group.forked) {
+                ElevatedCard(
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.forked_title), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.forked_text), style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(onClick = { offerLocalDelete = true }, enabled = !busy) {
+                            Text(stringResource(R.string.team_delete_local))
+                        }
+                    }
+                }
+            }
+
+            member?.let { current ->
                 ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(stringResource(R.string.team_invite_title), style = MaterialTheme.typography.titleMedium)
-                        // Nur gekürzt anzeigen; der volle Code geht über Teilen oder Kopieren.
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.devices_title, devices.size), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            InviteCode.abbreviate(code),
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontFamily = FontFamily.Monospace,
+                            stringResource(if (current.isAdmin) R.string.team_role_admin else R.string.team_role_member),
+                            style = MaterialTheme.typography.bodySmall,
                         )
-                        Text(stringResource(R.string.team_invite_text), style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            FilledTonalButton(onClick = { shareText(context, shareTitle, shareMessage) }) {
-                                Icon(painterResource(R.drawable.ic_share), contentDescription = null, modifier = Modifier.size(18.dp))
+                        devices.forEachIndexed { index, device ->
+                            if (index > 0) HorizontalDivider()
+                            DeviceRow(device, onClick = { selected = device })
+                        }
+                        if (current.isAdmin) {
+                            FilledTonalButton(onClick = { addOpen = true }, enabled = !busy) {
+                                Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.action_share))
+                                Text(stringResource(R.string.device_add))
                             }
-                            OutlinedButton(onClick = {
-                                copyToClipboard(context, clipLabel, code, sensitive = true)
-                                // Ab Android 13 bestätigt das System das Kopieren selbst.
-                                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                                    scope.launch { snackbar.showSnackbar(copiedText) }
-                                }
-                            }) {
-                                Icon(painterResource(R.drawable.ic_copy), contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.action_copy))
-                            }
+                        } else {
+                            Text(
+                                stringResource(R.string.device_add_hint_member),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }
@@ -160,22 +180,6 @@ fun TeamScreen(
                 onSelectMember = viewModel::setMyMember,
                 onNotifyChange = viewModel::setNotifyOnChanges,
             )
-
-            Section(
-                title = stringResource(R.string.team_rotate_title),
-                text = stringResource(R.string.team_rotate_text),
-            ) {
-                OutlinedButton(onClick = { confirmRotate = true }, enabled = !busy) {
-                    Text(stringResource(R.string.team_rotate_confirm))
-                }
-            }
-
-            Section(
-                title = stringResource(R.string.team_join_other_title),
-                text = stringResource(R.string.team_join_other_text),
-            ) {
-                JoinSection(viewModel = viewModel, enabled = !busy)
-            }
 
             Section(
                 title = stringResource(R.string.team_leave_title),
@@ -193,51 +197,124 @@ fun TeamScreen(
                 text = stringResource(R.string.team_limits_text),
             )
 
-            team?.let {
+            member?.let {
                 Text(
-                    stringResource(R.string.team_device_id, it.deviceId),
+                    stringResource(R.string.team_my_fingerprint, Fingerprint.of(it.me)),
                     style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
     }
 
-    if (confirmRotate) {
-        AlertDialog(
-            onDismissRequest = { confirmRotate = false },
-            title = { Text(stringResource(R.string.team_rotate_confirm_title)) },
-            text = { Text(stringResource(R.string.team_rotate_confirm_text)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmRotate = false
-                    viewModel.rotate()
-                }) { Text(stringResource(R.string.team_rotate_confirm)) }
+    if (addOpen) {
+        AddDeviceDialog(
+            checkCode = viewModel::checkJoinCode,
+            labelProblem = viewModel::labelProblem,
+            onConfirm = { publicKey, label ->
+                addOpen = false
+                viewModel.addDevice(publicKey, label)
             },
-            dismissButton = {
-                TextButton(onClick = { confirmRotate = false }) { Text(stringResource(R.string.action_cancel)) }
+            onDismiss = { addOpen = false },
+        )
+    }
+
+    selected?.let { device ->
+        DeviceActionsDialog(
+            device = device,
+            canManage = member?.isAdmin == true,
+            onRename = {
+                selected = null
+                renaming = device
             },
+            onToggleAdmin = {
+                selected = null
+                viewModel.setAdmin(device.publicKey, !device.isAdmin)
+            },
+            onRemove = {
+                selected = null
+                removing = device
+            },
+            onDismiss = { selected = null },
+        )
+    }
+
+    renaming?.let { device ->
+        RenameDeviceDialog(
+            initial = device.label.orEmpty(),
+            labelProblem = viewModel::labelProblem,
+            onConfirm = { label ->
+                renaming = null
+                viewModel.renameDevice(device.publicKey, label)
+            },
+            onDismiss = { renaming = null },
+        )
+    }
+
+    removing?.let { device ->
+        ConfirmDialog(
+            title = stringResource(R.string.device_remove_title, device.label ?: device.fingerprint),
+            text = stringResource(R.string.device_remove_text),
+            confirmLabel = stringResource(R.string.device_remove),
+            onConfirm = {
+                removing = null
+                viewModel.removeDevice(device.publicKey)
+            },
+            onDismiss = { removing = null },
         )
     }
 
     if (confirmLeave) {
-        AlertDialog(
-            onDismissRequest = { confirmLeave = false },
-            title = { Text(stringResource(R.string.team_leave_confirm_title)) },
-            text = { Text(stringResource(R.string.team_leave_confirm_text)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmLeave = false
-                        viewModel.leave()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text(stringResource(R.string.team_leave_confirm)) }
+        ConfirmDialog(
+            title = stringResource(R.string.team_leave_confirm_title),
+            text = stringResource(R.string.team_leave_confirm_text),
+            confirmLabel = stringResource(R.string.team_leave_confirm),
+            onConfirm = {
+                confirmLeave = false
+                viewModel.leave()
             },
-            dismissButton = {
-                TextButton(onClick = { confirmLeave = false }) { Text(stringResource(R.string.action_cancel)) }
-            },
+            onDismiss = { confirmLeave = false },
         )
+    }
+
+    if (offerLocalDelete) {
+        ConfirmDialog(
+            title = stringResource(if (group.forked) R.string.forked_title else R.string.team_leave_offline_title),
+            text = stringResource(if (group.forked) R.string.removed_delete_text else R.string.team_leave_offline_text),
+            confirmLabel = stringResource(R.string.team_delete_local),
+            onConfirm = {
+                offerLocalDelete = false
+                viewModel.deleteLocalData()
+            },
+            onDismiss = { offerLocalDelete = false },
+        )
+    }
+}
+
+@Composable
+private fun DeviceRow(device: DeviceItem, onClick: () -> Unit) {
+    val clickLabel = stringResource(R.string.device_click_label)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = clickLabel, onClick = onClick)
+            .padding(vertical = 8.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                device.label ?: stringResource(R.string.device_unnamed),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (device.isMe) FontWeight.SemiBold else FontWeight.Normal,
+            )
+            Text(device.fingerprint, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+        }
+        if (device.isMe) SuggestionChip(onClick = onClick, label = { Text(stringResource(R.string.device_me)) })
+        if (device.isAdmin) {
+            Spacer(Modifier.width(6.dp))
+            SuggestionChip(onClick = onClick, label = { Text(stringResource(R.string.device_admin)) })
+        }
     }
 }
 

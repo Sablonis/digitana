@@ -1,7 +1,11 @@
 package ch.digitana.dienstplan.core.data
 
 import ch.digitana.dienstplan.core.crypto.PacketCipher
-import ch.digitana.dienstplan.core.crypto.TeamSecret
+import ch.digitana.dienstplan.core.group.DeviceKeys
+import ch.digitana.dienstplan.core.group.EncryptedDeviceKeyStore
+import ch.digitana.dienstplan.core.group.EncryptedGroupRecordStore
+import ch.digitana.dienstplan.core.group.GroupMode
+import ch.digitana.dienstplan.core.group.GroupRecord
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
@@ -37,7 +41,7 @@ class SecureFileStoreTest {
     @Test
     fun `Hin und zurueck, Klartext liegt nie auf der Platte`() {
         val store = SecureFileStore(dir, SoftwareKeyWrapper())
-        val secret = "geheimes-team-DP2-xyz".toByteArray()
+        val secret = "geheimes-team-xyz".toByteArray()
         store.write("team.bin", secret)
         assertContentEquals(secret, store.read("team.bin"))
         dir.listFiles()!!.forEach { file ->
@@ -101,15 +105,25 @@ class SecureFileStoreTest {
     }
 
     @Test
-    fun `Team-Speicher im Rundlauf`() {
+    fun `Geraeteschluessel und Teamzustand im Rundlauf`() {
         val files = SecureFileStore(dir, SoftwareKeyWrapper())
-        val teams = EncryptedTeamStore(files)
-        assertNull(teams.load())
-        val team = Team(TeamSecret.generate(), "0123456789abcdef", 1234)
-        teams.save(team)
-        assertEquals(team, teams.load())
-        teams.clear()
-        assertNull(teams.load())
+        val keyStore = EncryptedDeviceKeyStore(files)
+        val records = EncryptedGroupRecordStore(files)
+        assertNull(keyStore.load())
+        assertNull(records.load())
+        val keys = DeviceKeys.generate()
+        keyStore.save(keys)
+        assertEquals(keys.publicKey, keyStore.load()!!.publicKey)
+        val record = GroupRecord(GroupMode.JOINING, joinSince = 1234)
+        records.save(record)
+        assertEquals(record, records.load())
+        // Schlüssel liegen nie im Klartext auf der Platte.
+        val identityHex = ch.digitana.dienstplan.core.util.Hex.encode(keys.identity())
+        dir.listFiles()!!.forEach { assertFalse(it.readBytes().decodeToString().contains(identityHex), it.name) }
+        keyStore.clear()
+        records.clear()
+        assertNull(keyStore.load())
+        assertNull(records.load())
     }
 
     @Test

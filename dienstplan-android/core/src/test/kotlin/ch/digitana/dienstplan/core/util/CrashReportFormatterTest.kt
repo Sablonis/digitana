@@ -1,7 +1,7 @@
 package ch.digitana.dienstplan.core.util
 
-import ch.digitana.dienstplan.core.crypto.InviteCode
-import ch.digitana.dienstplan.core.crypto.TeamSecret
+import ch.digitana.dienstplan.core.crypto.SecureRandomBytes
+import ch.digitana.dienstplan.core.group.JoinCode
 import org.junit.jupiter.api.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -10,9 +10,9 @@ class CrashReportFormatterTest {
 
     @Test
     fun `Bericht enthaelt Stacktrace, aber keine Geheimnisse`() {
-        val secret = TeamSecret.generate()
-        val code = InviteCode.encode(secret)
-        val hex = Hex.encode(secret.bytes())
+        val secret = SecureRandomBytes.next(32)
+        val code = JoinCode.encode(Hex.encode(SecureRandomBytes.next(32)))
+        val hex = Hex.encode(secret)
         val error = IllegalStateException(
             "Kaputt mit $code und Schlüssel $hex und Token aGVsbG8gd29ybGQgdGhpcyBpcyBzZWNyZXQ9",
             RuntimeException("Ursache $hex"),
@@ -21,7 +21,7 @@ class CrashReportFormatterTest {
         assertTrue(report.contains("java.lang.IllegalStateException"))
         assertTrue(report.contains("Caused by: java.lang.RuntimeException"))
         assertTrue(report.contains("CrashReportFormatterTest"))
-        assertTrue(report.contains("DP2-[entfernt]"))
+        assertTrue(report.contains("DP3-[entfernt]"))
         assertFalse(report.contains(code))
         assertFalse(report.contains(code.substring(4, 20)))
         assertFalse(report.contains(hex))
@@ -38,7 +38,7 @@ class CrashReportFormatterTest {
 
     @Test
     fun `Klassennamen bleiben lesbar`() {
-        val text = "at ch.digitana.dienstplan.core.sync.SyncEngine.reconcile(SyncEngine.kt:123)"
+        val text = "at ch.digitana.dienstplan.core.group.GroupSyncEngine.reconcile(GroupSyncEngine.kt:123)"
         assertTrue(CrashReportFormatter.sanitize(text) == text)
     }
 }

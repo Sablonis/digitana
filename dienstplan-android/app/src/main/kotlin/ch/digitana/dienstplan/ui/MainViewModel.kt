@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.digitana.dienstplan.AppContainer
 import ch.digitana.dienstplan.StorageState
+import ch.digitana.dienstplan.core.group.TeamState
 import ch.digitana.dienstplan.crash.CrashReporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,18 +17,21 @@ import kotlinx.coroutines.launch
 
 data class MainUiState(
     val loading: Boolean = true,
-    val hasTeam: Boolean = false,
+    val team: TeamState = TeamState.Loading,
     val storageReset: Boolean = false,
+    /** Einmaliger Hinweis nach dem Wechsel von der alten Teamversion (DP2). */
+    val upgraded: Boolean = false,
 )
 
 class MainViewModel(private val container: AppContainer) : ViewModel() {
 
     val state: StateFlow<MainUiState> =
-        combine(container.storageState, container.teamRepository.team) { storage, team ->
+        combine(container.storageState, container.teamRepository.state, container.upgradedFromDp2) { storage, team, upgraded ->
             MainUiState(
-                loading = storage == StorageState.LOADING,
-                hasTeam = team != null,
+                loading = storage == StorageState.LOADING || team == TeamState.Loading,
+                team = team,
                 storageReset = storage == StorageState.RESET_AFTER_ERROR,
+                upgraded = upgraded,
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, MainUiState())
 
@@ -46,6 +50,8 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun acknowledgeStorageReset() = container.acknowledgeStorageReset()
+
+    fun acknowledgeUpgrade() = container.acknowledgeUpgrade()
 
     fun consumeJustCreatedTeam(): Boolean = container.consumeJustCreatedTeam()
 }

@@ -114,7 +114,6 @@ tasks.named("preBuild") { dependsOn(cargoBuildAndroid) }
 
 dependencies {
     implementation(project(":core"))
-    implementation(libs.secp256k1.kmp.jni.android)
     // JNA als AAR (enthält die nativen JNA-Bibliotheken für Android) für die MLS-Bindings.
     implementation(libs.jna) {
         artifact {

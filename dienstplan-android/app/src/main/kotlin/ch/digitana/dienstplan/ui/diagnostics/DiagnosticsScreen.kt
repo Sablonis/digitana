@@ -33,6 +33,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.digitana.dienstplan.AppContainer
 import ch.digitana.dienstplan.BuildConfig
 import ch.digitana.dienstplan.R
+import ch.digitana.dienstplan.core.group.Fingerprint
+import ch.digitana.dienstplan.core.group.TeamState
 import ch.digitana.dienstplan.core.sync.RelayConnectionState
 import ch.digitana.dienstplan.core.sync.RelayDiagnostics
 import ch.digitana.dienstplan.ui.components.SyncStatusChip
@@ -49,7 +51,8 @@ private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:
 fun DiagnosticsScreen(container: AppContainer, onBack: () -> Unit) {
     val status by container.syncController.status.collectAsStateWithLifecycle()
     val relays by container.syncController.diagnostics.collectAsStateWithLifecycle()
-    val team by container.teamRepository.team.collectAsStateWithLifecycle()
+    val team by container.teamRepository.state.collectAsStateWithLifecycle()
+    val group by container.syncController.groupDiagnostics.collectAsStateWithLifecycle()
     val plan by container.planRepository.state.collectAsStateWithLifecycle()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -100,12 +103,21 @@ fun DiagnosticsScreen(container: AppContainer, onBack: () -> Unit) {
                             stringResource(R.string.diagnostics_entries, plan.entryCount, plan.buckets.size),
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        team?.let { current ->
-                            Text(stringResource(R.string.team_device_id, current.deviceId), style = MaterialTheme.typography.bodySmall)
+                        container.publicKey?.let { publicKey ->
+                            Text(stringResource(R.string.fingerprint_label, Fingerprint.of(publicKey)), style = MaterialTheme.typography.bodySmall)
+                        }
+                        (team as? TeamState.Member)?.let { member ->
                             Text(
-                                stringResource(R.string.diagnostics_pubkey, shorten(current.keys.publicKeyHex)),
+                                stringResource(R.string.diagnostics_epoch, member.team.epoch, member.team.members.size),
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                            Text(
+                                stringResource(R.string.diagnostics_group_counters, group.deferred, group.ignored, group.rollbacks, group.invalidMessages),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        if (group.forked) {
+                            Text(stringResource(R.string.forked_title), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                         }
                         Text(
                             stringResource(R.string.diagnostics_version, "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"),
@@ -167,5 +179,3 @@ private fun lastSyncText(lastSyncAt: Long?, now: Long): String {
     }
     return stringResource(R.string.relay_last_sync, formatted)
 }
-
-private fun shorten(hex: String): String = if (hex.length > 16) hex.take(8) + "…" + hex.takeLast(8) else hex

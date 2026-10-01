@@ -163,7 +163,7 @@ class FakeRelay(private val label: String) : Closeable {
             "CLOSE" -> conn.subscriptions.remove(message[1].jsonPrimitive.content)
             "AUTH" -> {
                 val event = Nip01.parseEvent(message[1])
-                val ok = event != null && Nip01.verify(event) && event.kind == 22242 &&
+                val ok = event != null && TestEvents.verify(event) && event.kind == 22242 &&
                     event.tags.any { it.size >= 2 && it[0] == "challenge" && it[1] == conn.challenge } &&
                     event.tags.any { it.size >= 2 && it[0] == "relay" }
                 if (ok) {
@@ -174,7 +174,7 @@ class FakeRelay(private val label: String) : Closeable {
             }
             "EVENT" -> {
                 val event = Nip01.parseEvent(message[1])
-                if (event == null || !Nip01.verify(event)) {
+                if (event == null || !TestEvents.verify(event)) {
                     ok(conn, event?.id ?: "", false, "invalid: bad event")
                     return
                 }

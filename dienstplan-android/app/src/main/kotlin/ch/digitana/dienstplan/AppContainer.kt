@@ -3,15 +3,17 @@ package ch.digitana.dienstplan
 import android.content.Context
 import android.os.Build
 import ch.digitana.dienstplan.core.crdt.PlanState
-import ch.digitana.dienstplan.core.crypto.TeamSecret
 import ch.digitana.dienstplan.core.data.EncryptedPlanStore
 import ch.digitana.dienstplan.core.data.EncryptedSettingsStore
-import ch.digitana.dienstplan.core.data.EncryptedTeamStore
 import ch.digitana.dienstplan.core.data.PlanRepository
 import ch.digitana.dienstplan.core.data.SecureFileStore
 import ch.digitana.dienstplan.core.data.SettingsRepository
-import ch.digitana.dienstplan.core.data.Team
-import ch.digitana.dienstplan.core.data.TeamRepository
+import ch.digitana.dienstplan.core.group.DeviceKeys
+import ch.digitana.dienstplan.core.group.EncryptedDeviceKeyStore
+import ch.digitana.dienstplan.core.group.EncryptedGroupRecordStore
+import ch.digitana.dienstplan.core.group.Team
+import ch.digitana.dienstplan.core.group.TeamRepository
+import ch.digitana.dienstplan.core.group.TeamState
 import ch.digitana.dienstplan.core.sync.OkHttpRelayTransport
 import ch.digitana.dienstplan.core.sync.RelayUrls
 import ch.digitana.dienstplan.core.sync.SecureHttp
@@ -53,12 +55,20 @@ class AppContainer(context: Context) {
     val logger: Logger = if (BuildConfig.DEBUG) AndroidLogger else Logger.None
 
     // noBackupFilesDir ist per Definition von Auto Backup ausgenommen.
+    private val secureDir = File(this.context.noBackupFilesDir, "secure")
+    private val mlsDir = File(this.context.noBackupFilesDir, "mls")
     private val secureFiles = SecureFileStore(
-        File(this.context.noBackupFilesDir, "secure"),
+        secureDir,
         AndroidKeystoreKeyWrapper(preferStrongBox = hasStrongBox(this.context)),
     )
 
-    val teamRepository = TeamRepository(EncryptedTeamStore(secureFiles))
+    val teamRepository = TeamRepository(
+        keyStore = EncryptedDeviceKeyStore(secureFiles),
+        recordStore = EncryptedGroupRecordStore(secureFiles),
+        databaseDir = mlsDir,
+        relays = RelayUrls.DEFAULT,
+        logger = logger,
+    )
     val planRepository = PlanRepository(EncryptedPlanStore(secureFiles), scope, logger = logger)
     val settingsRepository = SettingsRepository(EncryptedSettingsStore(secureFiles))
 
@@ -79,6 +89,10 @@ class AppContainer(context: Context) {
     private val _storageState = MutableStateFlow(StorageState.LOADING)
     val storageState: StateFlow<StorageState> = _storageState.asStateFlow()
 
+    /** true nach dem Wechsel von der alten Teamversion (DP2): einmaliger Hinweis. */
+    private val _upgradedFromDp2 = MutableStateFlow(false)
+    val upgradedFromDp2: StateFlow<Boolean> = _upgradedFromDp2.asStateFlow()
+
     private val teamMutex = Mutex()
     private val justCreatedTeam = AtomicBoolean(false)
 
@@ -96,16 +110,21 @@ class AppContainer(context: Context) {
                 false
             }
             if (!readable) {
-                withContext(Dispatchers.IO) { secureFiles.wipe() }
+                wipeEverything()
                 runCatching { loadAll() }
             }
-            planRepository.deviceId = teamRepository.team.value?.deviceId
-            launch { teamRepository.team.collect { planRepository.deviceId = it?.deviceId } }
-            // Hintergrund-Abgleich nur, solange ein Team existiert.
+            // Planeinträge schreibt nur ein Mitglied; nach dem Entfernen bleibt der Plan lesbar.
             launch {
-                teamRepository.team.map { it != null }.distinctUntilChanged().collect { hasTeam ->
-                    BackgroundSyncScheduler.update(context, enabled = hasTeam)
+                teamRepository.state.collect { state ->
+                    planRepository.deviceId = if (state is TeamState.Member) teamRepository.deviceId else null
                 }
+            }
+            // Hintergrund-Abgleich nur, solange das Gerät einem Team angehört oder beitritt.
+            launch {
+                teamRepository.state
+                    .map { it is TeamState.Member || it is TeamState.Joining }
+                    .distinctUntilChanged()
+                    .collect { BackgroundSyncScheduler.update(context, enabled = it) }
             }
             syncController.start()
             _storageState.value = if (readable) StorageState.READY else StorageState.RESET_AFTER_ERROR
@@ -113,6 +132,13 @@ class AppContainer(context: Context) {
     }
 
     private suspend fun loadAll() {
+        // Teams der alten Version (gemeinsames Geheimnis, DP2) gibt es nicht mehr. Der Plan
+        // bleibt erhalten und lässt sich in ein neues Team übernehmen.
+        val legacy = withContext(Dispatchers.IO) { File(secureDir, LEGACY_TEAM_FILE).exists() }
+        if (legacy) {
+            withContext(Dispatchers.IO) { secureFiles.delete(LEGACY_TEAM_FILE) }
+            _upgradedFromDp2.value = true
+        }
         teamRepository.load()
         planRepository.load()
         settingsRepository.load()
@@ -126,43 +152,110 @@ class AppContainer(context: Context) {
         _storageState.value = StorageState.READY
     }
 
-    /** true genau einmal nach „Neues Team“ – die App zeigt dann zuerst den Einladungscode. */
+    fun acknowledgeUpgrade() {
+        _upgradedFromDp2.value = false
+    }
+
+    /** true genau einmal nach „Neues Team“ – die App zeigt dann zuerst die Teamseite. */
     fun consumeJustCreatedTeam(): Boolean = justCreatedTeam.getAndSet(false)
 
-    suspend fun createTeam(): Team = teamMutex.withLock {
-        teamRepository.create().also {
-            planRepository.deviceId = it.deviceId
-            justCreatedTeam.set(true)
+    /** Eigener öffentlicher Schlüssel (für Fingerabdruck und Geräteliste). */
+    val publicKey: String? get() = teamRepository.publicKey
+
+    /**
+     * „Neues Team“: Dieses Gerät ist einziges Mitglied und Admin. Ein vorhandener Plan
+     * (z. B. aus der alten Version) bleibt und wird ins Team übernommen.
+     */
+    suspend fun createTeam(name: String, deviceLabel: String): Team = teamMutex.withLock {
+        val team = teamRepository.createTeam(name.trim())
+        planRepository.deviceId = teamRepository.deviceId
+        if (!planRepository.state.value.isEmpty()) planRepository.markAllPending()
+        labelOwnDevice(deviceLabel)
+        justCreatedTeam.set(true)
+        team
+    }
+
+    /** Beitritt beginnen: Code anzeigen, auf eine Einladung warten. */
+    suspend fun startJoining() = teamMutex.withLock { teamRepository.startJoining() }
+
+    /** Beitritt abbrechen; ohne laufende Engine nur lokal. */
+    suspend fun cancelJoining() = teamMutex.withLock {
+        try {
+            syncController.cancelJoining()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            teamRepository.reset()
         }
     }
 
-    /** @param keepLocalData lokale Einträge ins Team übernehmen (z. B. nach einem Schlüsselwechsel). */
-    suspend fun joinTeam(secret: TeamSecret, keepLocalData: Boolean): Team = teamMutex.withLock {
+    /**
+     * Einladung annehmen. [keepLocalData]: einen vorhandenen Plan ins Team übernehmen
+     * (sonst wird er verworfen).
+     */
+    suspend fun acceptInvite(inviteId: String, keepLocalData: Boolean, deviceLabel: String): Team = teamMutex.withLock {
         if (!keepLocalData) {
             planRepository.replaceAll(PlanState.EMPTY)
             // „Das bin ich“ bezieht sich auf Personen des bisherigen Plans.
             settingsRepository.clear()
             notifications.cancel()
         }
-        teamRepository.join(secret).also { planRepository.deviceId = it.deviceId }
+        val team = teamRepository.acceptInvite(inviteId)
+        planRepository.deviceId = teamRepository.deviceId
+        if (keepLocalData && !planRepository.state.value.isEmpty()) planRepository.markAllPending()
+        labelOwnDevice(deviceLabel)
+        team
     }
 
-    suspend fun rotateTeamKey(): Team = teamMutex.withLock {
-        teamRepository.rotate().also { planRepository.deviceId = it.deviceId }
+    suspend fun declineInvite(inviteId: String) = teamMutex.withLock { teamRepository.declineInvite(inviteId) }
+
+    /** Gerät hinzufügen (nur Admins); der Name erscheint in der Geräteliste aller Geräte. */
+    suspend fun addDevice(publicKey: String, label: String) {
+        if (label.isNotBlank()) planRepository.setDeviceLabel(DeviceKeys.deviceIdOf(publicKey), label)
+        syncController.addDevice(publicKey)
     }
 
-    /** Löscht Team-Geheimnis, Plan, Datenschlüssel und Keystore-Schlüssel von diesem Gerät. */
+    suspend fun removeDevice(publicKey: String) = syncController.removeDevice(publicKey)
+
+    suspend fun setAdmin(publicKey: String, admin: Boolean) = syncController.setAdmin(publicKey, admin)
+
+    suspend fun renameDevice(publicKey: String, label: String) =
+        planRepository.setDeviceLabel(DeviceKeys.deviceIdOf(publicKey), label)
+
+    /**
+     * Team verlassen: Die Admins werden gebeten, dieses Gerät zu entfernen; danach wird alles
+     * Lokale gelöscht. Scheitert die Bitte (z. B. offline), bleibt alles, wie es ist.
+     */
     suspend fun leaveTeam() = teamMutex.withLock {
-        teamRepository.leave()
+        syncController.leave()
+        wipeEverything()
+    }
+
+    /** Nur auf diesem Gerät löschen (offline, nach dem Entfernen oder bei verlorenem Anschluss). */
+    suspend fun deleteLocalData() = teamMutex.withLock { wipeEverything() }
+
+    /** Löscht Schlüssel, MLS-Zustand, Plan, Einstellungen und den Keystore-Schlüssel. */
+    private suspend fun wipeEverything() {
+        teamRepository.reset()
         planRepository.deviceId = null
         planRepository.replaceAll(PlanState.EMPTY)
         settingsRepository.clear()
         notifications.cancel()
-        withContext(Dispatchers.IO) { secureFiles.wipe() }
+        withContext(Dispatchers.IO) {
+            secureFiles.wipe()
+            mlsDir.deleteRecursively()
+        }
+    }
+
+    private suspend fun labelOwnDevice(label: String) {
+        val deviceId = teamRepository.deviceId ?: return
+        if (label.isNotBlank()) planRepository.setDeviceLabel(deviceId, label)
     }
 
     private companion object {
         const val TAG = "AppContainer"
+        /** Teamdatei der alten Version (DP2). */
+        const val LEGACY_TEAM_FILE = "team.bin"
 
         fun hasStrongBox(context: Context): Boolean =
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&

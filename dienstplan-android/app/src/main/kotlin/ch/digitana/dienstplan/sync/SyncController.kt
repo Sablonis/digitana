@@ -1,11 +1,13 @@
 package ch.digitana.dienstplan.sync
 
 import ch.digitana.dienstplan.core.data.PlanRepository
-import ch.digitana.dienstplan.core.data.Team
-import ch.digitana.dienstplan.core.data.TeamRepository
+import ch.digitana.dienstplan.core.group.GroupDiagnostics
+import ch.digitana.dienstplan.core.group.GroupSyncEngine
+import ch.digitana.dienstplan.core.group.TeamOperationException
+import ch.digitana.dienstplan.core.group.TeamRepository
+import ch.digitana.dienstplan.core.group.TeamState
 import ch.digitana.dienstplan.core.sync.RelayDiagnostics
 import ch.digitana.dienstplan.core.sync.RelayTransport
-import ch.digitana.dienstplan.core.sync.SyncEngine
 import ch.digitana.dienstplan.core.sync.SyncStatus
 import ch.digitana.dienstplan.core.util.Logger
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +22,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -43,11 +47,11 @@ enum class BackgroundSyncResult {
 }
 
 /**
- * Startet und stoppt die [SyncEngine]: Sie läuft, solange ein Team existiert und die App
- * im Vordergrund ist. Nach dem Wechsel in den Hintergrund bleibt sie kurz aktiv, damit
- * gerade gemachte Änderungen noch gesendet werden. Bei Team- oder Schlüsselwechsel wird
- * die Engine mit den neuen Schlüsseln neu gestartet. Zusätzlich gleicht [backgroundSync]
- * in regelmässigen Abständen im Hintergrund ab.
+ * Startet und stoppt die [GroupSyncEngine]: Sie läuft, solange das Gerät einem Team angehört
+ * oder beitritt und die App im Vordergrund ist. Nach dem Wechsel in den Hintergrund bleibt sie
+ * kurz aktiv, damit gerade gemachte Änderungen noch gesendet werden. Zusätzlich gleicht
+ * [backgroundSync] in regelmässigen Abständen im Hintergrund ab. Teamaktionen, die Relays
+ * brauchen (Gerät hinzufügen, entfernen, Admin-Rechte, Austritt), laufen über die Engine.
  */
 class SyncController(
     private val scope: CoroutineScope,
@@ -65,12 +69,19 @@ class SyncController(
     private val _diagnostics = MutableStateFlow<List<RelayDiagnostics>>(emptyList())
     val diagnostics: StateFlow<List<RelayDiagnostics>> = _diagnostics.asStateFlow()
 
-    @Volatile
-    private var engine: SyncEngine? = null
+    private val _groupDiagnostics = MutableStateFlow(GroupDiagnostics())
+    val groupDiagnostics: StateFlow<GroupDiagnostics> = _groupDiagnostics.asStateFlow()
+
+    private val engine = MutableStateFlow<GroupSyncEngine?>(null)
     private var started = false
 
     /** Höchstens eine Engine gleichzeitig: Vordergrund oder Hintergrund. */
     private val engineMutex = Mutex()
+
+    /** true, solange es etwas abzugleichen gibt (Beitritt oder Mitgliedschaft). */
+    private val hasWork = teamRepository.state
+        .map { it is TeamState.Joining || it is TeamState.Member }
+        .distinctUntilChanged()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun start() {
@@ -82,18 +93,14 @@ class SyncController(
                     emit(true)
                 } else {
                     delay(MIN_GRACE_MILLIS)
-                    engine?.awaitIdle(MAX_GRACE_MILLIS - MIN_GRACE_MILLIS)
+                    engine.value?.awaitIdle(MAX_GRACE_MILLIS - MIN_GRACE_MILLIS)
                     emit(false)
                 }
             }
-            combine(teamRepository.team, active) { team, isActive -> if (isActive) team else null }
+            combine(hasWork, active) { work, isActive -> work && isActive }
                 .distinctUntilChanged()
-                .collectLatest { team ->
-                    if (team == null) {
-                        _status.value = SyncStatus.stopped(relayUrls.size)
-                    } else {
-                        runEngine(team)
-                    }
+                .collectLatest { run ->
+                    if (run) runEngine() else _status.value = SyncStatus.stopped(relayUrls.size)
                 }
         }
     }
@@ -108,8 +115,23 @@ class SyncController(
     }
 
     fun reconnectNow() {
-        engine?.reconnectNow()
+        engine.value?.reconnectNow()
     }
+
+    suspend fun addDevice(publicKey: String) = requireEngine().addDevice(publicKey)
+
+    suspend fun removeDevice(publicKey: String) = requireEngine().removeDevice(publicKey)
+
+    suspend fun setAdmin(publicKey: String, admin: Boolean) = requireEngine().setAdmin(publicKey, admin)
+
+    suspend fun leave() = requireEngine().leave()
+
+    suspend fun cancelJoining() = requireEngine().cancelJoining()
+
+    /** Die Engine läuft nur im Vordergrund; kurz nach dem Öffnen kann sie noch starten. */
+    private suspend fun requireEngine(): GroupSyncEngine =
+        withTimeoutOrNull(ENGINE_WAIT_MILLIS) { engine.first { it != null } }
+            ?: throw TeamOperationException(TeamOperationException.Reason.NOT_CONNECTED)
 
     /**
      * Ein Abgleich, während die App geschlossen ist: verbinden, holen, ausstehende Änderungen
@@ -117,10 +139,11 @@ class SyncController(
      * nur einem Teil davon. Bricht ab, sobald die App in den Vordergrund kommt.
      */
     suspend fun backgroundSync(maxMillis: Long = BACKGROUND_MAX_MILLIS): BackgroundSyncResult {
-        val team = teamRepository.team.value ?: return BackgroundSyncResult.NO_TEAM
-        if (foreground.value || engine != null || !engineMutex.tryLock()) return BackgroundSyncResult.SKIPPED
+        val state = teamRepository.state.value
+        if (state !is TeamState.Member && state !is TeamState.Joining) return BackgroundSyncResult.NO_TEAM
+        if (foreground.value || engine.value != null || !engineMutex.tryLock()) return BackgroundSyncResult.SKIPPED
         try {
-            val current = newEngine(team)
+            val current = newEngine()
             current.start()
             try {
                 val startedAt = System.currentTimeMillis()
@@ -150,28 +173,29 @@ class SyncController(
         }
     }
 
-    private fun newEngine(team: Team) = SyncEngine(
-        keys = team.keys,
-        store = planRepository,
+    private fun newEngine() = GroupSyncEngine(
+        team = teamRepository,
+        plan = planRepository,
         relayUrls = relayUrls,
         transport = transportFactory(),
         logger = logger,
     )
 
-    private suspend fun runEngine(team: Team) {
+    private suspend fun runEngine() {
         engineMutex.withLock {
-            val current = newEngine(team)
-            engine = current
+            val current = newEngine()
             current.start()
+            engine.value = current
             try {
                 coroutineScope {
                     launch { current.status.collect { _status.value = it } }
                     launch { current.diagnostics.collect { _diagnostics.value = it } }
+                    launch { current.groupDiagnostics.collect { _groupDiagnostics.value = it } }
                     awaitCancellation()
                 }
             } finally {
+                if (engine.value === current) engine.value = null
                 withContext(NonCancellable) { current.stop() }
-                if (engine === current) engine = null
                 _status.value = SyncStatus.stopped(relayUrls.size)
             }
         }
@@ -183,5 +207,6 @@ class SyncController(
         const val BACKGROUND_MAX_MILLIS = 45_000L
         const val SETTLE_MILLIS = 12_000L
         const val POLL_MILLIS = 250L
+        const val ENGINE_WAIT_MILLIS = 5_000L
     }
 }

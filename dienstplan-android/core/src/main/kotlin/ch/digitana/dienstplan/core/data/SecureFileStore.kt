@@ -147,14 +147,3 @@ class EncryptedPlanStore(private val files: SecureFileStore) : PlanStore {
         const val FILE = "plan.bin"
     }
 }
-
-/** [TeamStore] auf Basis von [SecureFileStore]. */
-class EncryptedTeamStore(private val files: SecureFileStore) : TeamStore {
-    override fun load(): Team? = files.read(FILE)?.let { TeamCodec.decode(it) }
-    override fun save(team: Team) = files.write(FILE, TeamCodec.encode(team))
-    override fun clear() = files.delete(FILE)
-
-    private companion object {
-        const val FILE = "team.bin"
-    }
-}
