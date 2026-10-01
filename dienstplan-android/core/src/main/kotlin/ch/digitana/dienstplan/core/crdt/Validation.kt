@@ -35,7 +35,7 @@ object EntryValidator {
     }
 
     fun isValidValue(key: PlanKey, value: String): Boolean = when (key) {
-        is PlanKey.Member -> value.isEmpty() || Names.isValid(value, Limits.MAX_NAME_LENGTH_REMOTE)
+        is PlanKey.Member, is PlanKey.Device -> value.isEmpty() || Names.isValid(value, Limits.MAX_NAME_LENGTH_REMOTE)
         is PlanKey.Shift -> value.isEmpty() || Shift.fromCode(value) != null
     }
 }

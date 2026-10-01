@@ -54,6 +54,13 @@ class PlanState private constructor(private val bucketMap: Map<String, LwwMap>) 
         }
     }
 
+    /** Gerätenamen (Geräte-ID → Name), ohne gelöschte. */
+    fun deviceLabels(): Map<String, String> =
+        bucket(Buckets.TEAM).entries.mapNotNull { (key, entry) ->
+            val parsed = PlanKeys.parse(key) as? PlanKey.Device ?: return@mapNotNull null
+            if (entry.value.isEmpty()) null else parsed.deviceId to entry.value
+        }.toMap()
+
     val maxTimestamp: Long
         get() = bucketMap.values.maxOfOrNull { map -> map.entries.values.maxOfOrNull { it.timestamp } ?: 0L } ?: 0L
 

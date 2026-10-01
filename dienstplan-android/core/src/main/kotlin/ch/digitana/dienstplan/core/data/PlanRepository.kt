@@ -8,6 +8,7 @@ import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crdt.Shift
 import ch.digitana.dienstplan.core.crdt.WeekId
+import ch.digitana.dienstplan.core.group.PlanSync
 import ch.digitana.dienstplan.core.sync.SyncEngine
 import ch.digitana.dienstplan.core.util.Clock
 import ch.digitana.dienstplan.core.util.Logger
@@ -35,7 +36,8 @@ class InvalidInputException(val problem: NameProblem) : IllegalArgumentException
 /**
  * CRDT-Speicher des Plans. Lokale Änderungen bekommen einen Zeitstempel der hybriden Uhr
  * und die Geräte-ID; Einträge von Relays werden per LWW zusammengeführt. Gespeichert wird
- * entprellt im Hintergrund.
+ * entprellt im Hintergrund. Eigene Änderungen bleiben als „ausstehend“ vermerkt, bis ein
+ * Relay sie bestätigt hat – auch über einen Neustart hinweg.
  */
 class PlanRepository(
     private val store: PlanStore,
@@ -44,10 +46,12 @@ class PlanRepository(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val saveDelayMillis: Long = 300,
     private val logger: Logger = Logger.None,
-) : SyncEngine.SyncStore {
+) : SyncEngine.SyncStore, PlanSync {
 
     private val mutex = Mutex()
     private val hybridClock = HybridClock(clock)
+    /** Eigene, noch nicht bestätigte Änderungen: Schlüssel → Zeitstempel des Eintrags. */
+    private val pending = HashMap<String, Long>()
     private val _state = MutableStateFlow(PlanState.EMPTY)
     override val state: StateFlow<PlanState> = _state.asStateFlow()
 
@@ -77,6 +81,8 @@ class PlanRepository(
             val state = snapshot?.state ?: PlanState.EMPTY
             _state.value = state
             hybridClock.observe(maxOf(snapshot?.clock ?: 0L, state.maxTimestamp))
+            pending.clear()
+            snapshot?.pending?.let { pending.putAll(it) }
         }
         _loaded.value = true
     }
@@ -110,6 +116,12 @@ class PlanRepository(
     suspend fun renameMember(id: String, name: String) {
         val validName = validateName(name)
         write { listOf(PlanKeys.member(id) to validName) }
+    }
+
+    /** Name eines Geräts in der Geräteliste; leer = Name entfernen. */
+    suspend fun setDeviceLabel(deviceId: String, label: String) {
+        val value = if (label.isBlank()) "" else validateName(label)
+        write { listOf(PlanKeys.device(deviceId) to value) }
     }
 
     /** Löschen = leerer Name (Tombstone). Schichten bleiben erhalten, werden aber nicht angezeigt. */
@@ -154,6 +166,8 @@ class PlanRepository(
             for (key in result.changedKeys) {
                 val ts = entries.getValue(key).timestamp
                 if (ts > maxTimestamp) maxTimestamp = ts
+                // Ein neuerer Eintrag von aussen hat die eigene Änderung überholt.
+                pending.remove(key)
             }
             hybridClock.observe(maxTimestamp)
             true
@@ -162,11 +176,54 @@ class PlanRepository(
         return changed
     }
 
+    /** Aktuelle Einträge der eigenen, noch nicht bestätigten Änderungen. */
+    override suspend fun pendingEntries(): Map<String, Entry> = mutex.withLock {
+        val state = _state.value
+        val result = HashMap<String, Entry>()
+        val iterator = pending.entries.iterator()
+        while (iterator.hasNext()) {
+            val (key, timestamp) = iterator.next()
+            val entry = state.entry(key)
+            if (entry == null || entry.timestamp != timestamp) {
+                iterator.remove()
+                continue
+            }
+            result[key] = entry
+        }
+        result
+    }
+
+    /** Ein Relay hat diese Einträge bestätigt (Schlüssel → Zeitstempel). */
+    override suspend fun markSent(sent: Map<String, Long>) {
+        var removed = false
+        mutex.withLock {
+            for ((key, timestamp) in sent) {
+                if (pending[key] == timestamp) {
+                    pending.remove(key)
+                    removed = true
+                }
+            }
+        }
+        if (removed) saveRequests.trySend(Unit)
+    }
+
+    /** Alle Einträge als ausstehend markieren (lokalen Plan in ein Team übernehmen). */
+    suspend fun markAllPending() {
+        mutex.withLock {
+            for (map in _state.value.buckets.values) {
+                for ((key, entry) in map.entries) pending[key] = entry.timestamp
+            }
+        }
+        _localChanges.tryEmit(Unit)
+        saveRequests.trySend(Unit)
+    }
+
     /** Ersetzt den gesamten Stand (Beitreten ohne Übernahme, Team verlassen). */
     suspend fun replaceAll(state: PlanState) {
         mutex.withLock {
             _state.value = state
             hybridClock.observe(state.maxTimestamp)
+            pending.clear()
         }
         saveNow()
     }
@@ -183,7 +240,9 @@ class PlanRepository(
             for ((key, value) in compute(state)) {
                 // Unveränderte Felder nicht neu schreiben (spart Sync-Verkehr, vermeidet unnötige Konflikte).
                 if (state.value(key) == value) continue
-                state = state.withEntry(key, Entry(value, hybridClock.next(), device))
+                val entry = Entry(value, hybridClock.next(), device)
+                state = state.withEntry(key, entry)
+                pending[key] = entry.timestamp
                 written++
             }
             _state.value = state
@@ -196,7 +255,7 @@ class PlanRepository(
     }
 
     private suspend fun saveNow() {
-        val snapshot = mutex.withLock { PlanSnapshot(_state.value, hybridClock.current()) }
+        val snapshot = mutex.withLock { PlanSnapshot(_state.value, hybridClock.current(), HashMap(pending)) }
         try {
             withContext(ioDispatcher) { store.save(snapshot) }
         } catch (e: Exception) {

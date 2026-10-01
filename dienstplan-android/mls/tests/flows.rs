@@ -284,3 +284,158 @@ fn identitaetsschluessel_pruefen() {
     assert!(!is_valid_identity_secret(vec![1; 16]));
     assert_eq!(public_key_of(secret(1)).unwrap().len(), 64);
 }
+
+#[test]
+fn offene_einladung_bleibt_nach_neustart_erhalten() {
+    let dir = TempDir::new().unwrap();
+    let alice = device(&dir, "alice", 23);
+    let bob = device(&dir, "bob", 24);
+    let team = alice.engine.create_team("Küche".into(), relays()).unwrap();
+    let invitation = alice.engine.invite(team.group_id.clone(), bob.engine.key_package_event(relays()).unwrap()).unwrap();
+    alice.engine.confirm_published(team.group_id.clone()).unwrap();
+    let invite = bob.engine.receive_invite(invitation.welcome_events[0].clone()).unwrap().unwrap();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    assert!(invite.created_at <= now + 5 && invite.created_at + 600 >= now, "{}", invite.created_at);
+
+    let (path, key, secret) = (bob.path.clone(), bob.db_key.clone(), bob.secret.clone());
+    drop(bob);
+    let reopened = MlsEngine::open(path, key, secret).unwrap();
+    assert_eq!(reopened.pending_invites().unwrap(), vec![invite.clone()]);
+    reopened.accept_invite(invite.invite_id).unwrap();
+    assert!(reopened.pending_invites().unwrap().is_empty());
+}
+
+#[test]
+fn signiert_nur_loeschanfragen_und_anmeldungen() {
+    use nostr::{Event, JsonUtil};
+    let dir = TempDir::new().unwrap();
+    let alice = device(&dir, "alice", 25);
+    let deletion = alice
+        .engine
+        .sign_event(5, vec![vec!["e".into(), "ab".repeat(32)], vec!["k".into(), "30443".into()]], String::new())
+        .unwrap();
+    let event = Event::from_json(&deletion).unwrap();
+    event.verify().unwrap();
+    assert_eq!(event.pubkey.to_hex(), alice.pubkey);
+    assert_eq!(event.kind.as_u16(), 5);
+
+    let auth = alice
+        .engine
+        .sign_event(22242, vec![vec!["relay".into(), RELAYS[0].into()], vec!["challenge".into(), "x".into()]], String::new())
+        .unwrap();
+    Event::from_json(&auth).unwrap().verify().unwrap();
+
+    assert!(matches!(alice.engine.sign_event(1, vec![], "hallo".into()), Err(MlsError::InvalidInput { .. })));
+    assert!(matches!(alice.engine.sign_event(445, vec![], String::new()), Err(MlsError::InvalidInput { .. })));
+    assert!(matches!(alice.engine.sign_event(5, vec![vec![]], String::new()), Err(MlsError::InvalidInput { .. })));
+}
+
+#[test]
+fn wettlauf_zweier_commits_endet_ueberall_gleich() {
+    use nostr::{Event, JsonUtil};
+    let dir = TempDir::new().unwrap();
+    let alice = device(&dir, "alice", 26);
+    let bob = device(&dir, "bob", 27);
+    let carol = device(&dir, "carol", 28);
+    let team = alice.engine.create_team("Team".into(), relays()).unwrap();
+    join(&alice, &team, &bob, &[]);
+    let admins = alice.engine.set_admins(team.group_id.clone(), vec![alice.pubkey.clone(), bob.pubkey.clone()]).unwrap();
+    alice.engine.confirm_published(team.group_id.clone()).unwrap();
+    bob.engine.ingest(vec![admins]).unwrap();
+    join(&alice, &team, &carol, &[&bob]);
+
+    // Alice und Bob ändern gleichzeitig dieselbe Epoche.
+    let from_alice = alice.engine.self_update(team.group_id.clone()).unwrap();
+    let from_bob = bob.engine.self_update(team.group_id.clone()).unwrap();
+    let key = |json: &str| {
+        let event = Event::from_json(json).unwrap();
+        (event.created_at, event.id)
+    };
+    let (better, worse) = if key(&from_alice) < key(&from_bob) { (from_alice, from_bob) } else { (from_bob, from_alice) };
+
+    // Carol sieht zuerst den schlechteren Commit, danach den besseren (MIP-03: früher gewinnt).
+    carol.engine.ingest(vec![worse]).unwrap();
+    let outcomes = carol.engine.ingest(vec![better.clone()]).unwrap();
+    assert!(outcomes.iter().any(|o| matches!(o, IngestOutcome::RolledBack { .. })), "{outcomes:?}");
+    assert!(outcomes.iter().any(|o| matches!(o, IngestOutcome::GroupChanged { .. })), "{outcomes:?}");
+}
+
+#[test]
+fn austritt_haelt_den_rest_des_stapels_bis_zur_bestaetigung_an() {
+    let dir = TempDir::new().unwrap();
+    let alice = device(&dir, "alice", 29);
+    let bob = device(&dir, "bob", 30);
+    let carol = device(&dir, "carol", 31);
+    let team = alice.engine.create_team("Team".into(), relays()).unwrap();
+    join(&alice, &team, &bob, &[]);
+    join(&alice, &team, &carol, &[&bob]);
+
+    let proposal = bob.engine.leave(team.group_id.clone()).unwrap();
+    // Eine Sekunde später, damit die Nachricht im Stapel sicher nach dem Vorschlag kommt.
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    let later = carol.engine.encrypt(team.group_id.clone(), 30078, "danach".into()).unwrap();
+    let outcomes = alice.engine.ingest(vec![proposal, later]).unwrap();
+    assert!(
+        matches!(outcomes.as_slice(), [IngestOutcome::PublishRequired { .. }, IngestOutcome::Deferred { .. }]),
+        "{outcomes:?}"
+    );
+    assert!(app_messages(&outcomes).is_empty(), "{outcomes:?}");
+    assert_eq!(alice.engine.deferred_count().unwrap(), 1);
+
+    let after = alice.engine.confirm_published(team.group_id.clone()).unwrap();
+    assert_eq!(app_messages(&after), vec![(carol.pubkey.clone(), "danach".to_string())], "{after:?}");
+    assert_eq!(alice.engine.deferred_count().unwrap(), 0);
+}
+
+#[test]
+fn commit_laesst_sich_vor_dem_verarbeiten_erkennen() {
+    let dir = TempDir::new().unwrap();
+    let alice = device(&dir, "alice", 32);
+    let bob = device(&dir, "bob", 33);
+    let team = alice.engine.create_team("Team".into(), relays()).unwrap();
+    let bob_team = join(&alice, &team, &bob, &[]);
+
+    let commit = bob.engine.self_update(team.group_id.clone()).unwrap();
+    // Noch nicht übernommen: Alice sieht einen Commit für ihre aktuelle Epoche.
+    assert_eq!(alice.engine.peek_commit(commit.clone()).unwrap(), Some(bob_team.epoch));
+    bob.engine.confirm_published(team.group_id.clone()).unwrap();
+    let message = bob.engine.encrypt(team.group_id.clone(), 30078, "x".into()).unwrap();
+    // Anwendungsnachrichten und Unlesbares sind keine Commits.
+    assert_eq!(alice.engine.ingest(vec![commit.clone()]).unwrap().len(), 1);
+    assert_eq!(alice.engine.peek_commit(message).unwrap(), None);
+    assert_eq!(alice.engine.peek_commit("kein json".into()).unwrap(), None);
+    // Nach dem Übernehmen bleibt er über die gespeicherte Epoche erkennbar.
+    assert_eq!(alice.engine.peek_commit(commit).unwrap(), Some(bob_team.epoch));
+}
+
+/// Hält fest, warum die App eigene Commits erst nach einer Wartezeit übernimmt: Die verwendete
+/// MDK-Version setzt einen bereits übernommenen eigenen Commit nicht zurück, wenn ein früherer
+/// Commit derselben Epoche eintrifft (kein Wiederherstellungspunkt). Ändert sich das mit einer
+/// neueren MDK-Version, schlägt dieser Test fehl und die Wartezeit kann überdacht werden.
+#[test]
+fn eigene_commits_werden_bei_einem_wettlauf_nicht_zurueckgesetzt() {
+    use nostr::{Event, JsonUtil};
+    let dir = TempDir::new().unwrap();
+    let alice = device(&dir, "alice", 34);
+    let bob = device(&dir, "bob", 35);
+    let team = alice.engine.create_team("Team".into(), relays()).unwrap();
+    let start = join(&alice, &team, &bob, &[]);
+
+    let from_alice = alice.engine.self_update(team.group_id.clone()).unwrap();
+    let from_bob = bob.engine.self_update(team.group_id.clone()).unwrap();
+    alice.engine.confirm_published(team.group_id.clone()).unwrap();
+    bob.engine.confirm_published(team.group_id.clone()).unwrap();
+    // Beide Commits gehören zur selben Epoche ...
+    assert_eq!(alice.engine.peek_commit(from_bob.clone()).unwrap(), Some(start.epoch));
+    assert_eq!(bob.engine.peek_commit(from_alice.clone()).unwrap(), Some(start.epoch));
+
+    let key = |json: &str| {
+        let event = Event::from_json(json).unwrap();
+        (event.created_at, event.id)
+    };
+    let (loser, winner_event) = if key(&from_alice) < key(&from_bob) { (&bob, from_alice) } else { (&alice, from_bob) };
+    // ... und das Gerät mit dem unterlegenen Commit setzt nicht zurück.
+    let outcomes = loser.engine.ingest(vec![winner_event]).unwrap();
+    assert!(!outcomes.iter().any(|o| matches!(o, IngestOutcome::RolledBack { .. })), "{outcomes:?}");
+    assert!(outcomes.iter().all(|o| matches!(o, IngestOutcome::Ignored { .. })), "{outcomes:?}");
+}

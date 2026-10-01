@@ -178,4 +178,59 @@ class PlanRepositoryTest {
         assertTrue(repo.state.value.isEmpty())
         assertTrue(store.snapshot!!.state.isEmpty())
     }
+
+    @Test
+    fun `eigene Aenderungen bleiben ausstehend, bis ein Relay sie bestaetigt`() = runTest {
+        val repo = repository()
+        val id = repo.addMember("Anna")
+        val date = LocalDate.of(2026, 9, 21)
+        repo.setShift(id, date, Shift.FRUEH)
+        val pending = repo.pendingEntries()
+        assertEquals(setOf(PlanKeys.member(id), PlanKeys.shift(id, date)), pending.keys)
+
+        // Bestätigung eines älteren Stands lässt die neuere Änderung ausstehend.
+        val sentShift = pending.getValue(PlanKeys.shift(id, date)).timestamp
+        repo.setShift(id, date, Shift.NACHT)
+        repo.markSent(mapOf(PlanKeys.member(id) to pending.getValue(PlanKeys.member(id)).timestamp, PlanKeys.shift(id, date) to sentShift))
+        assertEquals(setOf(PlanKeys.shift(id, date)), repo.pendingEntries().keys)
+        assertEquals("N", repo.pendingEntries().getValue(PlanKeys.shift(id, date)).value)
+
+        // Ein neuerer Eintrag von aussen überholt die eigene Änderung.
+        val key = PlanKeys.shift(id, date)
+        repo.mergeRemote(WeekId.of(date).bucketName, mapOf(key to Entry("U", now + 60_000, "00000000000000bb")))
+        assertTrue(repo.pendingEntries().isEmpty())
+    }
+
+    @Test
+    fun `ausstehende Aenderungen ueberstehen einen Neustart`() = runTest {
+        val repo = repository()
+        val id = repo.addMember("Anna")
+        repo.flush()
+        val reloaded = repository()
+        reloaded.load()
+        assertEquals(setOf(PlanKeys.member(id)), reloaded.pendingEntries().keys)
+    }
+
+    @Test
+    fun `alter Speicherstand ohne ausstehende Aenderungen bleibt lesbar`() {
+        val v1 = """{"v":1,"clock":5,"buckets":{"team":[["m|00000000000000aa","Anna",5,"00000000000000aa"]]}}"""
+        val snapshot = PlanSnapshotCodec.decode(v1.toByteArray())
+        assertEquals(listOf("Anna"), snapshot.state.members().map { it.name })
+        assertTrue(snapshot.pending.isEmpty())
+    }
+
+    @Test
+    fun `lokalen Plan in ein Team uebernehmen und Geraete benennen`() = runTest {
+        val repo = repository()
+        repo.mergeRemote(Buckets.TEAM, mapOf(PlanKeys.member("00000000000000cc") to Entry("Ben", 7, "00000000000000bb")))
+        assertTrue(repo.pendingEntries().isEmpty())
+        repo.markAllPending()
+        assertEquals(setOf(PlanKeys.member("00000000000000cc")), repo.pendingEntries().keys)
+
+        repo.setDeviceLabel("0123456789abcdef", "  Annas   Handy ")
+        assertEquals(mapOf("0123456789abcdef" to "Annas Handy"), repo.state.value.deviceLabels())
+        repo.setDeviceLabel("0123456789abcdef", "")
+        assertTrue(repo.state.value.deviceLabels().isEmpty())
+        assertThrows<InvalidInputException> { repo.setDeviceLabel("0123456789abcdef", "x".repeat(41)) }
+    }
 }

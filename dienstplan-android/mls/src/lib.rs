@@ -14,12 +14,13 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use mdk_core::MdkConfig;
+use mdk_core::callback::{MdkCallback, RollbackInfo};
 use mdk_core::prelude::*;
 use mdk_sqlite_storage::{EncryptionConfig, MdkSqliteStorage};
 use mdk_storage_traits::groups::GroupStorage;
 use mdk_storage_traits::groups::types::GroupState;
 use nostr::nips::nip59;
-use nostr::{Event, EventBuilder, EventId, JsonUtil, Keys, Kind, PublicKey, RelayUrl, SecretKey, TagKind};
+use nostr::{Event, EventBuilder, EventId, JsonUtil, Keys, Kind, PublicKey, RelayUrl, SecretKey, Tag, TagKind};
 use openmls_traits::OpenMlsProvider;
 
 /// Kind der Gruppen-Events (Commits, Vorschläge, Anwendungsnachrichten).
@@ -36,6 +37,9 @@ const MAX_DEFERRED: usize = 500;
 const MAX_DEFER_ATTEMPTS: u8 = 20;
 /// Toleranz für vorgehende Uhren anderer Geräte (MDK-Standard: 5 Minuten).
 const MAX_FUTURE_SKEW_SECS: u64 = 60 * 60;
+/// Kinds, die [MlsEngine::sign_event] mit dem Identitätsschlüssel signiert:
+/// Löschanfragen (NIP-09) und Anmeldungen bei Relays (NIP-42).
+const SIGNABLE_KINDS: [u16; 2] = [5, 22242];
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum MlsError {
@@ -94,6 +98,9 @@ pub struct PendingInvite {
     pub inviter: String,
     pub admins: Vec<String>,
     pub member_count: u32,
+    /// Zeitpunkt der Einladung (Sekunden seit 1970); ältere Gruppen-Events sind für das
+    /// neue Gerät ohnehin nicht lesbar.
+    pub created_at: u64,
 }
 
 /// Was beim Verarbeiten eines Gruppen-Events herausgekommen ist.
@@ -117,6 +124,10 @@ pub enum IngestOutcome {
     Deferred { event_id: String },
     /// Verworfen: fremd, doppelt, ungültig oder nicht verarbeitbar.
     Ignored { event_id: String, reason: String },
+    /// Ein früherer Commit derselben Epoche hat gewonnen (MIP-03): Der Zustand wurde
+    /// zurückgesetzt. Nachrichten aus der verworfenen Epoche erreichen nicht alle Geräte;
+    /// die App sollte ihren Stand erneut abgleichen.
+    RolledBack { group_id: String },
 }
 
 struct DeferredEvent {
@@ -128,6 +139,25 @@ struct Inner {
     mdk: MDK<MdkSqliteStorage>,
     keys: Keys,
     deferred: VecDeque<DeferredEvent>,
+    rollbacks: Arc<RollbackLog>,
+}
+
+/// Sammelt Rücksprünge, die MDK während der Verarbeitung meldet.
+#[derive(Debug, Default)]
+struct RollbackLog(Mutex<Vec<String>>);
+
+impl MdkCallback for RollbackLog {
+    fn on_rollback(&self, info: &RollbackInfo) {
+        if let Ok(mut groups) = self.0.lock() {
+            groups.push(hex::encode(info.group_id.as_slice()));
+        }
+    }
+}
+
+impl RollbackLog {
+    fn drain(&self) -> Vec<String> {
+        self.0.lock().map(|mut groups| std::mem::take(&mut *groups)).unwrap_or_default()
+    }
 }
 
 /// Zugang zum MLS-Zustand dieses Geräts. Alle Aufrufe sind serialisiert.
@@ -150,9 +180,11 @@ impl MlsEngine {
             .map_err(|e| MlsError::Storage { reason: e.to_string() })?;
         let mut config = MdkConfig::default();
         config.max_future_skew_secs = MAX_FUTURE_SKEW_SECS;
-        let mdk = MDK::builder(storage).with_config(config).build();
+        let rollbacks = Arc::new(RollbackLog::default());
+        let callback: Arc<dyn MdkCallback> = rollbacks.clone();
+        let mdk = MDK::builder(storage).with_config(config).with_callback(callback).build();
         Ok(Arc::new(Self {
-            inner: Mutex::new(Inner { mdk, keys: Keys::new(secret), deferred: VecDeque::new() }),
+            inner: Mutex::new(Inner { mdk, keys: Keys::new(secret), deferred: VecDeque::new(), rollbacks }),
         }))
     }
 
@@ -259,11 +291,15 @@ impl MlsEngine {
         Ok(outcomes)
     }
 
-    /// Der eigene Commit konnte nicht veröffentlicht werden: verwerfen.
-    pub fn abort_pending(&self, group_id: String) -> Result<(), MlsError> {
-        let inner = self.lock()?;
+    /// Der eigene Commit konnte nicht veröffentlicht werden: verwerfen. Zurückgestellte
+    /// Events werden danach erneut versucht; deren Ergebnisse kommen zurück.
+    pub fn abort_pending(&self, group_id: String) -> Result<Vec<IngestOutcome>, MlsError> {
+        let mut inner = self.lock()?;
         let gid = parse_group_id(&group_id)?;
-        inner.mdk.clear_pending_commit(&gid).map_err(protocol)
+        inner.mdk.clear_pending_commit(&gid).map_err(protocol)?;
+        let mut outcomes = Vec::new();
+        inner.retry_deferred(&mut outcomes);
+        Ok(outcomes)
     }
 
     /// Prüft einen Gift Wrap (Kind 1059). Enthält er eine Einladung, wird sie gespeichert
@@ -299,6 +335,38 @@ impl MlsEngine {
         inner.mdk.decline_welcome(&welcome).map_err(protocol)
     }
 
+    /// Eingegangene, noch nicht beantwortete Einladungen (bleiben über Neustarts erhalten).
+    pub fn pending_invites(&self) -> Result<Vec<PendingInvite>, MlsError> {
+        let inner = self.lock()?;
+        let welcomes = inner.mdk.get_pending_welcomes(None).map_err(protocol)?;
+        Ok(welcomes.iter().map(pending_invite).collect())
+    }
+
+    /// Signiert ein Event mit dem Identitätsschlüssel. Nur für Löschanfragen (Kind 5) und
+    /// Relay-Anmeldungen (Kind 22242); alles andere läuft über MLS.
+    pub fn sign_event(&self, kind: u16, tags: Vec<Vec<String>>, content: String) -> Result<String, MlsError> {
+        if !SIGNABLE_KINDS.contains(&kind) {
+            return Err(invalid("dieses Kind wird nicht signiert"));
+        }
+        if tags.len() > 20 || content.len() > 1024 {
+            return Err(invalid("Event zu gross"));
+        }
+        let mut parsed = Vec::with_capacity(tags.len());
+        for tag in tags {
+            if tag.is_empty() || tag.len() > 4 || tag.iter().any(|v| v.len() > 512) {
+                return Err(invalid("Tag ungültig"));
+            }
+            parsed.push(Tag::parse(tag).map_err(|_| invalid("Tag ungültig"))?);
+        }
+        let inner = self.lock()?;
+        let event = EventBuilder::new(Kind::Custom(kind), content)
+            .tags(parsed)
+            .build(inner.keys.public_key())
+            .sign_with_keys(&inner.keys)
+            .map_err(protocol)?;
+        Ok(event.as_json())
+    }
+
     /// Verschlüsselt eine Anwendungsnachricht. Liefert das zu veröffentlichende Kind-445-Event.
     pub fn encrypt(&self, group_id: String, kind: u16, content: String) -> Result<String, MlsError> {
         let inner = self.lock()?;
@@ -324,8 +392,15 @@ impl MlsEngine {
         parsed.sort_by(|a, b| a.created_at.cmp(&b.created_at).then_with(|| a.id.cmp(&b.id)));
         parsed.dedup_by(|a, b| a.id == b.id);
         let mut advanced = false;
-        for event in parsed {
+        let mut remaining = parsed.into_iter();
+        while let Some(event) = remaining.next() {
             advanced |= inner.process(event, 0, &mut outcomes);
+            if awaits_publication(&outcomes) {
+                // Ein automatischer Commit wartet auf seine Veröffentlichung. Bis zur Bestätigung
+                // bleibt der Rest liegen, damit kein fremder Commit dazwischenkommt.
+                inner.defer_all(remaining, &mut outcomes);
+                return Ok(outcomes);
+            }
         }
         if advanced || !inner.deferred.is_empty() {
             inner.retry_deferred(&mut outcomes);
@@ -367,6 +442,23 @@ impl MlsEngine {
     /// Anzahl zurückgestellter Events (für die Diagnose).
     pub fn deferred_count(&self) -> Result<u32, MlsError> {
         Ok(self.lock()?.deferred.len() as u32)
+    }
+
+    /// Epoche, falls das Gruppen-Event ein lesbarer Commit ist – ohne ihn zu verarbeiten.
+    ///
+    /// Die verwendete MDK-Version löst konkurrierende Commits (MIP-03) nur für fremde Commits
+    /// auf. Die App prüft damit vor dem Übernehmen eines eigenen Commits, ob ein früherer für
+    /// dieselbe Epoche eingetroffen ist, und verwirft dann den eigenen.
+    pub fn peek_commit(&self, event: String) -> Result<Option<u64>, MlsError> {
+        let inner = self.lock()?;
+        let Ok(event) = Event::from_json(&event) else { return Ok(None) };
+        if event.kind.as_u16() != KIND_GROUP_MESSAGE || event.verify().is_err() {
+            return Ok(None);
+        }
+        Ok(match outer_layer(&inner.mdk, &event) {
+            OuterLayer::Readable(plaintext) => commit_epoch(&plaintext),
+            _ => None,
+        })
     }
 }
 
@@ -413,9 +505,13 @@ impl Inner {
                 }
                 return false;
             }
-            OuterLayer::Readable => {}
+            OuterLayer::Readable(_) => {}
         }
-        match self.mdk.process_message(&event) {
+        let result = self.mdk.process_message(&event);
+        for group_id in self.rollbacks.drain() {
+            outcomes.push(IngestOutcome::RolledBack { group_id });
+        }
+        match result {
             Ok(MessageProcessingResult::ApplicationMessage(message)) => {
                 outcomes.push(IngestOutcome::AppMessage {
                     group_id: hex::encode(message.mls_group_id.as_slice()),
@@ -465,6 +561,17 @@ impl Inner {
         }
     }
 
+    /// Stellt Events ohne Versuch zurück (sie kommen nach der nächsten Bestätigung dran).
+    fn defer_all(&mut self, events: impl Iterator<Item = Event>, outcomes: &mut Vec<IngestOutcome>) {
+        for event in events {
+            if self.deferred.len() >= MAX_DEFERRED {
+                self.deferred.pop_front();
+            }
+            outcomes.push(IngestOutcome::Deferred { event_id: event.id.to_hex() });
+            self.deferred.push_back(DeferredEvent { event, attempts: 0 });
+        }
+    }
+
     /// Versucht zurückgestellte Events erneut, solange dabei Commits übernommen werden.
     fn retry_deferred(&mut self, outcomes: &mut Vec<IngestOutcome>) {
         loop {
@@ -474,11 +581,17 @@ impl Inner {
             let mut pending: Vec<DeferredEvent> = self.deferred.drain(..).collect();
             pending.sort_by(|a, b| a.event.created_at.cmp(&b.event.created_at).then_with(|| a.event.id.cmp(&b.event.id)));
             let mut advanced = false;
-            for item in pending {
+            let mut remaining = pending.into_iter();
+            while let Some(item) = remaining.next() {
                 // Erneut zurückgestellte Events nicht nochmals melden.
                 let mut local = Vec::new();
                 advanced |= self.process(item.event, item.attempts, &mut local);
+                let paused = awaits_publication(&local);
                 outcomes.extend(local.into_iter().filter(|o| !matches!(o, IngestOutcome::Deferred { .. })));
+                if paused {
+                    self.deferred.extend(remaining);
+                    return;
+                }
             }
             if !advanced {
                 return;
@@ -490,7 +603,8 @@ impl Inner {
 enum OuterLayer {
     UnknownGroup,
     NotYet,
-    Readable,
+    /// Entschlüsselte MLS-Nachricht (noch nicht verarbeitet).
+    Readable(Vec<u8>),
 }
 
 /// MDK markiert Events aus einer noch unbekannten Epoche dauerhaft als fehlgeschlagen. Deshalb
@@ -517,11 +631,10 @@ fn outer_layer(mdk: &MDK<MdkSqliteStorage>, event: &Event) -> OuterLayer {
         return OuterLayer::NotYet;
     }
     let (nonce, ciphertext) = bytes.split_at(12);
-    let opens = |key: &[u8]| {
+    let open = |key: &[u8]| {
         ChaCha20Poly1305::new_from_slice(key)
             .ok()
             .and_then(|cipher| cipher.decrypt(Nonce::from_slice(nonce), ciphertext).ok())
-            .is_some()
     };
     // Aktuelle Epoche: wie MDK aus dem lebenden MLS-Zustand ableiten (MLS-Exporter
     // "marmot"/"group-event"); gespeichert wird dieser Schlüssel erst bei Bedarf.
@@ -529,15 +642,27 @@ fn outer_layer(mdk: &MDK<MdkSqliteStorage>, event: &Event) -> OuterLayer {
         .ok()
         .flatten()
         .and_then(|mls| mls.export_secret(mdk.provider.crypto(), "marmot", b"group-event", 32).ok());
-    if current.is_some_and(|key| opens(&key)) {
-        return OuterLayer::Readable;
+    if let Some(plaintext) = current.and_then(|key| open(&key)) {
+        return OuterLayer::Readable(plaintext);
     }
     // Vergangene Epochen: nur, was MDK gespeichert hat (genau das kann MDK auch entschlüsseln).
-    let readable = (group.epoch.saturating_sub(PAST_EPOCHS)..=group.epoch).any(|epoch| {
-        matches!(storage.get_group_exporter_secret(&group.mls_group_id, epoch), Ok(Some(secret))
-            if opens(secret.secret.as_ref()))
-    });
-    if readable { OuterLayer::Readable } else { OuterLayer::NotYet }
+    for epoch in (group.epoch.saturating_sub(PAST_EPOCHS)..=group.epoch).rev() {
+        if let Ok(Some(secret)) = storage.get_group_exporter_secret(&group.mls_group_id, epoch)
+            && let Some(plaintext) = open(secret.secret.as_ref())
+        {
+            return OuterLayer::Readable(plaintext);
+        }
+    }
+    OuterLayer::NotYet
+}
+
+/// Epoche eines Commits, ohne ihn zu verarbeiten (Epoche und Inhaltstyp stehen in MLS im Klartext
+/// der inneren Nachricht). `None` für alles andere oder Unlesbares.
+fn commit_epoch(plaintext: &[u8]) -> Option<u64> {
+    use openmls::prelude::{ContentType, MlsMessageIn};
+    use openmls::prelude::tls_codec::Deserialize;
+    let message = MlsMessageIn::tls_deserialize_exact(plaintext).ok()?.try_into_protocol_message().ok()?;
+    (message.content_type() == ContentType::Commit).then(|| message.epoch().as_u64())
 }
 
 fn team_info(mdk: &MDK<MdkSqliteStorage>, gid: &GroupId) -> Result<TeamInfo, MlsError> {
@@ -563,7 +688,13 @@ fn pending_invite(welcome: &welcome_types::Welcome) -> PendingInvite {
         inviter: welcome.welcomer.to_hex(),
         admins: welcome.group_admin_pubkeys.iter().map(|pk| pk.to_hex()).collect(),
         member_count: welcome.member_count,
+        created_at: welcome.event.created_at.as_secs(),
     }
+}
+
+/// true, wenn das zuletzt gemeldete Ergebnis ein noch unveröffentlichter Commit ist.
+fn awaits_publication(outcomes: &[IngestOutcome]) -> bool {
+    matches!(outcomes.last(), Some(IngestOutcome::PublishRequired { .. }))
 }
 
 fn find_welcome(mdk: &MDK<MdkSqliteStorage>, invite_id: &str) -> Result<welcome_types::Welcome, MlsError> {

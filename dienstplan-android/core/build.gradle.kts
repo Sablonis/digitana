@@ -99,10 +99,13 @@ kotlin.sourceSets.named("main") {
 tasks.withType<Test>().configureEach {
     dependsOn(cargoBuildHost)
     systemProperty("jna.library.path", mlsHostLib.asFile.parentFile.absolutePath)
+    // Fehlersuche: ./gradlew :core:test -Pdienstplan.testlog=true gibt die Meldungen der Engine aus.
+    val testLog = providers.gradleProperty("dienstplan.testlog").orNull == "true"
+    if (testLog) systemProperty("dienstplan.testlog", "true")
     testLogging {
         events("passed", "skipped", "failed")
         exceptionFormat = TestExceptionFormat.FULL
-        showStandardStreams = false
+        showStandardStreams = testLog
     }
 }
 

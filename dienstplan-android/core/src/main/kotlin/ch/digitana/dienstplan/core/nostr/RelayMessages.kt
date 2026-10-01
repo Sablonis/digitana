@@ -90,10 +90,37 @@ object RelayMessages {
         }.toString()
 
     fun filter(kind: Int, author: String, limit: Int, until: Long? = null): JsonObject =
+        filter(kinds = listOf(kind), authors = listOf(author), limit = limit, until = until)
+
+    /** Filter nach NIP-01; [tags] wird zu `#<name>` (z. B. `h` → `#h`). */
+    fun filter(
+        kinds: List<Int>,
+        authors: List<String> = emptyList(),
+        tags: Map<String, List<String>> = emptyMap(),
+        since: Long? = null,
+        until: Long? = null,
+        limit: Int,
+    ): JsonObject =
         buildJsonObject {
-            putJsonArray("kinds") { add(kind) }
-            putJsonArray("authors") { add(author) }
+            putJsonArray("kinds") { kinds.forEach { add(it) } }
+            if (authors.isNotEmpty()) putJsonArray("authors") { authors.forEach { add(it) } }
+            for ((name, values) in tags) putJsonArray("#$name") { values.forEach { add(it) } }
+            if (since != null) put("since", since)
             if (until != null) put("until", until)
             put("limit", limit)
         }
+
+    /** Antwort auf eine Anmeldeaufforderung (NIP-42). */
+    fun auth(event: JsonElement): String =
+        buildJsonArray {
+            add("AUTH")
+            add(event)
+        }.toString()
+
+    /** Ein bereits als JSON vorliegendes Event veröffentlichen. */
+    fun event(event: JsonElement): String =
+        buildJsonArray {
+            add("EVENT")
+            add(event)
+        }.toString()
 }

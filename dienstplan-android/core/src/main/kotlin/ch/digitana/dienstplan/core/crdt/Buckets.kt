@@ -41,7 +41,7 @@ data class WeekId(val year: Int, val week: Int) : Comparable<WeekId> {
 }
 
 /**
- * Einträge werden in Buckets gebündelt: `team` für die Mitarbeitenden und je ein
+ * Einträge werden in Buckets gebündelt: `team` für Mitarbeitende und Gerätenamen und je ein
  * Bucket pro ISO-Kalenderwoche für die Schichten. Pro Bucket gibt es genau ein
  * adressierbares Nostr-Event.
  */
@@ -54,7 +54,7 @@ object Buckets {
     private val WEEK_YEARS = 1999..2100
 
     fun forKey(key: PlanKey): String = when (key) {
-        is PlanKey.Member -> TEAM
+        is PlanKey.Member, is PlanKey.Device -> TEAM
         is PlanKey.Shift -> WeekId.of(key.date).bucketName
     }
 
