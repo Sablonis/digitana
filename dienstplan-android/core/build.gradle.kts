@@ -30,6 +30,11 @@ dependencies {
         exclude(group = "androidx.annotation")
     }
 
+    // MLS-Bibliothek (Rust) über JNA: In der App kommt die AAR-Variante mit den nativen
+    // JNA-Bibliotheken für Android dazu, in den Tests das Jar für den Rechner.
+    compileOnly(libs.jna)
+    testImplementation(libs.jna)
+
     testRuntimeOnly(libs.secp256k1.kmp.jni.jvm)
     testImplementation(kotlin("test"))
     testImplementation(platform(libs.junit.bom))
@@ -49,7 +54,51 @@ configurations.testRuntimeClasspath {
     }
 }
 
+// ---------------------------------------------------------------------------
+// MLS-Bibliothek (Rust, Ordner mls/): UniFFI erzeugt die Kotlin-Bindings aus der für
+// diesen Rechner gebauten Bibliothek, und die JVM-Tests laden dieselbe Bibliothek über
+// JNA. Voraussetzung ist Rust (rustup), siehe README. Der Debug-Build behält die
+// UniFFI-Metadaten, die der gestrippte Release-Build nicht mehr enthält.
+// ---------------------------------------------------------------------------
+val mlsDir = layout.projectDirectory.dir("../mls")
+val mlsHostLib = mlsDir.file("target/debug/" + System.mapLibraryName("dienstplan_mls"))
+val uniffiDir = layout.buildDirectory.dir("generated/uniffi/kotlin")
+
+val cargoBuildHost = tasks.register<Exec>("cargoBuildHost") {
+    description = "Baut die MLS-Bibliothek (Rust) für diesen Rechner."
+    group = "build"
+    workingDir(mlsDir)
+    commandLine("cargo", "build", "--locked", "--lib")
+    inputs.files(
+        fileTree(mlsDir) {
+            include("src/**", "Cargo.toml", "Cargo.lock", "uniffi.toml", "rust-toolchain.toml", ".cargo/**")
+        },
+    )
+    outputs.file(mlsHostLib)
+}
+
+val generateMlsBindings = tasks.register<Exec>("generateMlsBindings") {
+    description = "Erzeugt die Kotlin-Bindings der MLS-Bibliothek (UniFFI)."
+    group = "build"
+    dependsOn(cargoBuildHost)
+    workingDir(mlsDir)
+    inputs.file(mlsHostLib)
+    outputs.dir(uniffiDir)
+    doFirst { delete(uniffiDir) }
+    commandLine(
+        "cargo", "run", "--locked", "--release", "--features", "bindgen", "--bin", "uniffi-bindgen", "--",
+        "generate", "--library", mlsHostLib.asFile.absolutePath,
+        "--language", "kotlin", "--no-format", "--out-dir", uniffiDir.get().asFile.absolutePath,
+    )
+}
+
+kotlin.sourceSets.named("main") {
+    kotlin.srcDir(generateMlsBindings)
+}
+
 tasks.withType<Test>().configureEach {
+    dependsOn(cargoBuildHost)
+    systemProperty("jna.library.path", mlsHostLib.asFile.parentFile.absolutePath)
     testLogging {
         events("passed", "skipped", "failed")
         exceptionFormat = TestExceptionFormat.FULL

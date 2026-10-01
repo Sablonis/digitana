@@ -1,0 +1,5 @@
+[toolchain]
+channel = "1.94.1"
+profile = "minimal"
+# Android-Ziele für die App (cargo ndk); der Rechner selbst ist immer dabei.
+targets = ["aarch64-linux-android", "armv7-linux-androideabi", "x86_64-linux-android"]

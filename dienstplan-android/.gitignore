@@ -19,3 +19,7 @@ keystore.properties
 *.apk
 *.aab
 *.idsig
+
+# Rust-Build der MLS-Bibliothek und daraus erzeugte native Bibliotheken
+mls/target/
+app/src/main/jniLibs/

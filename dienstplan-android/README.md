@@ -40,6 +40,7 @@ dienstplan-android/
 │   ├── sync/     Sync-Engine (Anti-Entropie, OK-Auswertung, Backoff), TLS-Client
 │   ├── data/     Plan- und Team-Repository, verschlüsselter Dateispeicher
 │   └── plan/     Wochenmodell (Stunden, Besetzung), deutsche Beschriftungen
+├── mls/    Rust: MLS-Gruppenverschlüsselung (Marmot/MDK, OpenMLS) mit Kotlin-Anbindung (UniFFI)
 ├── app/    Android: Keystore, Sync-Steuerung, ViewModels, Compose-Oberfläche
 └── docs/   PROTOKOLL.md, SICHERHEIT.md, RELEASE.md, INSTALLATION.md
 ```
@@ -53,6 +54,12 @@ Schichten: **UI** (Compose) → **ViewModel** → **Repository** (CRDT-Speicher)
 - **JDK 21** als Gradle-JDK (Android Studio: *Settings → Build, Execution, Deployment →
   Build Tools → Gradle → Gradle JDK*, das mitgelieferte JBR 21 genügt)
 - Android SDK Platform 37 (Android Studio lädt fehlende Pakete beim Sync nach)
+- **Rust** über [rustup](https://rustup.rs): Version und Android-Ziele stehen in
+  `mls/rust-toolchain.toml` und werden beim ersten Build automatisch installiert.
+- **cargo-ndk**: `cargo install cargo-ndk --version 4.1.2 --locked`
+- **Android NDK** (Android Studio: *SDK Manager → SDK Tools → NDK (Side by side)*), Pfad in
+  der Umgebungsvariable `ANDROID_NDK_HOME`
+- `perl` und `make` (für das mitgebaute OpenSSL von SQLCipher); unter Windows z. B. über WSL
 
 Verwendete Versionen: AGP 9.4.1, Kotlin 2.4.20, Gradle 9.7.1, Compose BOM 2026.09.00,
 OkHttp 5.5.0, secp256k1-kmp 0.24.0, Tink 1.23.0 (siehe `gradle/libs.versions.toml`).
@@ -76,6 +83,7 @@ OkHttp 5.5.0, secp256k1-kmp 0.24.0, Tink 1.23.0 (siehe `gradle/libs.versions.tom
 cd dienstplan-android
 
 ./gradlew :core:test                    # Unit- und Integrationstests (JVM, ohne Internet)
+(cd mls && cargo test)                  # Rust-Tests der MLS-Schicht
 ./gradlew :app:assembleDebug            # → app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:installDebug             # auf angeschlossenes Gerät installieren
 ./gradlew :app:lintDebug                # Android-Lint

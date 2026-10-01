@@ -1,0 +1,48 @@
+[package]
+name = "dienstplan-mls"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+description = "MLS-Gruppenverschlüsselung (Marmot/MDK) für die Dienstplan-App, mit Kotlin-Anbindung über UniFFI"
+
+[lib]
+name = "dienstplan_mls"
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+# Nur für das Erzeugen der Kotlin-Bindings (cargo run --features bindgen --bin uniffi-bindgen).
+bindgen = ["uniffi/cli"]
+
+[dependencies]
+# Marmot Development Kit, letzter Stand der 0.8-Linie (inkl. Sicherheitskorrekturen nach 0.8.0).
+# Fest per Commit gepinnt; die Linie wird upstream nicht mehr verändert.
+mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "25005ea15de0070054774a59a335a5d92c0ae899" }
+mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "25005ea15de0070054774a59a335a5d92c0ae899" }
+mdk-sqlite-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "25005ea15de0070054774a59a335a5d92c0ae899" }
+# Dieselbe OpenMLS-Revision wie MDK (Laden der Gruppe und Epochen-Schlüssel für die Vorprüfung).
+openmls = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8", default-features = false }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8", default-features = false }
+nostr = { version = "0.44", default-features = false, features = ["std", "nip44", "nip59"] }
+# SQLCipher mit statisch gebautem OpenSSL: Android stellt Apps kein libcrypto bereit.
+libsqlite3-sys = { version = "0.35", features = ["bundled-sqlcipher-vendored-openssl"] }
+uniffi = "0.32"
+thiserror = "2"
+hex = "0.4"
+base64 = "0.22"
+chacha20poly1305 = "0.10"
+pollster = "0.4"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 1
+strip = true

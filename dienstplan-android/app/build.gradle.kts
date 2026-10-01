@@ -27,6 +27,10 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Nur Architekturen, für die die MLS-Bibliothek gebaut wird (siehe cargoBuildAndroid).
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     signingConfigs {
@@ -84,9 +88,40 @@ kotlin {
     }
 }
 
+// MLS-Bibliothek (Rust, Ordner mls/) für die Android-Architekturen; landet in
+// src/main/jniLibs (nicht eingecheckt). Braucht Rust, cargo-ndk und das NDK (siehe README).
+// 32-Bit-x86 fehlt bewusst: Es gibt praktisch keine solchen Geräte mehr.
+val mlsDir = layout.projectDirectory.dir("../mls")
+val jniLibsDir = layout.projectDirectory.dir("src/main/jniLibs")
+val cargoBuildAndroid = tasks.register<Exec>("cargoBuildAndroid") {
+    description = "Baut die MLS-Bibliothek (Rust) für arm64-v8a, armeabi-v7a und x86_64."
+    group = "build"
+    workingDir(mlsDir)
+    commandLine(
+        "cargo", "ndk", "--platform", "26",
+        "-t", "arm64-v8a", "-t", "armeabi-v7a", "-t", "x86_64",
+        "-o", jniLibsDir.asFile.absolutePath,
+        "build", "--release", "--locked", "--lib",
+    )
+    inputs.files(
+        fileTree(mlsDir) {
+            include("src/**", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".cargo/**")
+        },
+    )
+    outputs.dir(jniLibsDir)
+}
+tasks.named("preBuild") { dependsOn(cargoBuildAndroid) }
+
 dependencies {
     implementation(project(":core"))
     implementation(libs.secp256k1.kmp.jni.android)
+    // JNA als AAR (enthält die nativen JNA-Bibliotheken für Android) für die MLS-Bindings.
+    implementation(libs.jna) {
+        artifact {
+            name = "jna"
+            type = "aar"
+        }
+    }
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

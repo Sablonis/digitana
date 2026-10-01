@@ -6,6 +6,13 @@
 # Code wirft Exceptions über ihren Klassennamen. Das ganze Paket bleibt deshalb unverändert.
 -keep class fr.acinq.secp256k1.** { *; }
 
+# JNA und die UniFFI-Bindings der MLS-Bibliothek: JNA greift per Reflection auf Klassen,
+# Felder und Methoden zu (Structure, Callback, Library-Schnittstellen).
+-keep class com.sun.jna.** { *; }
+-keep class * implements com.sun.jna.** { *; }
+-keep class ch.digitana.dienstplan.mls.** { *; }
+-dontwarn java.awt.**
+
 # Tink referenziert Annotationen, die zur Laufzeit nicht gebraucht werden.
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn javax.annotation.**

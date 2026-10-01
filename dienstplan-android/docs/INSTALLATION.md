@@ -74,7 +74,7 @@ Entwickleroptionen → USB-Debugging*.) Zusätzlich hilfreich:
 | `INSTALL_PARSE_FAILED_NO_CERTIFICATES` | APK **unsigniert** (`app-release-unsigned.apk`) oder **nach dem Signieren verändert** (z. B. erst signiert, dann `zipalign`). | Signiert bauen (`RELEASE.md`); `zipalign` immer vor `apksigner`. Prüfen mit `apksigner verify --verbose`. |
 | `INSTALL_FAILED_TEST_ONLY` | APK aus dem **„Run“-Knopf von Android Studio** (enthält `android:testOnly="true"`). | APK mit `./gradlew :app:assembleDebug` bzw. `assembleRelease` bauen; testOnly-APKs gehen nur mit `adb install -t`. |
 | `INSTALL_FAILED_OLDER_SDK` | Gerät älter als **Android 8.0** (minSdk 26). | Gerät mit Android 8 oder neuer verwenden. |
-| `INSTALL_FAILED_NO_MATCHING_ABIS` | Native Bibliothek (secp256k1) fehlt für die Prozessorarchitektur, z. B. bei ABI-Splits. | Die normale APK enthält arm64-v8a, armeabi-v7a, x86 und x86_64 – keine Splits verwenden. |
+| `INSTALL_FAILED_NO_MATCHING_ABIS` | Keine passende native Bibliothek für die Prozessorarchitektur. Die APK enthält arm64-v8a, armeabi-v7a und x86_64; reine 32-Bit-x86-Geräte (praktisch ausgestorben) werden nicht unterstützt. | Gerät mit ARM- oder x86_64-Prozessor verwenden; keine ABI-Splits. |
 | `INSTALL_FAILED_INSUFFICIENT_STORAGE` | Zu wenig Speicher. | Speicher freigeben. |
 | `INSTALL_PARSE_FAILED_NOT_APK` / „Beim Parsen des Pakets ist ein Problem aufgetreten“ | **Unvollständiger Download**, Datei beschädigt oder ein `.aab` statt `.apk`. | Neu übertragen, Prüfsumme vergleichen, APK statt AAB verwenden. |
 | keine Meldung, Installation bricht einfach ab | **Samsung Auto Blocker** oder **Play Protect** blockiert still; oder die Installer-App darf keine unbekannten Apps installieren. | Schritte 3–5 oben. |
