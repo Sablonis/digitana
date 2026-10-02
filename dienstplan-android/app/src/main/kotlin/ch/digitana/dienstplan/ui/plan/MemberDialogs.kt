@@ -2,6 +2,7 @@ package ch.digitana.dienstplan.ui.plan
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
 import ch.digitana.dienstplan.R
 import ch.digitana.dienstplan.core.crdt.Limits
 import ch.digitana.dienstplan.core.crdt.Member
@@ -90,13 +92,14 @@ fun EditMemberDialog(
     member: Member,
     nameProblem: (String) -> NameProblem?,
     onRename: (String) -> Unit,
-    onDelete: () -> Unit,
+    /** null: Löschen nicht erlaubt (Plan gesperrt, kein Admin). */
+    onDelete: (() -> Unit)?,
     onDismiss: () -> Unit,
     isMe: Boolean = false,
     onToggleMe: (() -> Unit)? = null,
 ) {
     var confirmDelete by rememberSaveable(member.id) { mutableStateOf(false) }
-    if (confirmDelete) {
+    if (confirmDelete && onDelete != null) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text(stringResource(R.string.member_delete_title, member.name)) },
@@ -126,10 +129,14 @@ fun EditMemberDialog(
                     Text(stringResource(if (isMe) R.string.member_not_me else R.string.member_is_me))
                 }
             }
-            TextButton(
-                onClick = { confirmDelete = true },
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) { Text(stringResource(R.string.action_delete)) }
+            if (onDelete != null) {
+                TextButton(
+                    onClick = { confirmDelete = true },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(R.string.action_delete)) }
+            } else {
+                LockHint(stringResource(R.string.member_delete_locked), Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+            }
         },
     )
 }

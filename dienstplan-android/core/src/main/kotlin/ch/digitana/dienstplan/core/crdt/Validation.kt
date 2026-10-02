@@ -42,6 +42,7 @@ object EntryValidator {
         is PlanKey.Pattern -> ShiftPatterns.isValidValue(key.patternId, value)
         is PlanKey.DayNote, is PlanKey.MemberNote -> Notes.isValid(value)
         is PlanKey.Wish -> Wish.fromCode(value) != null
+        is PlanKey.DeviceOwner -> PlanKeys.isValidId(value)
     }
 }
 

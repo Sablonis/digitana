@@ -69,6 +69,7 @@ import ch.digitana.dienstplan.core.crdt.ShiftType
 import ch.digitana.dienstplan.core.crdt.ShiftTypes
 import ch.digitana.dienstplan.ui.components.Format
 import ch.digitana.dienstplan.ui.components.ShiftBadge
+import ch.digitana.dienstplan.ui.plan.LockHint
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
 import ch.digitana.dienstplan.ui.plan.SheetLabel
 import ch.digitana.dienstplan.ui.plan.kindLabel
@@ -84,6 +85,8 @@ import java.time.LocalTime
 fun ShiftTypesScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val types = state.plan.shiftTypes
+    // Während einer Sperre ändern nur Admins die Schichtarten (sie verändern den gesperrten Plan mit).
+    val editable = state.canEditShiftTypes
     var editing by remember { mutableStateOf<ShiftType?>(null) }
     var creating by rememberSaveable { mutableStateOf(false) }
 
@@ -99,7 +102,7 @@ fun ShiftTypesScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
             )
         },
         floatingActionButton = {
-            if (!state.readOnly) {
+            if (editable) {
                 ExtendedFloatingActionButton(
                     onClick = { creating = true },
                     icon = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
@@ -120,9 +123,12 @@ fun ShiftTypesScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
+                if (!editable && !state.readOnly) {
+                    LockHint(stringResource(R.string.types_locked), Modifier.padding(bottom = 8.dp))
+                }
             }
             items(types.active, key = { it.id }) { type ->
-                TypeRow(type, enabled = !state.readOnly) { editing = type }
+                TypeRow(type, enabled = editable) { editing = type }
             }
             val archived = types.all.filter { it.archived }
             if (archived.isNotEmpty()) {
@@ -135,7 +141,7 @@ fun ShiftTypesScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
                     )
                 }
                 items(archived, key = { "a-" + it.id }) { type ->
-                    TypeRow(type, enabled = !state.readOnly) { editing = type }
+                    TypeRow(type, enabled = editable) { editing = type }
                 }
             }
         }

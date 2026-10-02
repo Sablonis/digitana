@@ -45,6 +45,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
 
 enum class StorageState { LOADING, READY, RESET_AFTER_ERROR }
@@ -128,6 +129,24 @@ class AppContainer(context: Context) {
                     planRepository.deviceId = if (state is TeamState.Member) teamRepository.deviceId else null
                     planRepository.setAccess(state.planAccess)
                 }
+            }
+            // „Das bin ich“ für das Team sichtbar machen: Danach ändert nur dieses Gerät (und
+            // Admins) die eigenen Wünsche. Auch für Geräte, die die Person schon vorher gewählt hatten.
+            launch {
+                combine(teamRepository.state, settingsRepository.settings, planRepository.state) { team, settings, plan ->
+                    val device = teamRepository.deviceId
+                    if (team is TeamState.Member && device != null && plan.deviceOwners()[device] != settings.myMemberId) {
+                        settings.myMemberId
+                    } else {
+                        NO_CHANGE
+                    }
+                }
+                    .distinctUntilChanged()
+                    .collect { owner ->
+                        if (owner == NO_CHANGE) return@collect
+                        runCatching { planRepository.setDeviceOwner(owner) }
+                            .onFailure { logger.warn(TAG, "Zuordnung des Geräts nicht gespeichert", it) }
+                    }
             }
             // Widget „Meine Dienste“ nach Änderungen am Plan oder an „Ich“ neu zeichnen (gebündelt).
             launch {
@@ -239,6 +258,9 @@ class AppContainer(context: Context) {
 
     suspend fun setAdmin(publicKey: String, admin: Boolean) = syncController.setAdmin(publicKey, admin)
 
+    /** Plan sperren bis [until] (null = ganz) oder öffnen; nur Admins. */
+    suspend fun setPlanLock(locked: Boolean, until: LocalDate?) = syncController.setPlanLock(locked, until)
+
     suspend fun renameDevice(publicKey: String, label: String) =
         planRepository.setDeviceLabel(DeviceKeys.deviceIdOf(publicKey), label)
 
@@ -275,6 +297,8 @@ class AppContainer(context: Context) {
     private companion object {
         const val TAG = "AppContainer"
         const val WIDGET_DEBOUNCE_MILLIS = 1_000L
+        /** Markiert „Zuordnung stimmt schon“ (eine Personen-ID ist nie so lang). */
+        const val NO_CHANGE = "-"
         /** Teamdatei der alten Version (DP2). */
         const val LEGACY_TEAM_FILE = "team.bin"
 

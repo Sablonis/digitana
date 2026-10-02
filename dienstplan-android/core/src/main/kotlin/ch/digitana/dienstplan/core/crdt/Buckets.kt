@@ -41,8 +41,9 @@ data class WeekId(val year: Int, val week: Int) : Comparable<WeekId> {
 }
 
 /**
- * Einträge werden in Buckets gebündelt: `team` für Mitarbeitende, Gerätenamen, Schichtarten
- * und Rhythmen, je ein Bucket pro ISO-Kalenderwoche für Schichten, Notizen und Wünsche.
+ * Einträge werden in Buckets gebündelt: `team` für Mitarbeitende, Gerätenamen, Zuordnungen
+ * der Geräte, Schichtarten und Rhythmen, je ein Bucket pro ISO-Kalenderwoche für Schichten,
+ * Notizen und Wünsche.
  */
 object Buckets {
     const val TEAM = "team"
@@ -53,7 +54,7 @@ object Buckets {
     private val WEEK_YEARS = 1999..2100
 
     fun forKey(key: PlanKey): String = when (key) {
-        is PlanKey.Member, is PlanKey.Device, is PlanKey.ShiftType, is PlanKey.Pattern -> TEAM
+        is PlanKey.Member, is PlanKey.Device, is PlanKey.ShiftType, is PlanKey.Pattern, is PlanKey.DeviceOwner -> TEAM
         is PlanKey.Shift -> WeekId.of(key.date).bucketName
         is PlanKey.DayNote -> WeekId.of(key.date).bucketName
         is PlanKey.MemberNote -> WeekId.of(key.date).bucketName

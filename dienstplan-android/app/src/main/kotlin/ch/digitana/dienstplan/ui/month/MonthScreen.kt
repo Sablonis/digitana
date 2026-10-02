@@ -26,7 +26,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -59,12 +61,15 @@ import ch.digitana.dienstplan.core.crdt.Member
 import ch.digitana.dienstplan.core.plan.DayInfo
 import ch.digitana.dienstplan.core.plan.MonthModel
 import ch.digitana.dienstplan.core.plan.WeekFormat
+import ch.digitana.dienstplan.core.plan.WishTally
 import ch.digitana.dienstplan.ui.components.Format
 import ch.digitana.dienstplan.ui.components.MemberAvatar
 import ch.digitana.dienstplan.ui.components.SyncStatusChip
 import ch.digitana.dienstplan.ui.plan.CellRef
 import ch.digitana.dienstplan.ui.plan.CellSheet
 import ch.digitana.dienstplan.ui.plan.DaySheet
+import ch.digitana.dienstplan.ui.plan.LockBanner
+import ch.digitana.dienstplan.ui.plan.LockDialog
 import ch.digitana.dienstplan.ui.plan.MemberDialogs
 import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
@@ -85,6 +90,7 @@ private val HEADER_HEIGHT = 52.dp
 fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShareMonth: (YearMonth) -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
+    val lockBusy by viewModel.lockBusy.collectAsStateWithLifecycle()
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     val model = remember(state.plan, month, state.today) { MonthModel.build(state.plan, month, state.today) }
@@ -93,6 +99,7 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
     var openCell by remember { mutableStateOf<CellRef?>(null) }
     var openDay by remember { mutableStateOf<LocalDate?>(null) }
     var editMember by remember { mutableStateOf<Member?>(null) }
+    var lockDialog by remember { mutableStateOf(false) }
 
     PlanMessages(viewModel, snackbar, resources)
     val dayWidthPx = with(LocalDensity.current) { DAY_WIDTH.toPx() }
@@ -151,6 +158,20 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                 }
             }
 
+            if (lockBusy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 12.dp))
+            val lock = state.lock
+            if (lock != null && lock.isLocked(month.atDay(1))) {
+                LockBanner(
+                    lock = lock,
+                    isAdmin = state.isAdmin,
+                    onManage = if (state.isAdmin && !state.readOnly) {
+                        { lockDialog = true }
+                    } else {
+                        null
+                    },
+                )
+            }
+
             // Kopfzeile mit Tagen; scrollt waagrecht mit dem Raster (gemeinsamer ScrollState).
             Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
                 Box(Modifier.width(NAME_WIDTH).height(HEADER_HEIGHT), contentAlignment = Alignment.CenterStart) {
@@ -162,7 +183,7 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                     )
                 }
                 Row(Modifier.horizontalScroll(horizontal)) {
-                    for (day in model.days) DayHeader(day) { openDay = day.date }
+                    for (day in model.days) DayHeader(day, locked = day.editable && lock?.isLocked(day.date) == true) { openDay = day.date }
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -197,17 +218,21 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                                         cell = row.cells[index],
                                         day = day,
                                         memberName = row.member.name,
+                                        types = model.types,
                                         enabled = day.editable && !state.readOnly,
                                         onClick = { openCell = ref },
                                         onLongClick = { viewModel.setShift(ref, null) },
                                         modifier = Modifier.width(DAY_WIDTH),
                                         showTime = false,
+                                        allowLongClick = day.editable && state.canEditShift(day.date),
                                     )
                                 }
                             }
                         }
                     }
                 }
+                val tallies = model.wishTallies
+                if (tallies.isNotEmpty()) WishTallyCard(month, tallies)
             }
 
             Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
@@ -255,6 +280,8 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                 cell = cellOf(state.plan, ref),
                 types = state.plan.shiftTypes,
                 readOnly = state.readOnly,
+                shiftsEditable = state.canEditShift(ref.date),
+                wishesEditable = state.canEditWishes(ref.memberId),
                 noteProblem = viewModel::noteProblem,
                 onSelectType = { typeId ->
                     viewModel.setShift(ref, typeId)
@@ -284,13 +311,72 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
         editMember = editMember,
         onEditClosed = { editMember = null },
         myMemberId = state.myMemberId,
+        canDelete = state.canDeleteMembers,
     )
+    if (lockDialog) {
+        LockDialog(
+            current = state.lock,
+            today = state.today,
+            onLock = { until ->
+                lockDialog = false
+                viewModel.setPlanLock(true, until)
+            },
+            onOpen = {
+                lockDialog = false
+                viewModel.setPlanLock(false, null)
+            },
+            onDismiss = { lockDialog = false },
+        )
+    }
+}
+
+/** Wünsche des Monats pro Person: wie viele erfüllt, nicht erfüllt oder noch offen sind. */
+@Composable
+private fun WishTallyCard(month: YearMonth, tallies: List<WishTally>) {
+    OutlinedCard(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painterResource(R.drawable.ic_favorite),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(stringResource(R.string.wishes_month_title, Format.monthLabel(month)), style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                stringResource(R.string.wishes_tally_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            for (tally in tallies) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MemberAvatar(tally.member.name, tally.member.id, size = 28.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(tally.member.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            stringResource(R.string.wishes_tally_line, tally.fulfilled, tally.total, tally.unmet, tally.open),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (tally.unmet > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = { tally.fulfilled.toFloat() / tally.total },
+                        modifier = Modifier.width(72.dp),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
-private fun DayHeader(day: DayInfo, onClick: () -> Unit) {
+private fun DayHeader(day: DayInfo, locked: Boolean, onClick: () -> Unit) {
     val today = stringResource(R.string.today_marker)
-    val description = WeekFormat.longDate(day.date) + if (day.isToday) ", $today" else ""
+    val lockMarker = stringResource(R.string.lock_day_marker)
+    val description = WeekFormat.longDate(day.date) + (if (day.isToday) ", $today" else "") + (if (locked) ", $lockMarker" else "")
     Column(
         modifier = Modifier
             .width(DAY_WIDTH)
@@ -319,12 +405,21 @@ private fun DayHeader(day: DayInfo, onClick: () -> Unit) {
                 color = if (day.isToday) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
             )
         }
-        Box(
-            Modifier
-                .size(5.dp)
-                .clip(CircleShape)
-                .background(if (day.note != null) MaterialTheme.colorScheme.tertiary else Color.Transparent),
-        )
+        if (locked) {
+            Icon(
+                painterResource(R.drawable.ic_lock),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(8.dp),
+            )
+        } else {
+            Box(
+                Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(if (day.note != null) MaterialTheme.colorScheme.tertiary else Color.Transparent),
+            )
+        }
     }
 }
 

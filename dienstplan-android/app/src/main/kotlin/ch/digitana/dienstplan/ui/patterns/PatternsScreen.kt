@@ -84,10 +84,12 @@ import ch.digitana.dienstplan.core.plan.PatternPlanner
 import ch.digitana.dienstplan.core.plan.WeekFormat
 import ch.digitana.dienstplan.ui.components.MemberAvatar
 import ch.digitana.dienstplan.ui.components.ShiftBadge
+import ch.digitana.dienstplan.ui.plan.LockHint
 import ch.digitana.dienstplan.ui.plan.MenuItem
 import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
 import ch.digitana.dienstplan.ui.plan.SheetLabel
+import ch.digitana.dienstplan.ui.plan.lockDateLabel
 import ch.digitana.dienstplan.ui.theme.LocalShiftPalette
 
 private val WEEKDAYS = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
@@ -104,6 +106,11 @@ fun PatternsScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
     var creating by rememberSaveable { mutableStateOf(false) }
     var applying by remember { mutableStateOf<ShiftPattern?>(null) }
     var deleting by remember { mutableStateOf<ShiftPattern?>(null) }
+    // Gesperrte Tage dürfen Mitglieder nicht überschreiben: frühestens die Woche nach der Sperre.
+    val restriction = state.lock?.takeIf { !state.isAdmin }
+    val restrictedUntil = restriction?.until
+    val canApply = !state.readOnly && (restriction == null || restrictedUntil != null)
+    val earliestWeek = restrictedUntil?.let { until -> WeekId.of(until.plusDays(1)).let { if (it.monday.isAfter(until)) it else it.next() } }
 
     PlanMessages(viewModel, snackbar, resources)
 
@@ -141,6 +148,16 @@ fun PatternsScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
+                if (restriction != null && !state.readOnly) {
+                    LockHint(
+                        if (restrictedUntil == null) {
+                            stringResource(R.string.patterns_locked_whole)
+                        } else {
+                            stringResource(R.string.patterns_locked_until, lockDateLabel(restrictedUntil))
+                        },
+                        Modifier.padding(bottom = 6.dp),
+                    )
+                }
             }
             if (patterns.isEmpty()) {
                 item {
@@ -156,6 +173,7 @@ fun PatternsScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
                     pattern = pattern,
                     types = state.plan.shiftTypes,
                     readOnly = state.readOnly,
+                    canApply = canApply,
                     onApply = { applying = pattern },
                     onEdit = { editing = pattern },
                     onDelete = { deleting = pattern },
@@ -187,10 +205,12 @@ fun PatternsScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
         )
     }
     applying?.let { pattern ->
+        val nextWeek = WeekId.of(state.today).next()
         ApplyDialog(
             pattern = pattern,
             members = state.plan.members(),
-            firstWeek = WeekId.of(state.today).next(),
+            firstWeek = earliestWeek?.let { maxOf(it, nextWeek) } ?: nextWeek,
+            earliestWeek = earliestWeek,
             onApply = { memberIds, start, weeks, overwrite ->
                 viewModel.applyPattern(pattern, memberIds, start.monday, weeks, overwrite)
                 applying = null
@@ -222,6 +242,7 @@ private fun PatternCard(
     pattern: ShiftPattern,
     types: ShiftTypeSet,
     readOnly: Boolean,
+    canApply: Boolean,
     onApply: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -258,7 +279,7 @@ private fun PatternCard(
             }
             PatternPreview(pattern.days, types)
             if (!readOnly) {
-                Button(onClick = onApply) {
+                Button(onClick = onApply, enabled = canApply) {
                     Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.patterns_apply))
@@ -427,6 +448,8 @@ private fun ApplyDialog(
     pattern: ShiftPattern,
     members: List<Member>,
     firstWeek: WeekId,
+    /** Frühestmögliche Startwoche (Sperre); null = frei wählbar. */
+    earliestWeek: WeekId?,
     onApply: (List<String>, WeekId, Int, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -462,7 +485,7 @@ private fun ApplyDialog(
                 HorizontalDivider()
                 Text(stringResource(R.string.patterns_apply_start), style = MaterialTheme.typography.labelLarge)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { start = start.previous() }) {
+                    IconButton(onClick = { start = start.previous() }, enabled = earliestWeek == null || start > earliestWeek) {
                         Icon(painterResource(R.drawable.ic_chevron_left), contentDescription = stringResource(R.string.week_previous))
                     }
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {

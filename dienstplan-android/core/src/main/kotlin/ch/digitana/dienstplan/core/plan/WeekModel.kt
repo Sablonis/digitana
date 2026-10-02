@@ -7,6 +7,7 @@ import ch.digitana.dienstplan.core.crdt.ShiftType
 import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
 import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.crdt.Wish
+import ch.digitana.dienstplan.core.crdt.WishStatus
 import java.time.DayOfWeek
 import java.time.LocalDate
 
@@ -34,6 +35,9 @@ data class Cell(
 
     /** Eingetragen, aber die Schichtart ist (noch) nicht bekannt, z. B. vor dem ersten Abgleich. */
     val isUnknownType: Boolean get() = typeId != null && type == null
+
+    /** Erfüllt der Plan den Wunsch? null = kein Wunsch. */
+    val wishStatus: WishStatus? get() = wish?.status(typeId, type)
 
     companion object {
         val EMPTY = Cell()
@@ -63,6 +67,9 @@ data class WeekModel(
     val types: ShiftTypeSet,
 ) {
     val totalMinutes: Int get() = rows.sumOf { it.minutes }
+
+    /** Wünsche der Woche pro Person. */
+    val wishTallies: List<WishTally> get() = WishTally.of(rows)
 
     /** Arbeitsschichten, die in der Besetzungszeile erscheinen: aktive und alle in dieser Woche benutzten. */
     val coverageTypes: List<ShiftType> get() = coverage.firstOrNull()?.counts?.map { it.first }.orEmpty()

@@ -257,7 +257,7 @@ internal object TableRenderer {
                         canvas.drawText(type?.code ?: "?", rect.centerX(), y + 15.5f, codePaint)
                     }
                 } else if (wish != null && !table.compact) {
-                    canvas.drawText(wish.code, NAME_WIDTH + (i + 0.5f) * dayWidth, y + 15.5f, small)
+                    canvas.drawText(wish.kind.code, NAME_WIDTH + (i + 0.5f) * dayWidth, y + 15.5f, small)
                 }
             }
             canvas.drawText(Format.hours(row.minutes), width - HOURS_WIDTH / 2, y + 16f, paint(TEXT_SIZE, align = Paint.Align.CENTER))

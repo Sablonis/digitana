@@ -15,9 +15,10 @@ import ch.digitana.dienstplan.core.crdt.ShiftType
 import ch.digitana.dienstplan.core.crdt.ShiftTypes
 import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.crdt.Wish
-import ch.digitana.dienstplan.core.plan.PatternPlanner
 import ch.digitana.dienstplan.core.group.PlanSync
 import ch.digitana.dienstplan.core.group.RemoteMerge
+import ch.digitana.dienstplan.core.plan.PatternPlanner
+import ch.digitana.dienstplan.core.plan.WishRights
 import ch.digitana.dienstplan.core.util.Clock
 import ch.digitana.dienstplan.core.util.Logger
 import kotlinx.coroutines.CoroutineDispatcher
@@ -43,6 +44,19 @@ class InvalidInputException(val problem: NameProblem) : IllegalArgumentException
 
 /** Der Plan ist gesperrt: Diese Änderung dürfen nur Admins machen. */
 class PlanLockedException : IllegalStateException("Plan gesperrt")
+
+/** Wunsch einer anderen Person, die selbst ein Gerät im Team hat (siehe [WishRights]). */
+class WishNotAllowedException : IllegalStateException("Wunsch einer anderen Person")
+
+/**
+ * Ergebnis einer Sammeländerung (Woche kopieren, Rhythmus anwenden): wie viele Felder sich
+ * geändert haben und wie es vorher war – für „Rückgängig“.
+ */
+class Batch internal constructor(
+    val changed: Int,
+    /** Schlüssel, Wert davor, Wert danach. */
+    internal val changes: List<Triple<String, String, String>>,
+)
 
 /**
  * CRDT-Speicher des Plans. Lokale Änderungen bekommen einen Zeitstempel der hybriden Uhr
@@ -129,9 +143,25 @@ class PlanRepository(
         write { listOf(PlanKeys.memberNote(memberId, date) to value) }
     }
 
-    /** Wunsch einer Person; null löscht ihn. */
+    /**
+     * Wunsch einer Person; null löscht ihn. Erlaubt für die eigene Person, für Personen ohne
+     * eigenes Gerät und für Admins ([WishRights]); Sperren gelten für Wünsche nicht.
+     */
     suspend fun setWish(memberId: String, date: LocalDate, wish: Wish?) {
-        write { listOf(PlanKeys.wish(memberId, date) to (wish?.code ?: "")) }
+        val device = deviceId
+        write { state ->
+            if (!WishRights.mayEdit(state.deviceOwners(), memberId, device, _access.value.isAdmin(device))) {
+                throw WishNotAllowedException()
+            }
+            listOf(PlanKeys.wish(memberId, date) to (wish?.code ?: ""))
+        }
+    }
+
+    /** „Das bin ich“ für alle sichtbar: ordnet dieses Gerät einer Person zu (null hebt sie auf). */
+    suspend fun setDeviceOwner(memberId: String?) {
+        require(memberId == null || PlanKeys.isValidId(memberId)) { "Ungültige ID" }
+        val device = deviceId ?: throw IllegalStateException("Kein Team aktiv")
+        write { listOf(PlanKeys.deviceOwner(device) to (memberId ?: "")) }
     }
 
     /** Freie ID für eine neue Schichtart. */
@@ -162,10 +192,9 @@ class PlanRepository(
      * Wendet einen Rhythmus ab dem Montag [start] für [weeks] Wochen auf Personen an.
      * Mit [overwrite] wird der Zeitraum genau wie der Rhythmus (leere Tage leeren das Feld),
      * sonst werden nur leere Felder gefüllt.
-     * @return Anzahl geänderter Felder.
      */
-    suspend fun applyPattern(pattern: ShiftPattern, memberIds: List<String>, start: LocalDate, weeks: Int, overwrite: Boolean): Int =
-        write { state -> PatternPlanner.changes(state, pattern, memberIds, start, weeks, overwrite) }
+    suspend fun applyPattern(pattern: ShiftPattern, memberIds: List<String>, start: LocalDate, weeks: Int, overwrite: Boolean): Batch =
+        writeBatch { state -> PatternPlanner.changes(state, pattern, memberIds, start, weeks, overwrite) }
 
     /** @return die ID der neuen Person. */
     suspend fun addMember(name: String): String {
@@ -202,11 +231,10 @@ class PlanRepository(
     /**
      * Macht die Folgewoche identisch mit [source] (auch leere Felder) – für alle aktiven
      * Personen. Geschrieben werden nur Felder, die sich tatsächlich ändern.
-     * @return Anzahl geänderter Felder.
      */
-    suspend fun copyWeekToNext(source: WeekId): Int {
+    suspend fun copyWeekToNext(source: WeekId): Batch {
         val target = source.next()
-        return write { state ->
+        return writeBatch { state ->
             val changes = ArrayList<Pair<String, String>>()
             for (member in state.members()) {
                 source.days.zip(target.days).forEach { (from, to) ->
@@ -217,6 +245,14 @@ class PlanRepository(
             }
             changes
         }
+    }
+
+    /**
+     * Macht eine Sammeländerung rückgängig – nur für Felder, die seither niemand geändert hat.
+     * @return Anzahl zurückgesetzter Felder.
+     */
+    suspend fun undo(batch: Batch): Int = write { state ->
+        batch.changes.filter { (key, _, after) -> state.value(key) == after }.map { (key, before, _) -> key to before }
     }
 
     override suspend fun mergeRemote(bucket: String, entries: Map<String, Entry>): RemoteMerge {
@@ -332,10 +368,12 @@ class PlanRepository(
     /** Sofort speichern (z. B. wenn die App in den Hintergrund geht). */
     suspend fun flush() = saveNow()
 
+    private suspend fun write(compute: (PlanState) -> List<Pair<String, String>>): Int = writeBatch(compute).changed
+
     /** Berechnet die Änderungen aus dem aktuellen Stand und schreibt sie – alles unter der Sperre. */
-    private suspend fun write(compute: (PlanState) -> List<Pair<String, String>>): Int {
+    private suspend fun writeBatch(compute: (PlanState) -> List<Pair<String, String>>): Batch {
         val device = deviceId ?: throw IllegalStateException("Kein Team aktiv")
-        var written = 0
+        val written = ArrayList<Triple<String, String, String>>()
         mutex.withLock {
             var state = _state.value
             val changes = compute(state)
@@ -346,19 +384,20 @@ class PlanRepository(
             }
             for ((key, value) in changes) {
                 // Unveränderte Felder nicht neu schreiben (spart Sync-Verkehr, vermeidet unnötige Konflikte).
-                if (state.value(key) == value) continue
+                val before = state.value(key)
+                if (before == value) continue
                 val entry = Entry(value, hybridClock.next(), device)
                 state = state.withEntry(key, entry)
                 pending[key] = entry.timestamp
-                written++
+                written += Triple(key, before, value)
             }
             _state.value = state
         }
-        if (written > 0) {
+        if (written.isNotEmpty()) {
             _localChanges.tryEmit(Unit)
             saveRequests.trySend(Unit)
         }
-        return written
+        return Batch(written.size, written)
     }
 
     private suspend fun saveNow() {

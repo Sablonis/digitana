@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.digitana.dienstplan.R
 import ch.digitana.dienstplan.core.crdt.Member
+import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
+import ch.digitana.dienstplan.core.crdt.WishStatus
 import ch.digitana.dienstplan.core.plan.Cell
 import ch.digitana.dienstplan.core.plan.DayInfo
 import ch.digitana.dienstplan.core.plan.MemberRow
@@ -74,9 +76,13 @@ fun WeekGrid(
     onMemberClick: (Member) -> Unit,
     onAddMember: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Tag gesperrt (Schloss im Kopf)? */
+    isLocked: (LocalDate) -> Boolean = { false },
+    /** Darf dieses Gerät die Schicht an dem Tag ändern (langes Drücken leert)? */
+    canEditShift: (LocalDate) -> Boolean = { !readOnly },
 ) {
     Column(modifier.fillMaxSize()) {
-        GridHeader(model.days, onDayClick)
+        GridHeader(model.days, isLocked, onDayClick)
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         if (model.rows.isEmpty()) {
             EmptyMembers(readOnly = readOnly, onAddMember = onAddMember, modifier = Modifier.weight(1f))
@@ -86,8 +92,10 @@ fun WeekGrid(
                     MemberRowView(
                         row = row,
                         days = model.days,
+                        types = model.types,
                         isMe = row.member.id == myMemberId,
                         readOnly = readOnly,
+                        canEditShift = canEditShift,
                         onCellClick = onCellClick,
                         onCellLongClick = onCellLongClick,
                         onMemberClick = onMemberClick,
@@ -117,9 +125,10 @@ internal fun dayTint(day: DayInfo): Color = when {
 }
 
 @Composable
-private fun GridHeader(days: List<DayInfo>, onDayClick: (LocalDate) -> Unit) {
+private fun GridHeader(days: List<DayInfo>, isLocked: (LocalDate) -> Boolean, onDayClick: (LocalDate) -> Unit) {
     val todayMarker = stringResource(R.string.today_marker)
     val noteMarker = stringResource(R.string.day_has_note)
+    val lockMarker = stringResource(R.string.lock_day_marker)
     val dayClickLabel = stringResource(R.string.day_click_label)
     Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -129,9 +138,11 @@ private fun GridHeader(days: List<DayInfo>, onDayClick: (LocalDate) -> Unit) {
             modifier = Modifier.width(NAME_WIDTH).padding(start = 16.dp),
         )
         for (day in days) {
+            val locked = day.editable && isLocked(day.date)
             val description = buildString {
                 append(WeekFormat.longDate(day.date))
                 if (day.isToday) append(", ").append(todayMarker)
+                if (locked) append(", ").append(lockMarker)
                 if (day.note != null) append(", ").append(noteMarker)
             }
             Column(
@@ -164,10 +175,17 @@ private fun GridHeader(days: List<DayInfo>, onDayClick: (LocalDate) -> Unit) {
                     )
                 }
                 Spacer(Modifier.height(2.dp))
-                if (day.note != null) {
-                    IndicatorDot(MaterialTheme.colorScheme.tertiary)
-                } else {
-                    Spacer(Modifier.height(6.dp))
+                Row(Modifier.height(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (locked) {
+                        Icon(
+                            painterResource(R.drawable.ic_lock),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(10.dp),
+                        )
+                    }
+                    if (locked && day.note != null) Spacer(Modifier.width(3.dp))
+                    if (day.note != null) IndicatorDot(MaterialTheme.colorScheme.tertiary)
                 }
             }
         }
@@ -178,8 +196,10 @@ private fun GridHeader(days: List<DayInfo>, onDayClick: (LocalDate) -> Unit) {
 private fun MemberRowView(
     row: MemberRow,
     days: List<DayInfo>,
+    types: ShiftTypeSet,
     isMe: Boolean,
     readOnly: Boolean,
+    canEditShift: (LocalDate) -> Boolean,
     onCellClick: (CellRef) -> Unit,
     onCellLongClick: (CellRef) -> Unit,
     onMemberClick: (Member) -> Unit,
@@ -225,7 +245,9 @@ private fun MemberRowView(
                 cell = row.cells[index],
                 day = day,
                 memberName = row.member.name,
+                types = types,
                 enabled = day.editable && !readOnly,
+                allowLongClick = day.editable && canEditShift(day.date),
                 onClick = { onCellClick(ref) },
                 onLongClick = { onCellLongClick(ref) },
                 modifier = Modifier.weight(1f),
@@ -240,15 +262,19 @@ internal fun ShiftCellView(
     cell: Cell,
     day: DayInfo,
     memberName: String,
+    types: ShiftTypeSet,
     enabled: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
     showTime: Boolean = true,
+    /** Langes Drücken leert das Feld; aus, wenn der Tag für dieses Gerät gesperrt ist. */
+    allowLongClick: Boolean = true,
 ) {
     val palette = LocalShiftPalette.current
     val color = palette.of(cell.type)
-    val description = cellDescription(cell, memberName, day.date)
+    val description = cellDescription(cell, memberName, day.date, types)
+    val longClick = cell.typeId != null && allowLongClick
     Box(
         modifier = modifier
             .fillMaxHeight()
@@ -263,9 +289,9 @@ internal fun ShiftCellView(
                 .combinedClickable(
                     enabled = enabled,
                     onClickLabel = stringResource(R.string.cell_click_label),
-                    onLongClickLabel = if (cell.typeId != null) stringResource(R.string.cell_long_click_label) else null,
+                    onLongClickLabel = if (longClick) stringResource(R.string.cell_long_click_label) else null,
                     // Die haptische Rückmeldung beim langen Drücken liefert combinedClickable selbst.
-                    onLongClick = if (cell.typeId != null) onLongClick else null,
+                    onLongClick = if (longClick) onLongClick else null,
                     onClick = onClick,
                 )
                 .semantics { contentDescription = description },
@@ -294,16 +320,35 @@ internal fun ShiftCellView(
                         )
                     }
                 }
-            } else if (cell.wish != null) {
-                Icon(
-                    painterResource(R.drawable.ic_favorite),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(14.dp),
-                )
+            } else {
+                val wish = cell.wish
+                if (wish != null) {
+                    // Ohne Schicht: Herz und Kürzel des Wunsches (bei einer Wunschschicht deren Kürzel).
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            painterResource(R.drawable.ic_favorite),
+                            contentDescription = null,
+                            tint = wishColor(cell.wishStatus),
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Text(
+                            text = wish.typeId?.let { types[it]?.code ?: "?" } ?: wish.kind.code,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
             if (cell.wish != null && cell.typeId != null) {
-                IndicatorDot(MaterialTheme.colorScheme.tertiary, Modifier.align(Alignment.TopEnd).padding(4.dp))
+                // Mit Schicht: Punkt in der Farbe des Status, grösser, wenn der Wunsch nicht erfüllt ist.
+                val status = cell.wishStatus
+                IndicatorDot(
+                    wishColor(status),
+                    Modifier.align(Alignment.TopEnd).padding(3.dp),
+                    size = if (status == WishStatus.UNMET) 9.dp else 6.dp,
+                )
             }
             if (cell.note != null) {
                 IndicatorDot(
@@ -316,15 +361,23 @@ internal fun ShiftCellView(
 }
 
 @Composable
-internal fun cellDescription(cell: Cell, memberName: String, date: LocalDate): String {
+internal fun cellDescription(cell: Cell, memberName: String, date: LocalDate, types: ShiftTypeSet): String {
     val type = cell.type
     val shift = when {
         type != null -> type.name + (Format.timeRange(type)?.let { ", $it" } ?: "")
         cell.typeId != null -> stringResource(R.string.shift_unknown)
         else -> stringResource(R.string.cell_empty)
     }
+    val wishText = cell.wish?.let { wish ->
+        val status = cell.wishStatus
+        if (status != null && cell.typeId != null) {
+            stringResource(R.string.wish_with_status, wish.label(types), wishStatusText(status))
+        } else {
+            wish.label(types)
+        }
+    }
     val extras = buildList {
-        cell.wish?.let { add(it.label) }
+        wishText?.let { add(it) }
         cell.note?.let { add(it) }
     }
     return stringResource(R.string.cell_description, memberName, WeekFormat.longDate(date), (listOf(shift) + extras).joinToString(", "))

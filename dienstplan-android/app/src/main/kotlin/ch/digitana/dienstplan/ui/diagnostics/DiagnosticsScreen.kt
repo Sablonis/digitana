@@ -112,7 +112,7 @@ fun DiagnosticsScreen(container: AppContainer, onBack: () -> Unit) {
                                 style = MaterialTheme.typography.bodySmall,
                             )
                             Text(
-                                stringResource(R.string.diagnostics_group_counters, group.deferred, group.ignored, group.rollbacks, group.invalidMessages),
+                                stringResource(R.string.diagnostics_group_counters, group.deferred, group.ignored, group.rollbacks, group.invalidMessages, group.lockedEntries),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }

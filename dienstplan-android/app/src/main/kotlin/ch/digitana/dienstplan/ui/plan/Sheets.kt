@@ -1,5 +1,6 @@
 package ch.digitana.dienstplan.ui.plan
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -52,6 +54,7 @@ import ch.digitana.dienstplan.core.crdt.ShiftKind
 import ch.digitana.dienstplan.core.crdt.ShiftType
 import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
 import ch.digitana.dienstplan.core.crdt.Wish
+import ch.digitana.dienstplan.core.crdt.WishStatus
 import ch.digitana.dienstplan.core.plan.Cell
 import ch.digitana.dienstplan.core.plan.WeekFormat
 import ch.digitana.dienstplan.ui.components.Format
@@ -60,7 +63,10 @@ import ch.digitana.dienstplan.ui.components.ShiftBadge
 import ch.digitana.dienstplan.ui.theme.LocalShiftPalette
 import java.time.LocalDate
 
-/** Feld bearbeiten: Schicht wählen, Wunsch setzen, Notiz zum Dienst. */
+/**
+ * Feld bearbeiten: Schicht wählen, Wunsch setzen, Notiz zum Dienst. [shiftsEditable]: nicht
+ * gesperrt oder Admin; [wishesEditable]: eigene Wünsche, Person ohne Gerät oder Admin.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CellSheet(
@@ -69,6 +75,8 @@ fun CellSheet(
     cell: Cell,
     types: ShiftTypeSet,
     readOnly: Boolean,
+    shiftsEditable: Boolean,
+    wishesEditable: Boolean,
     noteProblem: (String) -> NameProblem?,
     onSelectType: (String?) -> Unit,
     onWish: (Wish?) -> Unit,
@@ -76,6 +84,7 @@ fun CellSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var choosingShiftWish by rememberSaveable(member.id, date) { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             modifier = Modifier
@@ -99,9 +108,10 @@ fun CellSheet(
             }
 
             SheetLabel(stringResource(R.string.sheet_shift))
+            if (!shiftsEditable && !readOnly) LockHint(stringResource(R.string.sheet_shift_locked))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (type in types.active) {
-                    ShiftOption(type = type, typeId = type.id, selected = cell.typeId == type.id, enabled = !readOnly) {
+                    ShiftOption(type = type, typeId = type.id, selected = cell.typeId == type.id, enabled = shiftsEditable) {
                         onSelectType(type.id)
                     }
                 }
@@ -111,7 +121,7 @@ fun CellSheet(
                     ShiftOption(type = cell.type, typeId = currentId, selected = true, enabled = false) {}
                 }
             }
-            if (cell.typeId != null && !readOnly) {
+            if (cell.typeId != null && shiftsEditable) {
                 OutlinedButton(onClick = { onSelectType(null) }) {
                     Icon(painterResource(R.drawable.ic_close), contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
@@ -120,14 +130,16 @@ fun CellSheet(
             }
 
             SheetLabel(stringResource(R.string.sheet_wish))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (wish in Wish.entries) {
-                    val selected = cell.wish == wish
+            if (!wishesEditable && !readOnly) LockHint(stringResource(R.string.sheet_wish_locked, member.name))
+            val wish = cell.wish
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (option in Wish.SIMPLE) {
+                    val selected = wish == option
                     FilterChip(
                         selected = selected,
-                        onClick = { onWish(if (selected) null else wish) },
-                        enabled = !readOnly,
-                        label = { Text(wish.label) },
+                        onClick = { onWish(if (selected) null else option) },
+                        enabled = wishesEditable,
+                        label = { Text(option.kind.label) },
                         leadingIcon = if (selected) {
                             { Icon(painterResource(R.drawable.ic_favorite), contentDescription = null, modifier = Modifier.size(16.dp)) }
                         } else {
@@ -135,6 +147,37 @@ fun CellSheet(
                         },
                     )
                 }
+                val shiftWish = wish?.typeId != null
+                FilterChip(
+                    selected = shiftWish || choosingShiftWish,
+                    onClick = {
+                        if (shiftWish) onWish(null) else choosingShiftWish = !choosingShiftWish
+                    },
+                    enabled = wishesEditable,
+                    label = { Text(if (wish != null && shiftWish) wish.label(types) else stringResource(R.string.wish_shift)) },
+                    leadingIcon = if (shiftWish) {
+                        { Icon(painterResource(R.drawable.ic_favorite), contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    } else {
+                        null
+                    },
+                )
+            }
+            AnimatedVisibility(visible = choosingShiftWish && wishesEditable) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.wish_shift_choose), style = MaterialTheme.typography.bodyMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (type in types.active.filter { it.kind == ShiftKind.WORK }) {
+                            ShiftOption(type = type, typeId = type.id, selected = false, enabled = true) {
+                                choosingShiftWish = false
+                                onWish(Wish.shift(type.id))
+                            }
+                        }
+                    }
+                }
+            }
+            val status = cell.wishStatus
+            if (wish != null && status != null && cell.typeId != null) {
+                WishStatusLine(status)
             }
 
             SheetLabel(stringResource(R.string.sheet_member_note))
@@ -212,16 +255,20 @@ fun DaySheet(
 
             if (summary.wishes.isNotEmpty()) {
                 SheetLabel(stringResource(R.string.day_wishes))
-                for ((member, wish) in summary.wishes) {
+                val types = plan.shiftTypes
+                for (entry in summary.wishes) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             painterResource(R.drawable.ic_favorite),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
+                            tint = wishColor(entry.status),
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(10.dp))
-                        Text("${member.name}: ${wish.label}", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.wish_with_status, "${entry.member.name}: ${entry.wish.label(types)}", wishStatusText(entry.status)),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                 }
             }
@@ -239,12 +286,15 @@ fun DaySheet(
     }
 }
 
+/** Wunsch einer Person an einem Tag und ob der Plan ihn erfüllt. */
+internal data class DayWish(val member: Member, val wish: Wish, val status: WishStatus)
+
 /** Wer an einem Tag welche Schicht hat. */
 internal data class DaySummary(
     /** (Schichtart, ID) → Personen; Reihenfolge wie die Schichtarten, Unbekannte am Schluss. */
     val groups: List<Pair<Pair<ShiftType?, String>, List<Member>>>,
     val unassigned: List<Member>,
-    val wishes: List<Pair<Member, Wish>>,
+    val wishes: List<DayWish>,
 ) {
     companion object {
         fun of(plan: PlanState, date: LocalDate): DaySummary {
@@ -260,10 +310,60 @@ internal data class DaySummary(
             val groups = byType.entries
                 .sortedBy { (id, _) -> order.indexOf(id).let { if (it < 0) Int.MAX_VALUE else it } }
                 .map { (id, list) -> (types[id] to id) to list.toList() }
-            val wishes = members.mapNotNull { member -> plan.wish(member.id, date)?.let { member to it } }
+            val wishes = members.mapNotNull { member ->
+                plan.wish(member.id, date)?.let { wish ->
+                    val typeId = plan.shift(member.id, date)
+                    DayWish(member, wish, wish.status(typeId, types[typeId]))
+                }
+            }
             return DaySummary(groups, unassigned, wishes)
         }
     }
+}
+
+/** Hinweis mit Schloss, z. B. wenn ein Tag gesperrt ist. */
+@Composable
+internal fun LockHint(text: String, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            painterResource(R.drawable.ic_lock),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** „erfüllt“, „nicht erfüllt“ oder „offen“ mit passender Farbe. */
+@Composable
+private fun WishStatusLine(status: WishStatus) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            painterResource(if (status == WishStatus.FULFILLED) R.drawable.ic_check else R.drawable.ic_favorite),
+            contentDescription = null,
+            tint = wishColor(status),
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(wishStatusText(status), style = MaterialTheme.typography.bodySmall, color = wishColor(status))
+    }
+}
+
+@Composable
+internal fun wishStatusText(status: WishStatus): String = when (status) {
+    WishStatus.FULFILLED -> stringResource(R.string.wish_status_fulfilled)
+    WishStatus.UNMET -> stringResource(R.string.wish_status_unmet)
+    WishStatus.OPEN -> stringResource(R.string.wish_status_open)
+}
+
+/** Erfüllt: Primärfarbe, nicht erfüllt: Fehlerfarbe, offen: Tertiärfarbe. */
+@Composable
+internal fun wishColor(status: WishStatus?): Color = when (status) {
+    WishStatus.FULFILLED -> MaterialTheme.colorScheme.primary
+    WishStatus.UNMET -> MaterialTheme.colorScheme.error
+    WishStatus.OPEN, null -> MaterialTheme.colorScheme.tertiary
 }
 
 @Composable

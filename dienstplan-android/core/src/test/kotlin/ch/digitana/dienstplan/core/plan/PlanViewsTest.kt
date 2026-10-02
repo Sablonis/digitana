@@ -8,6 +8,7 @@ import ch.digitana.dienstplan.core.crdt.ShiftPattern
 import ch.digitana.dienstplan.core.crdt.ShiftType
 import ch.digitana.dienstplan.core.crdt.ShiftTypes
 import ch.digitana.dienstplan.core.crdt.Wish
+import ch.digitana.dienstplan.core.crdt.WishStatus
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Instant
@@ -16,6 +17,7 @@ import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -63,6 +65,56 @@ class PlanViewsTest {
         assertEquals(listOf("F", "T", "S", "N"), model.coverage[0].counts.map { it.first.code })
         assertEquals(2, model.coverage[1].count(custom.id))
         assertEquals(0, model.coverage[2].total) // Kurs zählt nicht zur Besetzung
+    }
+
+    @Test
+    fun `Wuensche gegen den Plan pruefen und pro Person zaehlen`() {
+        val day = { d: Int -> LocalDate.of(2026, 10, d) }
+        val state = base
+            .set(PlanKeys.wish(anna, day(5)), Wish.DAY_OFF.code)
+            .set(PlanKeys.shift(anna, day(5)), "F") // Wunschfrei, aber Frühdienst
+            .set(PlanKeys.wish(anna, day(6)), Wish.VACATION.code)
+            .set(PlanKeys.shift(anna, day(6)), "U") // erfüllt
+            .set(PlanKeys.wish(anna, day(7)), Wish.WORK.code) // noch offen
+            .set(PlanKeys.wish(anna, day(8)), Wish.shift("N").code)
+            .set(PlanKeys.shift(anna, day(8)), "N") // erfüllt
+            .set(PlanKeys.wish(ben, day(9)), Wish.shift(custom.id).code)
+            .set(PlanKeys.shift(ben, day(9)), "F") // andere Schicht
+            .set(PlanKeys.wish(ben, day(10)), Wish.WORK.code)
+            .set(PlanKeys.shift(ben, day(10)), "X") // frei statt Arbeit
+            .set(PlanKeys.wish(ben, day(11)), Wish.UNAVAILABLE.code)
+            .set(PlanKeys.shift(ben, day(11)), course.id) // Kurs ist keine Arbeitsschicht
+        val model = MonthModel.build(state, YearMonth.of(2026, 10), today = day(1))
+        val annaRow = model.rows[0]
+        assertEquals(WishStatus.UNMET, annaRow.cells[4].wishStatus)
+        assertEquals(WishStatus.FULFILLED, annaRow.cells[5].wishStatus)
+        assertEquals(WishStatus.OPEN, annaRow.cells[6].wishStatus)
+        assertEquals(WishStatus.FULFILLED, annaRow.cells[7].wishStatus)
+        assertNull(annaRow.cells[0].wishStatus)
+        val benRow = model.rows[1]
+        assertEquals(WishStatus.UNMET, benRow.cells[8].wishStatus)
+        assertEquals(WishStatus.UNMET, benRow.cells[9].wishStatus)
+        assertEquals(WishStatus.FULFILLED, benRow.cells[10].wishStatus)
+        assertEquals("Wunsch: Tag", Wish.shift(custom.id).label(model.types))
+        assertEquals("Wunscharbeitstag", Wish.WORK.label(model.types))
+        // Unbekannte Schichtart: noch nicht beurteilbar.
+        assertEquals(WishStatus.OPEN, Wish.DAY_OFF.status("ffffffff", null))
+
+        val tallies = model.wishTallies
+        assertEquals(listOf(WishTally(annaRow.member, 4, 2, 1), WishTally(benRow.member, 3, 1, 2)), tallies)
+        assertEquals(1, tallies[0].open)
+    }
+
+    @Test
+    fun `Wuensche aendert die Person selbst, fuer Personen ohne Geraet alle`() {
+        val owners = mapOf("00000000000000aa" to anna, "00000000000000bb" to anna)
+        assertTrue(WishRights.mayEdit(owners, anna, "00000000000000aa", isAdmin = false))
+        assertTrue(WishRights.mayEdit(owners, anna, "00000000000000bb", isAdmin = false))
+        assertFalse(WishRights.mayEdit(owners, anna, "00000000000000cc", isAdmin = false))
+        assertTrue(WishRights.mayEdit(owners, anna, "00000000000000cc", isAdmin = true))
+        assertTrue(WishRights.mayEdit(owners, ben, "00000000000000aa", isAdmin = false)) // Ben hat kein Gerät
+        assertTrue(WishRights.mayEdit(owners, ben, null, isAdmin = false))
+        assertFalse(WishRights.mayEdit(owners, anna, null, isAdmin = false))
     }
 
     @Test

@@ -30,6 +30,9 @@ sealed interface PlanKey {
 
     /** `w|<id>|<JJJJ-MM-TT>` → Wunsch einer Person (leer = keiner). */
     data class Wish(val memberId: String, val date: LocalDate) : PlanKey
+
+    /** `u|<geräte-id>` → ID der Person, der das Gerät gehört (leer = keine). */
+    data class DeviceOwner(val deviceId: String) : PlanKey
 }
 
 object PlanKeys {
@@ -46,6 +49,7 @@ object PlanKeys {
     private val DAY_NOTE = Regex("n\\|$DATE")
     private val MEMBER_NOTE = Regex("n\\|([0-9a-f]{16})\\|$DATE")
     private val WISH = Regex("w\\|([0-9a-f]{16})\\|$DATE")
+    private val DEVICE_OWNER = Regex("u\\|([0-9a-f]{16})")
 
     /** Neue zufällige ID (64 Bit, 16 Hex-Zeichen). */
     fun newId(): String = Hex.encode(SecureRandomBytes.next(8))
@@ -97,6 +101,11 @@ object PlanKeys {
         return "w|$id|$date"
     }
 
+    fun deviceOwner(deviceId: String): String {
+        require(isValidId(deviceId)) { "Ungültige Geräte-ID" }
+        return "u|$deviceId"
+    }
+
     /**
      * Prüft Format (Regex, ganze Zeichenkette) und Datum (existiert, 2000–2100).
      * Gibt `null` für alles andere zurück.
@@ -105,6 +114,7 @@ object PlanKeys {
         if (key.length > MAX_KEY_LENGTH) return null
         MEMBER.matchEntire(key)?.let { return PlanKey.Member(it.groupValues[1]) }
         DEVICE.matchEntire(key)?.let { return PlanKey.Device(it.groupValues[1]) }
+        DEVICE_OWNER.matchEntire(key)?.let { return PlanKey.DeviceOwner(it.groupValues[1]) }
         SHIFT_TYPE.matchEntire(key)?.let { return PlanKey.ShiftType(it.groupValues[1]) }
         PATTERN.matchEntire(key)?.let { return PlanKey.Pattern(it.groupValues[1]) }
         SHIFT.matchEntire(key)?.let { match ->

@@ -185,7 +185,7 @@
     <string name="diagnostics_local">Dieses Gerät</string>
     <string name="diagnostics_entries">Lokale Einträge: %1$d in %2$d Buckets</string>
     <string name="diagnostics_epoch">MLS-Epoche %1$d · %2$d Geräte im Team</string>
-    <string name="diagnostics_group_counters">Zurückgestellt %1$d · Verworfen %2$d · Rücksprünge %3$d · Ungültig %4$d</string>
+    <string name="diagnostics_group_counters">Zurückgestellt %1$d · Verworfen %2$d · Rücksprünge %3$d · Ungültig %4$d · Wegen Sperre %5$d</string>
     <string name="diagnostics_version">App-Version: %1$s</string>
     <string name="time_seconds_ago">%1$s (vor %2$d s)</string>
     <string name="time_minutes_ago">%1$s (vor %2$d min)</string>
@@ -360,4 +360,70 @@
     <string name="sync_connecting_short">Verbinde …</string>
     <string name="sync_pending_short">Sendet …</string>
     <string name="sync_stopped_short">Pausiert</string>
+
+    <!-- Sperre des Plans -->
+    <string name="lock_title">Sperre des Plans</string>
+    <string name="lock_status_open">Der Plan ist offen: Alle können Schichten eintragen.</string>
+    <string name="lock_status_whole">Der ganze Plan ist gesperrt.</string>
+    <string name="lock_status_until">Gesperrt bis %1$s.</string>
+    <string name="lock_rules">Während einer Sperre ändern nur Admins Schichten im gesperrten Bereich, Schichtarten und Personen. Wünsche und Notizen bleiben für alle offen.</string>
+    <string name="lock_admin_hint">Als Admin kannst du auch im gesperrten Bereich ändern.</string>
+    <string name="lock_member_hint">Sperren und öffnen können nur Admins.</string>
+    <string name="lock_action_lock">Sperren</string>
+    <string name="lock_action_change">Sperre ändern</string>
+    <string name="lock_action_open">Plan öffnen</string>
+    <string name="lock_dialog_title">Plan sperren</string>
+    <string name="lock_dialog_text">Was soll gesperrt werden? Tage, die schon gesperrt sind, bleiben es.</string>
+    <string name="lock_option_week">Bis Ende dieser Woche</string>
+    <string name="lock_option_next_week">Bis Ende nächster Woche</string>
+    <string name="lock_option_month">Bis Ende %1$s</string>
+    <string name="lock_option_whole">Ganzer Plan</string>
+    <string name="lock_open_confirm_title">Plan öffnen?</string>
+    <string name="lock_open_confirm_text">Danach können wieder alle Schichten eintragen und ändern.</string>
+    <string name="lock_locked_done">Plan gesperrt</string>
+    <string name="lock_opened_done">Plan geöffnet</string>
+    <string name="lock_banner_whole">Plan gesperrt</string>
+    <string name="lock_banner_until">Gesperrt bis %1$s</string>
+    <string name="lock_banner_member">Schichten ändern nur Admins. Wünsche und Notizen kannst du weiter eintragen.</string>
+    <string name="lock_banner_admin">Du bist Admin und kannst trotzdem ändern.</string>
+    <string name="lock_banner_manage">Verwalten</string>
+    <string name="lock_day_marker">gesperrt</string>
+    <string name="error_locked">Gesperrt – das ändern nur Admins.</string>
+    <string name="error_wish_not_allowed">Diese Wünsche trägt die Person selbst ein.</string>
+    <plurals name="discarded_changes">
+        <item quantity="one">%d eigene Änderung wurde verworfen: Der Plan ist gesperrt.</item>
+        <item quantity="other">%d eigene Änderungen wurden verworfen: Der Plan ist gesperrt.</item>
+    </plurals>
+    <string name="sheet_shift_locked">An diesem Tag ändern nur Admins die Schicht (Plan gesperrt).</string>
+    <string name="sheet_wish_locked">%1$s trägt die eigenen Wünsche selbst ein.</string>
+    <string name="types_locked">Der Plan ist gesperrt: Schichtarten ändern nur Admins.</string>
+    <string name="patterns_locked_whole">Der ganze Plan ist gesperrt: Rhythmen anwenden können nur Admins.</string>
+    <string name="patterns_locked_until">Gesperrt bis %1$s: Rhythmen gelten frühestens ab der Woche danach.</string>
+    <string name="member_delete_locked">Während der Sperre löschen nur Admins Personen.</string>
+    <string name="copy_week_locked">Die Folgewoche ist gesperrt.</string>
+
+    <!-- Wünsche -->
+    <string name="wish_shift">Wunschschicht</string>
+    <string name="wish_shift_choose">Welche Schicht wünschst du dir?</string>
+    <string name="wish_status_fulfilled">erfüllt</string>
+    <string name="wish_status_unmet">nicht erfüllt</string>
+    <string name="wish_status_open">offen</string>
+    <string name="wish_with_status">%1$s (%2$s)</string>
+    <string name="wishes_month_title">Wünsche im %1$s</string>
+    <string name="wishes_tally_line">%1$d von %2$d erfüllt · %3$d nicht erfüllt · %4$d offen</string>
+    <string name="wishes_tally_hint">So sieht das ganze Team, ob Wünsche fair erfüllt werden.</string>
+    <string name="me_wishes_title">Meine Wünsche</string>
+    <string name="me_wishes_hint">Wunsch wählen, dann Tage antippen. Nochmals antippen entfernt ihn.</string>
+    <string name="me_wish_clear">Entfernen</string>
+
+    <!-- Schnell eintragen und Rückgängig -->
+    <string name="brush_menu">Schnell eintragen</string>
+    <string name="brush_hint">Schicht wählen, dann Felder antippen.</string>
+    <string name="brush_done">Fertig</string>
+    <string name="brush_eraser">Leeren</string>
+    <string name="action_undo">Rückgängig</string>
+    <string name="undo_done">Rückgängig gemacht</string>
+
+    <!-- Geräte und Personen -->
+    <string name="device_owner">Gehört zu %1$s</string>
 </resources>

@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /** Ein Gerät in der Geräteliste. */
 data class DeviceItem(
@@ -36,6 +37,8 @@ data class DeviceItem(
     val fingerprint: String,
     val isAdmin: Boolean,
     val isMe: Boolean,
+    /** Person, der das Gerät gehört („Das bin ich“ auf dem Gerät); null = unbekannt. */
+    val owner: String? = null,
 )
 
 /** Ergebnis der Prüfung eines eingegebenen Beitrittscodes. */
@@ -50,6 +53,7 @@ sealed interface TeamEvent {
     data object DeviceAdded : TeamEvent
     data object DeviceRemoved : TeamEvent
     data object AdminChanged : TeamEvent
+    data class LockChanged(val locked: Boolean) : TeamEvent
     data object Left : TeamEvent
     /** Der Austritt ging nicht raus (offline): nur lokal löschen anbieten. */
     data object LeaveNotSent : TeamEvent
@@ -68,13 +72,17 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
         combine(container.teamRepository.state, container.planRepository.state) { state, plan ->
             val member = state as? TeamState.Member ?: return@combine emptyList<DeviceItem>()
             val labels = plan.deviceLabels()
+            val owners = plan.deviceOwners()
+            val names = plan.members().associate { it.id to it.name }
             member.team.members.map { publicKey ->
+                val deviceId = DeviceKeys.deviceIdOf(publicKey)
                 DeviceItem(
                     publicKey = publicKey,
-                    label = labels[DeviceKeys.deviceIdOf(publicKey)],
+                    label = labels[deviceId],
                     fingerprint = Fingerprint.of(publicKey),
                     isAdmin = publicKey in member.team.admins,
                     isMe = publicKey == member.me,
+                    owner = owners[deviceId]?.let { names[it] },
                 )
             }.sortedWith(compareByDescending<DeviceItem> { it.isMe }.thenBy { it.label?.lowercase() ?: "￿" }.thenBy { it.publicKey })
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -125,6 +133,10 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
     fun setAdmin(publicKey: String, admin: Boolean) = perform(TeamEvent.AdminChanged) { container.setAdmin(publicKey, admin) }
 
     fun renameDevice(publicKey: String, label: String) = perform(null) { container.renameDevice(publicKey, label) }
+
+    /** Plan sperren bis [until] (null = ganz) oder öffnen; nur Admins. */
+    fun setPlanLock(locked: Boolean, until: LocalDate?) =
+        perform(TeamEvent.LockChanged(locked)) { container.setPlanLock(locked, until) }
 
     fun leave() {
         if (_busy.value) return

@@ -12,7 +12,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -36,13 +40,18 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -59,9 +68,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -70,6 +83,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.digitana.dienstplan.R
 import ch.digitana.dienstplan.core.crdt.Member
 import ch.digitana.dienstplan.core.crdt.PlanState
+import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
 import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.plan.Cell
 import ch.digitana.dienstplan.core.plan.WeekFormat
@@ -77,6 +91,7 @@ import ch.digitana.dienstplan.core.plan.WeekModel
 import ch.digitana.dienstplan.ui.components.Format
 import ch.digitana.dienstplan.ui.components.ShiftBadge
 import ch.digitana.dienstplan.ui.components.SyncStatusChip
+import ch.digitana.dienstplan.ui.team.messageRes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -101,6 +116,7 @@ fun PlanScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedWeek by viewModel.selectedWeek.collectAsStateWithLifecycle()
+    val lockBusy by viewModel.lockBusy.collectAsStateWithLifecycle()
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -115,6 +131,11 @@ fun PlanScreen(
     var openDay by remember { mutableStateOf<LocalDate?>(null) }
     var confirmCopy by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var lockDialog by remember { mutableStateOf(false) }
+    // „Schnell eintragen“: gewählte Schichtart wird mit jedem Antippen eingetragen (null = leeren).
+    var brushOn by rememberSaveable { mutableStateOf(false) }
+    var brushType by rememberSaveable { mutableStateOf<String?>(null) }
+    val brushReady = brushOn && !state.readOnly
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshToday() }
     LaunchedEffect(Unit) {
@@ -151,9 +172,20 @@ fun PlanScreen(
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             if (!state.readOnly) {
+                                MenuItem(R.string.brush_menu, R.drawable.ic_brush) {
+                                    menuOpen = false
+                                    if (brushType == null || state.plan.shiftTypes[brushType] == null) {
+                                        brushType = state.plan.shiftTypes.active.firstOrNull { it.countsForCoverage }?.id
+                                    }
+                                    brushOn = true
+                                }
                                 MenuItem(R.string.menu_copy_week, R.drawable.ic_copy) {
                                     menuOpen = false
-                                    if (viewModel.nextWeekHasEntries(shownWeek)) confirmCopy = true else viewModel.copyWeekToNext(shownWeek)
+                                    when {
+                                        shownWeek.next().days.any { !state.canEditShift(it) } -> viewModel.notify(PlanMessage.WeekLocked)
+                                        viewModel.nextWeekHasEntries(shownWeek) -> confirmCopy = true
+                                        else -> viewModel.copyWeekToNext(shownWeek)
+                                    }
                                 }
                                 MenuItem(R.string.menu_patterns, R.drawable.ic_repeat) {
                                     menuOpen = false
@@ -178,6 +210,16 @@ fun PlanScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            if (brushReady) {
+                BrushBar(
+                    types = state.plan.shiftTypes,
+                    selected = brushType,
+                    onSelect = { brushType = it },
+                    onDone = { brushOn = false },
+                )
+            }
+        },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             state.removedFrom?.let { teamName ->
@@ -192,6 +234,25 @@ fun PlanScreen(
                 onNext = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                 onToday = { scope.launch { pagerState.animateScrollToPage(pageOf(thisWeek)) } },
             )
+            if (lockBusy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 12.dp))
+            val lock = state.lock
+            AnimatedVisibility(
+                visible = lock != null && lock.isLocked(weekAt(pagerState.settledPage).monday),
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                if (lock != null) {
+                    LockBanner(
+                        lock = lock,
+                        isAdmin = state.isAdmin,
+                        onManage = if (state.isAdmin && !state.readOnly) {
+                            { lockDialog = true }
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
             // Erst nach dem Wischen ein- oder ausblenden, damit das Raster nicht mitten im Wischen springt.
             AnimatedVisibility(
                 visible = weekAt(pagerState.settledPage) == thisWeek,
@@ -207,11 +268,19 @@ fun PlanScreen(
                     model = model,
                     myMemberId = state.myMemberId,
                     readOnly = state.readOnly,
-                    onCellClick = { openCell = it },
+                    onCellClick = { ref ->
+                        when {
+                            !brushReady -> openCell = ref
+                            state.canEditShift(ref.date) -> viewModel.setShift(ref, brushType)
+                            else -> viewModel.notify(PlanMessage.Locked)
+                        }
+                    },
                     onCellLongClick = { viewModel.setShift(it, null) },
                     onDayClick = { openDay = it },
                     onMemberClick = { editMember = it },
                     onAddMember = { showAddMember = true },
+                    isLocked = { state.lock?.isLocked(it) == true },
+                    canEditShift = state::canEditShift,
                 )
             }
         }
@@ -230,6 +299,8 @@ fun PlanScreen(
                 cell = cell,
                 types = state.plan.shiftTypes,
                 readOnly = state.readOnly,
+                shiftsEditable = state.canEditShift(ref.date),
+                wishesEditable = state.canEditWishes(ref.memberId),
                 noteProblem = viewModel::noteProblem,
                 onSelectType = { typeId ->
                     viewModel.setShift(ref, typeId)
@@ -261,7 +332,24 @@ fun PlanScreen(
         editMember = editMember,
         onEditClosed = { editMember = null },
         myMemberId = state.myMemberId,
+        canDelete = state.canDeleteMembers,
     )
+
+    if (lockDialog) {
+        LockDialog(
+            current = state.lock,
+            today = state.today,
+            onLock = { until ->
+                lockDialog = false
+                viewModel.setPlanLock(true, until)
+            },
+            onOpen = {
+                lockDialog = false
+                viewModel.setPlanLock(false, null)
+            },
+            onDismiss = { lockDialog = false },
+        )
+    }
 
     if (confirmDelete) {
         AlertDialog(
@@ -307,22 +395,86 @@ internal fun cellOf(plan: PlanState, ref: CellRef): Cell {
     return Cell(typeId, plan.shiftTypes[typeId], plan.wish(ref.memberId, ref.date), plan.memberNote(ref.memberId, ref.date))
 }
 
-/** Rückmeldungen des ViewModels als Snackbar. */
+/** Rückmeldungen des ViewModels als Snackbar; Sammeländerungen lassen sich rückgängig machen. */
 @Composable
 internal fun PlanMessages(viewModel: PlanViewModel, snackbar: SnackbarHostState, resources: android.content.res.Resources) {
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message ->
+            val undoable = when (message) {
+                is PlanMessage.WeekCopied -> message.batch.takeIf { it.changed > 0 }
+                is PlanMessage.PatternApplied -> message.batch.takeIf { it.changed > 0 }
+                else -> null
+            }
             val text = when (message) {
                 is PlanMessage.WeekCopied ->
-                    if (message.changedFields == 0) {
+                    if (message.batch.changed == 0) {
                         resources.getString(R.string.copy_week_nothing)
                     } else {
-                        resources.getString(R.string.copy_week_done, WeekFormat.weekLabel(message.target), message.changedFields)
+                        resources.getString(R.string.copy_week_done, WeekFormat.weekLabel(message.target), message.batch.changed)
                     }
-                is PlanMessage.PatternApplied -> resources.getString(R.string.pattern_applied, message.changedFields)
+                is PlanMessage.PatternApplied -> resources.getString(R.string.pattern_applied, message.batch.changed)
+                is PlanMessage.Undone -> resources.getString(R.string.undo_done)
+                is PlanMessage.Discarded -> resources.getQuantityString(R.plurals.discarded_changes, message.count, message.count)
+                is PlanMessage.LockChanged -> resources.getString(if (message.locked) R.string.lock_locked_done else R.string.lock_opened_done)
+                PlanMessage.Locked -> resources.getString(R.string.error_locked)
+                PlanMessage.WeekLocked -> resources.getString(R.string.copy_week_locked)
+                PlanMessage.WishNotAllowed -> resources.getString(R.string.error_wish_not_allowed)
+                is PlanMessage.TeamFailed -> resources.getString(message.reason.messageRes())
                 PlanMessage.Failed -> resources.getString(R.string.error_generic)
             }
-            snackbar.showSnackbar(text)
+            if (undoable != null) {
+                val result = snackbar.showSnackbar(
+                    message = text,
+                    actionLabel = resources.getString(R.string.action_undo),
+                    duration = SnackbarDuration.Long,
+                )
+                if (result == SnackbarResult.ActionPerformed) viewModel.undo(undoable)
+            } else {
+                snackbar.showSnackbar(text)
+            }
+        }
+    }
+}
+
+/** Leiste für „Schnell eintragen“: Schichtart wählen, dann Felder antippen. */
+@Composable
+private fun BrushBar(types: ShiftTypeSet, selected: String?, onSelect: (String?) -> Unit, onDone: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 3.dp) {
+        Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp)) {
+            Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_brush), contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.brush_hint), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = onDone) { Text(stringResource(R.string.brush_done)) }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (type in types.active) {
+                    val isSelected = selected == type.id
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(
+                                width = if (isSelected) 2.dp else 0.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp),
+                            )
+                            .selectable(selected = isSelected, onClick = { onSelect(type.id) }, role = Role.RadioButton)
+                            .padding(4.dp),
+                    ) {
+                        ShiftBadge(type = type, typeId = type.id, size = 40.dp, modifier = Modifier.semantics { contentDescription = type.name })
+                    }
+                }
+                FilterChip(
+                    selected = selected == null,
+                    onClick = { onSelect(null) },
+                    label = { Text(stringResource(R.string.brush_eraser)) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_close), contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                )
+            }
         }
     }
 }
@@ -345,6 +497,7 @@ internal fun MemberDialogs(
     editMember: Member?,
     onEditClosed: () -> Unit,
     myMemberId: String?,
+    canDelete: Boolean,
 ) {
     if (showAdd) {
         MemberNameDialog(
@@ -367,9 +520,13 @@ internal fun MemberDialogs(
                 viewModel.renameMember(member.id, name)
                 onEditClosed()
             },
-            onDelete = {
-                viewModel.deleteMember(member.id)
-                onEditClosed()
+            onDelete = if (canDelete) {
+                {
+                    viewModel.deleteMember(member.id)
+                    onEditClosed()
+                }
+            } else {
+                null
             },
             onDismiss = onEditClosed,
             isMe = member.id == myMemberId,

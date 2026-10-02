@@ -106,6 +106,19 @@ class PlanExtensionsTest {
         assertEquals(week, Buckets.forKey(PlanKey.DayNote(LocalDate.of(2026, 9, 27))))
         assertEquals(week, Buckets.forKey(PlanKey.MemberNote(id, LocalDate.of(2026, 9, 21))))
         assertEquals(week, Buckets.forKey(PlanKey.Wish(id, LocalDate.of(2026, 9, 21))))
+        assertEquals(PlanKey.DeviceOwner(id), PlanKeys.parse("u|$id"))
+        assertEquals(Buckets.TEAM, Buckets.forKey(PlanKey.DeviceOwner(id)))
+        for (key in listOf("u|", "u|ABCDEF0123456789", "u|$id|2026-09-21", "U|$id")) assertNull(PlanKeys.parse(key), key)
+    }
+
+    @Test
+    fun `Zuordnung von Geraeten zu Personen`() {
+        assertNull(check(Buckets.TEAM, "u|$id", "0123456789abcdef"))
+        assertNull(check(Buckets.TEAM, "u|$id", ""))
+        for (value in listOf("Anna", "0123456789ABCDEF", "0123456789abcde")) {
+            assertEquals(Problem.VALUE, check(Buckets.TEAM, "u|$id", value), value)
+        }
+        assertEquals(Problem.WRONG_BUCKET, check(week, "u|$id", "0123456789abcdef"))
     }
 
     @Test
@@ -125,8 +138,12 @@ class PlanExtensionsTest {
         for (note in listOf("Zeile\nZeile", "\u001b[31m", "   ", "⁦x", "a​")) {
             assertEquals(Problem.VALUE, check(week, "n|2026-09-21", note), note)
         }
-        for (wish in Wish.entries) assertNull(check(week, "w|$id|2026-09-21", wish.code))
-        for (value in listOf("wf", "WF ", "XX", "Wunschfrei", "F")) {
+        for (wish in Wish.SIMPLE) assertNull(check(week, "w|$id|2026-09-21", wish.code))
+        assertNull(check(week, "w|$id|2026-09-21", "WA:F"))
+        assertNull(check(week, "w|$id|2026-09-21", "WA:0a1b2c3d"))
+        assertEquals(Wish.shift("0a1b2c3d"), Wish.fromCode("WA:0a1b2c3d"))
+        assertEquals("WA:N", Wish.shift("N").code)
+        for (value in listOf("wf", "WF ", "XX", "Wunschfrei", "F", "WA:", "WA:Q", "WF:F", "WA:0A1B2C3D", "WA:F:S", "WA:0a1b2c3d0")) {
             assertEquals(Problem.VALUE, check(week, "w|$id|2026-09-21", value), value)
         }
         assertEquals(Problem.WRONG_BUCKET, check("2026-W40", "w|$id|2026-09-21", "WF"))

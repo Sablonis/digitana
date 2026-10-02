@@ -51,7 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.digitana.dienstplan.R
 import ch.digitana.dienstplan.core.crdt.Member
+import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
 import ch.digitana.dienstplan.core.crdt.WeekId
+import ch.digitana.dienstplan.core.crdt.WishStatus
 import ch.digitana.dienstplan.core.plan.MyDay
 import ch.digitana.dienstplan.core.plan.MyShiftsModel
 import ch.digitana.dienstplan.core.plan.WeekFormat
@@ -65,6 +67,7 @@ import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
 import ch.digitana.dienstplan.ui.plan.cellOf
 import ch.digitana.dienstplan.ui.plan.kindLabel
+import ch.digitana.dienstplan.ui.plan.wishStatusText
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -116,6 +119,16 @@ fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit)
             LazyColumn(content, contentPadding = PaddingValues(bottom = 24.dp)) {
                 item(key = "header") { MyHeader(model) }
                 item(key = "next") { NextShift(model.next) }
+                item(key = "wishes") {
+                    WishCalendar(
+                        plan = state.plan,
+                        memberId = model.member.id,
+                        memberName = model.member.name,
+                        today = state.today,
+                        editable = state.canEditWishes(model.member.id),
+                        onSetWish = { date, wish -> viewModel.setWish(CellRef(model.member.id, date), wish) },
+                    )
+                }
                 for ((week, days) in weeks) {
                     item(key = "week-${week.bucketName}") {
                         Text(
@@ -126,7 +139,7 @@ fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit)
                         )
                     }
                     items(days, key = { it.date.toString() }) { day ->
-                        MyDayRow(day = day, onClick = { openDate = day.date })
+                        MyDayRow(day = day, types = model.types, onClick = { openDate = day.date })
                     }
                 }
             }
@@ -143,6 +156,8 @@ fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit)
             cell = cellOf(state.plan, ref),
             types = state.plan.shiftTypes,
             readOnly = state.readOnly,
+            shiftsEditable = state.canEditShift(date),
+            wishesEditable = state.canEditWishes(member.id),
             noteProblem = viewModel::noteProblem,
             onSelectType = { typeId ->
                 viewModel.setShift(ref, typeId)
@@ -247,7 +262,7 @@ private fun NextShift(next: MyDay?) {
 }
 
 @Composable
-private fun MyDayRow(day: MyDay, onClick: () -> Unit) {
+private fun MyDayRow(day: MyDay, types: ShiftTypeSet, onClick: () -> Unit) {
     val cell = day.cell
     val type = cell.type
     val dayLabel = WeekFormat.longDate(day.date)
@@ -313,6 +328,7 @@ private fun MyDayRow(day: MyDay, onClick: () -> Unit) {
             }
         }
         cell.wish?.let { wish ->
+            val status = cell.wishStatus
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
@@ -321,13 +337,19 @@ private fun MyDayRow(day: MyDay, onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    painterResource(R.drawable.ic_favorite),
+                    painterResource(if (status == WishStatus.FULFILLED) R.drawable.ic_check else R.drawable.ic_favorite),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    tint = if (status == WishStatus.UNMET) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onTertiaryContainer,
                     modifier = Modifier.size(14.dp),
                 )
                 Spacer(Modifier.width(4.dp))
-                Text(wish.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                val label = wish.label(types)
+                Text(
+                    if (status != null && cell.typeId != null) stringResource(R.string.wish_with_status, label, wishStatusText(status)) else label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    maxLines = 2,
+                )
             }
         }
     }

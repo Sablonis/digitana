@@ -52,9 +52,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.digitana.dienstplan.R
+import ch.digitana.dienstplan.core.crdt.PlanLock
 import ch.digitana.dienstplan.core.group.Fingerprint
 import ch.digitana.dienstplan.core.group.TeamState
 import ch.digitana.dienstplan.ui.components.SecureWindow
+import ch.digitana.dienstplan.ui.plan.LockDialog
+import ch.digitana.dienstplan.ui.plan.lockDateLabel
+import java.time.LocalDate
 
 /** Team und Geräte: Geräteliste mit Admin-Aktionen, Benachrichtigungen, Austritt. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,6 +88,7 @@ fun TeamScreen(
     var removing by remember { mutableStateOf<DeviceItem?>(null) }
     var confirmLeave by remember { mutableStateOf(false) }
     var offerLocalDelete by remember { mutableStateOf(false) }
+    var lockDialog by remember { mutableStateOf(false) }
     val member = state as? TeamState.Member
 
     // Fester Schlüssel: Das Zurücksetzen des Hinweises darf die laufende Snackbar nicht abbrechen.
@@ -101,6 +106,7 @@ fun TeamScreen(
                 TeamEvent.DeviceAdded -> R.string.device_added
                 TeamEvent.DeviceRemoved -> R.string.device_removed
                 TeamEvent.AdminChanged -> R.string.admin_changed
+                is TeamEvent.LockChanged -> if (event.locked) R.string.lock_locked_done else R.string.lock_opened_done
                 is TeamEvent.Failed -> event.message
                 TeamEvent.LeaveNotSent -> {
                     offerLocalDelete = true
@@ -182,6 +188,15 @@ fun TeamScreen(
                 }
             }
 
+            member?.let { current ->
+                LockCard(
+                    lock = current.team.planLock,
+                    isAdmin = current.isAdmin,
+                    busy = busy,
+                    onManage = { lockDialog = true },
+                )
+            }
+
             PlanningSection(
                 readOnly = member == null,
                 onOpenShiftTypes = onOpenShiftTypes,
@@ -221,6 +236,22 @@ fun TeamScreen(
                 )
             }
         }
+    }
+
+    if (lockDialog && member != null) {
+        LockDialog(
+            current = member.team.planLock,
+            today = LocalDate.now(),
+            onLock = { until ->
+                lockDialog = false
+                viewModel.setPlanLock(true, until)
+            },
+            onOpen = {
+                lockDialog = false
+                viewModel.setPlanLock(false, null)
+            },
+            onDismiss = { lockDialog = false },
+        )
     }
 
     if (addOpen) {
@@ -324,11 +355,62 @@ private fun DeviceRow(device: DeviceItem, onClick: () -> Unit) {
                 fontWeight = if (device.isMe) FontWeight.SemiBold else FontWeight.Normal,
             )
             Text(device.fingerprint, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+            device.owner?.let {
+                Text(
+                    stringResource(R.string.device_owner, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         if (device.isMe) SuggestionChip(onClick = onClick, label = { Text(stringResource(R.string.device_me)) })
         if (device.isAdmin) {
             Spacer(Modifier.width(6.dp))
             SuggestionChip(onClick = onClick, label = { Text(stringResource(R.string.device_admin)) })
+        }
+    }
+}
+
+/** Sperre des Plans: Stand für alle, Sperren und Öffnen für Admins. */
+@Composable
+private fun LockCard(lock: PlanLock?, isAdmin: Boolean, busy: Boolean, onManage: () -> Unit) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painterResource(if (lock != null) R.drawable.ic_lock else R.drawable.ic_lock_open),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(stringResource(R.string.lock_title), style = MaterialTheme.typography.titleMedium)
+            }
+            val until = lock?.until
+            Text(
+                when {
+                    lock == null -> stringResource(R.string.lock_status_open)
+                    until == null -> stringResource(R.string.lock_status_whole)
+                    else -> stringResource(R.string.lock_status_until, lockDateLabel(until))
+                },
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(stringResource(R.string.lock_rules), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (isAdmin) {
+                if (lock != null) {
+                    Text(stringResource(R.string.lock_admin_hint), style = MaterialTheme.typography.bodySmall)
+                }
+                FilledTonalButton(onClick = onManage, enabled = !busy) {
+                    Icon(painterResource(R.drawable.ic_lock), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(if (lock == null) R.string.lock_action_lock else R.string.lock_action_change))
+                }
+            } else {
+                Text(
+                    stringResource(R.string.lock_member_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

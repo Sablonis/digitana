@@ -16,6 +16,9 @@ data class MonthModel(
 ) {
     val totalMinutes: Int get() = rows.sumOf { it.minutes }
 
+    /** Wünsche des Monats pro Person: wie viele der Plan erfüllt (Fairness auf einen Blick). */
+    val wishTallies: List<WishTally> get() = WishTally.of(rows)
+
     companion object {
         val FIRST_MONTH: YearMonth = YearMonth.from(PlanKeys.MIN_DATE)
         val LAST_MONTH: YearMonth = YearMonth.from(PlanKeys.MAX_DATE)

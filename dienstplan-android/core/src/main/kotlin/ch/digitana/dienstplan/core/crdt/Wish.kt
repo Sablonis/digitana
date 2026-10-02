@@ -1,13 +1,73 @@
 package ch.digitana.dienstplan.core.crdt
 
-/** Wunsch oder Abwesenheit, die eine Person für einen Tag einträgt. */
-enum class Wish(val code: String, val label: String) {
+/** Art eines Wunsches. */
+enum class WishKind(val code: String, val label: String) {
     DAY_OFF("WF", "Wunschfrei"),
     VACATION("FW", "Ferienwunsch"),
-    UNAVAILABLE("NV", "Nicht verfügbar");
+    UNAVAILABLE("NV", "Nicht verfügbar"),
+    WORK("WA", "Wunscharbeitstag"),
+}
+
+/** Wie weit der Plan einen Wunsch erfüllt. */
+enum class WishStatus {
+    /** Eingeplant wie gewünscht. */
+    FULFILLED,
+
+    /** Noch nichts eingetragen (oder Schichtart unbekannt). */
+    OPEN,
+
+    /** Eingetragen, aber anders als gewünscht. */
+    UNMET,
+}
+
+/**
+ * Wunsch einer Person für einen Tag. Ein Wunscharbeitstag kann eine bestimmte Schichtart
+ * nennen ([typeId], „Wunschschicht“). Format im Plan: `WF`, `FW`, `NV`, `WA` oder `WA:<id>`.
+ */
+data class Wish(val kind: WishKind, val typeId: String? = null) {
+    init {
+        require(typeId == null || (kind == WishKind.WORK && ShiftTypes.isValidId(typeId))) { "Ungültiger Wunsch" }
+    }
+
+    val code: String get() = if (typeId == null) kind.code else "${kind.code}:$typeId"
+
+    /** Bezeichnung; bei einer Wunschschicht mit Namen der Schichtart. */
+    fun label(types: ShiftTypeSet): String =
+        if (typeId == null) kind.label else "Wunsch: ${types[typeId]?.name ?: "unbekannte Schicht"}"
+
+    /** Vergleich mit der eingetragenen Schicht ([assignedId], [assigned]; null = leer). */
+    fun status(assignedId: String?, assigned: ShiftType?): WishStatus {
+        if (assignedId == null || assigned == null) return WishStatus.OPEN
+        val works = assigned.kind == ShiftKind.WORK
+        val met = when (kind) {
+            WishKind.DAY_OFF, WishKind.VACATION, WishKind.UNAVAILABLE -> !works
+            WishKind.WORK -> if (typeId != null) assignedId == typeId else works
+        }
+        return if (met) WishStatus.FULFILLED else WishStatus.UNMET
+    }
 
     companion object {
-        fun fromCode(code: String): Wish? = entries.firstOrNull { it.code == code }
+        val DAY_OFF = Wish(WishKind.DAY_OFF)
+        val VACATION = Wish(WishKind.VACATION)
+        val UNAVAILABLE = Wish(WishKind.UNAVAILABLE)
+        val WORK = Wish(WishKind.WORK)
+
+        /** Wünsche ohne Schichtart, in der Reihenfolge der Anzeige. */
+        val SIMPLE: List<Wish> = listOf(DAY_OFF, VACATION, UNAVAILABLE, WORK)
+
+        /** Wunschschicht. */
+        fun shift(typeId: String): Wish = Wish(WishKind.WORK, typeId)
+
+        fun fromCode(code: String): Wish? {
+            if (code.length > MAX_CODE_LENGTH) return null
+            WishKind.entries.firstOrNull { it.code == code }?.let { return Wish(it) }
+            val prefix = WishKind.WORK.code + ":"
+            if (!code.startsWith(prefix)) return null
+            val typeId = code.substring(prefix.length)
+            return if (ShiftTypes.isValidId(typeId)) Wish(WishKind.WORK, typeId) else null
+        }
+
+        private const val MAX_CODE_LENGTH = 11
     }
 }
 

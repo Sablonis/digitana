@@ -30,6 +30,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.LocalDate
 
 /** Ergebnis eines Abgleichs im Hintergrund. */
 enum class BackgroundSyncResult {
@@ -123,6 +124,8 @@ class SyncController(
     suspend fun removeDevice(publicKey: String) = requireEngine().removeDevice(publicKey)
 
     suspend fun setAdmin(publicKey: String, admin: Boolean) = requireEngine().setAdmin(publicKey, admin)
+
+    suspend fun setPlanLock(locked: Boolean, until: LocalDate?) = requireEngine().setPlanLock(locked, until)
 
     suspend fun leave() = requireEngine().leave()
 

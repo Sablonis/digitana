@@ -133,10 +133,10 @@ class PlanRepositoryTest {
         val before = repo.state.value.entry(PlanKeys.shift(anna, target.days[0]))
 
         assertTrue(repo.hasEntries(target))
-        val changed = repo.copyWeekToNext(source)
+        val batch = repo.copyWeekToNext(source)
 
         val state = repo.state.value
-        assertEquals(2, changed) // Anna So = U, Ben Mi geleert
+        assertEquals(2, batch.changed) // Anna So = U, Ben Mi geleert
         assertEquals(before, state.entry(PlanKeys.shift(anna, target.days[0])))
         assertEquals("U", state.shift(anna, target.days[6]))
         assertNull(state.shift(ben, target.days[2]))
@@ -144,6 +144,12 @@ class PlanRepositoryTest {
             assertEquals(state.shift(anna, source.days[i]), state.shift(anna, target.days[i]))
             assertEquals(state.shift(ben, source.days[i]), state.shift(ben, target.days[i]))
         }
+
+        // Rückgängig: nur Felder, die seither niemand geändert hat.
+        repo.setShift(anna, target.days[6], "X")
+        assertEquals(1, repo.undo(batch))
+        assertEquals("N", repo.state.value.shift(ben, target.days[2]))
+        assertEquals("X", repo.state.value.shift(anna, target.days[6]))
     }
 
     @Test
@@ -281,9 +287,9 @@ class PlanRepositoryTest {
         val pattern = ShiftPattern(repo.newPatternId(), "Tagwoche", listOf(typeId, typeId, typeId, typeId, typeId, null, null))
         repo.savePattern(pattern)
         assertEquals(listOf(pattern), repo.state.value.patterns())
-        assertEquals(10, repo.applyPattern(pattern, listOf(anna), monday, weeks = 2, overwrite = false))
+        assertEquals(10, repo.applyPattern(pattern, listOf(anna), monday, weeks = 2, overwrite = false).changed)
         assertEquals(typeId, repo.state.value.shift(anna, monday.plusDays(8)))
-        assertEquals(0, repo.applyPattern(pattern, listOf(anna), monday, weeks = 2, overwrite = true)) // schon gleich
+        assertEquals(0, repo.applyPattern(pattern, listOf(anna), monday, weeks = 2, overwrite = true).changed) // schon gleich
         repo.deletePattern(pattern.id)
         assertTrue(repo.state.value.patterns().isEmpty())
     }
@@ -369,5 +375,29 @@ class PlanRepositoryTest {
         repo.setShift(anna, day, "S")
         assertEquals("S", repo.state.value.shift(anna, day))
         assertEquals(me, repo.state.value.entry(key)!!.device)
+    }
+
+    @Test
+    fun `Wuensche gehoeren der Person, Geraete lassen sich zuordnen`() = runTest {
+        val repo = repository()
+        val anna = repo.addMember("Anna")
+        val ben = repo.addMember("Ben")
+        val day = LocalDate.of(2026, 10, 5)
+        // Noch niemand ist zugeordnet: Alle dürfen alle Wünsche eintragen.
+        repo.setWish(ben, day, Wish.WORK)
+        repo.setDeviceOwner(anna)
+        assertEquals(mapOf("00000000000000aa" to anna), repo.state.value.deviceOwners())
+        repo.setWish(anna, day, Wish.shift("F"))
+        assertEquals(Wish.shift("F"), repo.state.value.wish(anna, day))
+        // Ben hat ein eigenes Gerät: Seine Wünsche ändert nur er (oder ein Admin).
+        repo.mergeRemote(Buckets.TEAM, mapOf(PlanKeys.deviceOwner("00000000000000bb") to Entry(ben, now, "00000000000000bb")))
+        assertThrows<WishNotAllowedException> { repo.setWish(ben, day, null) }
+        assertEquals(Wish.WORK, repo.state.value.wish(ben, day))
+        repo.setAccess(PlanAccess(null, setOf("00000000000000aa")))
+        repo.setWish(ben, day, null)
+        assertNull(repo.state.value.wish(ben, day))
+        repo.setDeviceOwner(null)
+        assertEquals(mapOf("00000000000000bb" to ben), repo.state.value.deviceOwners())
+        assertThrows<IllegalArgumentException> { repo.setDeviceOwner("Anna") }
     }
 }
