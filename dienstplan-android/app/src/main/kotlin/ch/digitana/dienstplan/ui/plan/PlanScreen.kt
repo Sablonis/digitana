@@ -192,8 +192,9 @@ fun PlanScreen(
                 onNext = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                 onToday = { scope.launch { pagerState.animateScrollToPage(pageOf(thisWeek)) } },
             )
+            // Erst nach dem Wischen ein- oder ausblenden, damit das Raster nicht mitten im Wischen springt.
             AnimatedVisibility(
-                visible = shownWeek == thisWeek,
+                visible = weekAt(pagerState.settledPage) == thisWeek,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut(),
             ) {

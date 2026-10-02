@@ -13,31 +13,39 @@ werden später gesendet.
 
 ## Funktionen
 
-- Mitarbeitende anlegen, umbenennen, löschen (Name max. 40 Zeichen) – Tipp auf den Namen.
-- Wochenansicht Mo–So mit Kalenderwoche und Datum, vor/zurück blättern, Tipp auf die
-  Kalenderwoche springt zu heute. Heute hervorgehoben, Wochenende eingefärbt.
-- Schichten **F** Früh (8 h, blau), **S** Spät (8 h, orange), **N** Nacht (8 h, violett),
-  **X** Frei (0 h, grau), **U** Urlaub (0 h, grün). Tipp wechselt der Reihe nach
-  (leer → F → S → N → X → U → leer), langes Drücken leert das Feld.
-- Stunden pro Person und Woche, Besetzung pro Tag (Anzahl F/S/N).
-- „Woche kopieren“: Die nächste Woche wird identisch mit der angezeigten (auch leere
-  Felder). Stehen dort schon Einträge, fragt die App vorher nach.
-- Team: „Neues Team gründen“ (dieses Gerät wird Admin) oder „Einem Team beitreten“: Das
+- **Vier Reiter:** Woche, Monat, Ich und Team. Eigenes Farbschema (Indigo mit Koralle),
+  hell und dunkel, Avatare mit Initialen, farbige Schicht-Kärtchen, neues App-Icon.
+- **Woche:** Wischen wechselt die Woche, ein Tipp auf „KW“ oder „Heute“ springt zurück.
+  Oben die Übersicht für heute (eigener Dienst, Besetzung je Schicht). Tipp auf ein Feld
+  öffnet die Auswahl: Schicht, Wunsch, Notiz zum Dienst; langes Drücken leert das Feld.
+  Tipp auf einen Tag zeigt, wer welche Schicht hat, wer fehlt, Wünsche und die Notiz zum Tag.
+  Stunden pro Person, Besetzung pro Tag, „Woche kopieren“.
+- **Personen:** unten in der Woche hinzufügen (Name max. 40 Zeichen); Tipp auf einen Namen
+  zum Umbenennen, Löschen oder „Das bin ich“.
+- **Monat:** alle Personen über den ganzen Monat, Tage waagrecht scrollbar, Stunden pro
+  Monat, Besetzung pro Tag.
+- **Ich (Meine Dienste):** die eigenen Dienste der nächsten 8 Wochen, Stunden der Woche und
+  des Monats, nächster Dienst, Wünsche (Wunschfrei, Ferienwunsch, nicht verfügbar) und
+  Notizen. Export in den Kalender als .ics.
+- **Schichtarten:** eigene Arten mit Kürzel, Name, Zeiten, Pause, Art (Arbeit, frei,
+  abwesend), angerechneten Stunden und Farbe; archivieren, Standardarten zurücksetzen.
+- **Rhythmen:** Abfolgen über 1–8 Wochen „malen“ und auf Personen und bis zu 52 Wochen
+  anwenden – nur leere Felder füllen oder überschreiben.
+- **Teilen:** Woche oder Monat als PDF oder Bild (mit Hinweis, dass die Datei nicht
+  verschlüsselt ist).
+- **Widget „Meine Dienste“** für den Startbildschirm mit den nächsten fünf Diensten.
+- **Team:** „Neues Team gründen“ (dieses Gerät wird Admin) oder „Einem Team beitreten“: Das
   Gerät zeigt einen Beitrittscode, ein Admin fügt es damit hinzu, und das Gerät bestätigt
-  die Einladung (Teamname, Fingerabdruck des einladenden Geräts). Liegt schon ein Plan auf
-  dem Gerät, fragt die App, ob er übernommen wird.
-- Geräteliste unter „Team und Geräte“ mit Namen und Fingerabdrücken. Admins fügen Geräte
-  hinzu, entfernen sie und vergeben Admin-Rechte. „Team verlassen“ bittet die Admins um
-  Entfernung und löscht dann alles Lokale. Ein entferntes Gerät zeigt den Plan nur noch
-  lesend an.
-- Sicherheit im Hintergrund: Schlüsselerneuerung nach dem Beitritt und alle 7 Tage,
+  die Einladung (Teamname, Fingerabdruck des einladenden Geräts). Geräteliste mit Namen und
+  Fingerabdrücken, Admin-Rechte, „Team verlassen“. Ein entferntes Gerät zeigt den Plan nur
+  noch lesend an.
+- **Sicherheit im Hintergrund:** Schlüsselerneuerung nach dem Beitritt und alle 7 Tage,
   Abgleich verlorener Nachrichten über Digests, gleichzeitige Gruppenänderungen werden
   erkannt und aufgelöst (Details in `docs/PROTOKOLL.md`).
-- Statusanzeige („Live · 3/3 Relays“) und Diagnose pro Relay.
-- Benachrichtigungen: Wer unter „Team und Geräte“ wählt, wer man im Plan ist, wird
+- **Benachrichtigungen:** Wer unter „Ich“ oder „Team“ gewählt hat, wer man im Plan ist, wird
   benachrichtigt, wenn jemand die eigenen künftigen Dienste ändert. Dafür gleicht die App
-  etwa alle 15 Minuten im Hintergrund ab (WorkManager, nur mit Netz). Die eigene Zeile
-  ist im Plan hervorgehoben.
+  etwa alle 15 Minuten im Hintergrund ab (WorkManager, nur mit Netz).
+- Statusanzeige („Live“) und Diagnose pro Relay.
 
 ## Aufbau
 
@@ -51,9 +59,9 @@ dienstplan-android/
 │   ├── sync/     Relay-Verbindungen (OkHttp), TLS-Client, Status, Backoff
 │   ├── crypto/   AES-256-GCM (Tink) für lokale Dateien
 │   ├── data/     Plan-Repository, Einstellungen, verschlüsselter Dateispeicher
-│   └── plan/     Wochenmodell (Stunden, Besetzung), deutsche Beschriftungen
+│   └── plan/     Woche, Monat, „Meine Dienste“, Rhythmen, Kalender-Export (.ics), Beschriftungen
 ├── mls/    Rust: MLS-Gruppenverschlüsselung (Marmot/MDK, OpenMLS) mit Kotlin-Anbindung (UniFFI)
-├── app/    Android: Keystore, Sync-Steuerung, ViewModels, Compose-Oberfläche
+├── app/    Android: Keystore, Sync-Steuerung, ViewModels, Compose-Oberfläche, Export, Widget
 └── docs/   PROTOKOLL.md, SICHERHEIT.md, RELEASE.md, INSTALLATION.md
 ```
 
@@ -120,7 +128,7 @@ Installation per Sideloading und Hilfe bei „App nicht installiert“:
 | Befehl | Inhalt |
 |---|---|
 | `(cd mls && cargo test)` | MLS-Abläufe mit echten SQLCipher-Datenbanken: Einladen und Beitreten, Nachrichten in beide Richtungen, entferntes Gerät liest nichts mehr, Admin-Rechte, zu früh oder in falscher Reihenfolge eintreffende Events, offene Einladung nach Neustart, Wettlauf zweier Commits, Signieren nur für Kind 5/22242, falscher Datenbankschlüssel, fremde und kaputte Eingaben |
-| `./gradlew :core:test` | **Drei Geräte über drei lokale Nostr-Relays mit echtem TLS und echter MLS-Verschlüsselung**: Gründen, Beitreten per Code, ganzer Plan für neue Geräte, gleichzeitige Änderungen mit Konflikt, Entfernen, Austritt und Admin-Übergabe, Offline-Änderungen nach Neustart, Reparatur verlorener Nachrichten, Relays mit Anmeldung (NIP-42), unterbrochene Commits. Dazu Nachrichtenformat und Eingabeprüfung mit bösartigen Daten, Beitrittscode, CRDT-Merge (kommutativ, assoziativ, idempotent), NIP-01-ID, BIP-340-Testvektoren (offizielle CSV), manipulierte AES-GCM-Pakete, Kotlin-Anbindung der Rust-Bibliothek, TLS-Negativtests lokal (selbstsigniert, falscher Host, abgelaufen, fremde CA, Klartext) |
+| `./gradlew :core:test` | **Drei Geräte über drei lokale Nostr-Relays mit echtem TLS und echter MLS-Verschlüsselung**: Gründen, Beitreten per Code, ganzer Plan für neue Geräte, gleichzeitige Änderungen mit Konflikt, Entfernen, Austritt und Admin-Übergabe, Offline-Änderungen nach Neustart, Reparatur verlorener Nachrichten, Relays mit Anmeldung (NIP-42), unterbrochene Commits. Dazu Schichtarten, Notizen, Wünsche und Rhythmen (Formate, kaputte Werte, Überschreiben von Standardarten), Monatsansicht, „Meine Dienste“, Anwenden von Rhythmen, Kalender-Export nach RFC 5545 (UTC, Zeilenumbruch), Nachrichtenformat und Eingabeprüfung mit bösartigen Daten, Beitrittscode, CRDT-Merge (kommutativ, assoziativ, idempotent), NIP-01-ID, BIP-340-Testvektoren (offizielle CSV), manipulierte AES-GCM-Pakete, Kotlin-Anbindung der Rust-Bibliothek, TLS-Negativtests lokal (selbstsigniert, falscher Host, abgelaufen, fremde CA, Klartext) |
 | `./gradlew :core:networkTest` | **Drei Geräte über die echten Relays** (damus, nos.lol, primal) mit MLS: Gründen, Beitreten per Code, gleichzeitige Änderungen mit Konflikt; **TLS-Negativtests gegen expired/wrong.host/self-signed/untrusted-root.badssl.com** sowie TLS 1.0/1.1. Braucht eine direkte Internetverbindung (kein TLS-aufbrechender Proxy). Andere Relays: `-Pdienstplan.relays=wss://a,wss://b,wss://c` |
 | `./gradlew :app:connectedDebugAndroidTest` | Auf Gerät/Emulator: Android-Keystore (Rundlauf, Manipulation, gelöschter Schlüssel, StrongBox-Rückfall), verschlüsselte Dateien, TLS-Negativtests mit dem Android-Trust-Store und der Network Security Config |
 

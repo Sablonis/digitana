@@ -132,17 +132,50 @@ Minute lang kein Commit kam (damit sich Commits selten kreuzen).
   Mitgliedschaft prüft die MLS-Schicht; was sie nicht lesen kann, wird still verworfen.
 - Anwendungsnachrichten: Version, Typ, höchstens 5000 Einträge, Bucket-Namen, Digests
   (16 Hex), keine doppelten Schlüssel, JSON-Tiefe ≤ 5. Strukturfehler verwerfen die ganze
-  Nachricht. Einzelne Einträge werden wie bisher geprüft: Schlüssel per Regex, echtes
-  Datum 2000–2100, erlaubte Kürzel, Namen max. 60 Zeichen ohne Steuer-, Bidi- oder
-  unsichtbare Zeichen, Zeitstempel > 0 und ≤ jetzt + 24 h, Geräte-ID, richtiger Bucket.
+  Nachricht. Einzelne Einträge werden einzeln geprüft: Schlüssel per Regex, echtes Datum
+  2000–2100, gültige Schichtart-IDs, Formate der Schichtarten und Rhythmen (siehe oben),
+  Namen max. 60 und Notizen max. 200 Zeichen ohne Steuer-, Bidi- oder unsichtbare Zeichen,
+  nur die drei Wunsch-Codes, Zeitstempel > 0 und ≤ jetzt + 24 h, Geräte-ID, richtiger Bucket.
 - Gift Wraps: nur an den eigenen Schlüssel; Einladungen nur während eines Beitritts.
 
 ## Datenmodell (LWW-Map)
 
-Unverändert gegenüber DP2: Schlüssel `m|<id>` (Name), `z|<id>|<JJJJ-MM-TT>` (Kürzel) und neu
-`d|<geräte-id>` (Name eines Geräts in der Geräteliste), jeweils mit Wert, Zeitstempel der
-hybriden Uhr und Geräte-ID. Buckets: `team` (Personen, Gerätenamen) und je eine ISO-Woche.
-Bei Konflikten gewinnt der neuere Zeitstempel, dann die grössere Geräte-ID, zuletzt der Wert.
+Jeder Eintrag hat Wert, Zeitstempel der hybriden Uhr und Geräte-ID. Bei Konflikten gewinnt
+der neuere Zeitstempel, dann die grössere Geräte-ID, zuletzt der Wert. Leerer Wert =
+gelöscht bzw. leer.
+
+| Schlüssel | Bucket | Wert |
+|---|---|---|
+| `m\|<id>` | `team` | Name einer Person (max. 60 Zeichen) |
+| `d\|<geräte-id>` | `team` | Name eines Geräts in der Geräteliste |
+| `s\|<art-id>` | `team` | Schichtart: `v1\|<kürzel>\|<name>\|<beginn>\|<ende>\|<pause>\|<art>\|<farbe>\|<anrechnung>\|<flags>` |
+| `r\|<rhythmus-id>` | `team` | Rhythmus: `v1\|<name>\|<art-id>,<art-id>,…` (leere Stelle = Tag frei lassen) |
+| `z\|<id>\|<JJJJ-MM-TT>` | Woche | ID einer Schichtart |
+| `n\|<JJJJ-MM-TT>` | Woche | Notiz zum Tag (max. 200 Zeichen) |
+| `n\|<id>\|<JJJJ-MM-TT>` | Woche | Notiz zum Dienst einer Person (max. 200 Zeichen) |
+| `w\|<id>\|<JJJJ-MM-TT>` | Woche | Wunsch: `WF` (Wunschfrei), `FW` (Ferienwunsch), `NV` (nicht verfügbar) |
+
+Buckets: `team` und je eine ISO-Woche (`2026-W40`). `<id>` und `<geräte-id>` sind 16
+Hex-Zeichen, Rhythmus-IDs 8 Hex-Zeichen.
+
+**Schichtarten.** Die IDs `F`, `S`, `N`, `X` und `U` sind die Standardarten Früh (6–14 Uhr),
+Spät (14–22 Uhr), Nacht (22–6 Uhr), Frei und Urlaub; ohne Eintrag `s|…` gelten ihre
+Standardwerte, ein leerer Eintrag setzt sie zurück. Eigene Arten haben eine zufällige ID aus
+8 Hex-Zeichen. Felder im Plan verweisen auf die ID, nicht auf das Kürzel; Kürzel, Name,
+Zeiten und Farbe lassen sich deshalb ändern, ohne Einträge umzuschreiben. Archivierte Arten
+(Flag `a`) bleiben sichtbar, werden aber nicht mehr angeboten.
+
+- Kürzel 1–3 Zeichen A–Z/0–9, Name 1–30 Zeichen ohne `|`
+- Beginn und Ende `HH:MM` oder beide leer (ganztägig); Ende ≤ Beginn = über Mitternacht
+- Pause 0–480 Minuten, Anrechnung 0–1440 Minuten (für Arten ohne Zeiten)
+- Art `W` (Arbeit, zählt zur Besetzung), `F` (frei) oder `A` (abwesend); Farbe 0–11
+
+Stunden: Dauer minus Pause, ohne Zeiten die Anrechnung.
+
+**Kompatibilität.** Die neuen Schlüssel ergänzen DP3. Geräte mit der ersten DP3-Version
+verwerfen sie (und Felder mit eigenen Schichtarten) als ungültig. Weil Teile mit verworfenen
+Einträgen keinen Vergleich auslösen, entsteht dabei kein Hin und Her; alle Geräte sollten aber
+dieselbe Version nutzen.
 
 ## Relays
 

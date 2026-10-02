@@ -119,6 +119,26 @@ Netz). Kein Push-Dienst erfährt etwas. Auf dem gesperrten Bildschirm steht nur 
 Dienstplan hat sich geändert“, ohne Namen, Daten oder Schichten. Wer man im Plan ist,
 speichert jedes Gerät verschlüsselt für sich; es wird nicht synchronisiert.
 
+**16. Neue Eintragsarten mit denselben Regeln.** Schichtarten, Rhythmen, Notizen und Wünsche
+sind gewöhnliche Einträge der LWW-Map und laufen durch dieselbe Prüfung: feste Formate statt
+JSON (`v1|…` mit genau der erwarteten Zahl Felder), Kürzel nur A–Z/0–9 (1–3 Zeichen), Namen
+höchstens 30 und Notizen höchstens 200 Zeichen ohne Steuer-, Bidi- oder unsichtbare Zeichen,
+Zeiten `HH:MM`, Zahlen ohne führende Nullen und mit Obergrenzen, Farben nur aus der festen
+Palette, Wünsche nur aus drei Codes, Rhythmen 1–8 ganze Wochen. Felder im Plan verweisen nur
+auf gültige Schichtart-IDs; ob die Art schon bekannt ist, entscheidet die Anzeige („?“).
+
+**17. Exporte verlassen die Verschlüsselung.** Woche oder Monat als PDF oder Bild und die
+eigenen Dienste als Kalenderdatei entstehen nur auf Wunsch. Vor dem Teilen weist die App
+darauf hin, dass die Datei nicht verschlüsselt ist. Die Dateien liegen im Cache-Ordner (nicht
+im Backup), werden über einen FileProvider nur für diesen Ordner und nur mit befristetem
+Leserecht weitergegeben und beim nächsten Start gelöscht. Die Kalenderdatei enthält keine
+Mitglieds-IDs; die festen Termin-IDs sind daraus per SHA-256 abgeleitet.
+
+**18. Widget nur mit eigener Auswahl.** Das Widget „Meine Dienste“ zeigt die nächsten fünf
+Dienste der Person, die auf diesem Gerät unter „Ich“ gewählt ist, und die Stunden der Woche.
+Es liest den Plan aus dem verschlüsselten Speicher der App und erscheint nur, wenn jemand es
+selbst auf den Startbildschirm legt.
+
 ## Grenzen
 
 - **Admins entscheiden, wer dazukommt.** Wer ein Admin-Gerät bedienen kann, kann Geräte
@@ -133,7 +153,14 @@ speichert jedes Gerät verschlüsselt für sich; es wird nicht synchronisiert.
 - **Böswillige Mitglieder** können Einträge überschreiben oder löschen und mit Zeitstempeln
   bis 24 h in der Zukunft Konflikte gewinnen. MLS weist nach, welches Gerät eine Nachricht
   geschickt hat; die Geräte-ID einzelner Einträge ist dagegen nicht authentisiert, weil
-  Geräte auch die Einträge anderer weitergeben.
+  Geräte auch die Einträge anderer weitergeben. Das gilt auch für Wünsche, Notizen und
+  Schichtarten: Die App bietet Wünsche zwar für die eigene Person an, verhindern kann sie
+  Einträge für andere aber nicht.
+- **Widget und Exporte:** Wer den entsperrten Startbildschirm sieht, sieht die Dienste im
+  Widget. Geteilte PDFs, Bilder und Kalenderdateien sind unverschlüsselt und unterliegen
+  danach den Regeln der Empfänger-App.
+- **Ältere App-Versionen** im selben Team verwerfen Schichtarten, Notizen, Wünsche,
+  Rhythmen und Felder mit eigenen Schichtarten. Alle Geräte sollten dieselbe Version nutzen.
 - **Uhren:** Falsch gehende Uhren beeinflussen, welche Änderung bei gleichzeitigen
   Konflikten gewinnt.
 - **Verfügbarkeit:** Öffentliche Relays können Events ablehnen, löschen oder nur begrenzt
