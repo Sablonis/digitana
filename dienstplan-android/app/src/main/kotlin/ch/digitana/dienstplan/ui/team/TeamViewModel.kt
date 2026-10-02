@@ -39,6 +39,8 @@ data class DeviceItem(
     val isMe: Boolean,
     /** Person, der das Gerät gehört („Das bin ich“ auf dem Gerät); null = unbekannt. */
     val owner: String? = null,
+    /** ID dieser Person (zum Gruppieren nach Personen). */
+    val ownerId: String? = null,
 )
 
 /** Ergebnis der Prüfung eines eingegebenen Beitrittscodes. */
@@ -83,6 +85,7 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
                     isAdmin = publicKey in member.team.admins,
                     isMe = publicKey == member.me,
                     owner = owners[deviceId]?.let { names[it] },
+                    ownerId = owners[deviceId]?.takeIf { it in names },
                 )
             }.sortedWith(compareByDescending<DeviceItem> { it.isMe }.thenBy { it.label?.lowercase() ?: "￿" }.thenBy { it.publicKey })
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -172,6 +175,35 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setNotifyOnChanges(enabled: Boolean) {
         viewModelScope.launch { container.shiftAlerts.configure(settings.value.myMemberId, enabled) }
+    }
+
+    /** „Wer bist du?“: vorhandene Person wählen. */
+    fun chooseMe(memberId: String) {
+        viewModelScope.launch {
+            container.shiftAlerts.configure(memberId, settings.value.notifyOnChanges)
+            container.settingsRepository.update { it.copy(askedWho = true) }
+        }
+    }
+
+    /** „Wer bist du?“: sich selbst als neue Person anlegen. */
+    fun createMe(name: String) {
+        viewModelScope.launch {
+            try {
+                val id = container.planRepository.addMember(name)
+                container.shiftAlerts.configure(id, settings.value.notifyOnChanges)
+                container.settingsRepository.update { it.copy(askedWho = true) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                container.logger.warn(TAG, "Person nicht angelegt", e)
+                _events.emit(TeamEvent.Failed(R.string.error_generic))
+            }
+        }
+    }
+
+    /** „Wer bist du?“ überspringen (später unter „Team“ oder „Ich“ wählbar). */
+    fun skipWhoAmI() {
+        viewModelScope.launch { container.settingsRepository.update { it.copy(askedWho = true) } }
     }
 
     private fun perform(success: TeamEvent?, action: suspend () -> Any?) {

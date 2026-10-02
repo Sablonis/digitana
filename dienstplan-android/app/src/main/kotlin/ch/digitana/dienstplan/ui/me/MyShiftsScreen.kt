@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,38 +52,45 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.digitana.dienstplan.R
 import ch.digitana.dienstplan.core.crdt.Member
+import ch.digitana.dienstplan.core.crdt.NameProblem
 import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
 import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.crdt.WishStatus
 import ch.digitana.dienstplan.core.plan.MyDay
 import ch.digitana.dienstplan.core.plan.MyShiftsModel
 import ch.digitana.dienstplan.core.plan.WeekFormat
+import ch.digitana.dienstplan.ui.components.EmptyState
 import ch.digitana.dienstplan.ui.components.Format
 import ch.digitana.dienstplan.ui.components.MemberAvatar
 import ch.digitana.dienstplan.ui.components.ShiftBadge
 import ch.digitana.dienstplan.ui.plan.CellRef
 import ch.digitana.dienstplan.ui.plan.CellSheet
+import ch.digitana.dienstplan.ui.plan.MemberNameDialog
 import ch.digitana.dienstplan.ui.plan.MenuItem
 import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
 import ch.digitana.dienstplan.ui.plan.RestWarning
+import ch.digitana.dienstplan.ui.plan.SwapPickerSheet
 import ch.digitana.dienstplan.ui.plan.cellOf
+import ch.digitana.dienstplan.ui.plan.cellTrade
 import ch.digitana.dienstplan.ui.plan.kindLabel
 import ch.digitana.dienstplan.ui.plan.lastChangeText
 import ch.digitana.dienstplan.ui.plan.restCheck
 import ch.digitana.dienstplan.ui.plan.restIssueText
 import ch.digitana.dienstplan.ui.plan.wishStatusText
+import ch.digitana.dienstplan.ui.theme.tabular
 import java.time.LocalDate
 import java.time.YearMonth
 
 /** „Ich“: eigene Dienste der nächsten Wochen, Stunden, Wünsche und Notizen. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit) {
+fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit, onOpenSettings: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     var openDate by remember { mutableStateOf<LocalDate?>(null) }
+    var swapFor by remember { mutableStateOf<CellRef?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     val me = state.myMemberId
     val model = remember(state.plan, me, state.today) { me?.let { MyShiftsModel.build(state.plan, it, state.today) } }
@@ -103,6 +111,10 @@ fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit)
                                 Icon(painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.menu_more))
                             }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                MenuItem(R.string.me_reminders, R.drawable.ic_alarm) {
+                                    menuOpen = false
+                                    onOpenSettings()
+                                }
                                 MenuItem(R.string.me_change_person, R.drawable.ic_person) {
                                     menuOpen = false
                                     viewModel.setMe(null)
@@ -117,12 +129,21 @@ fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit)
     ) { padding ->
         val content = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)
         if (model == null) {
-            ChooseMe(members = state.plan.members(), onChoose = viewModel::setMe, modifier = content)
+            ChooseMe(
+                members = state.plan.members(),
+                onChoose = viewModel::setMe,
+                onCreate = viewModel::addMemberAsMe,
+                nameProblem = viewModel::nameProblem,
+                readOnly = state.readOnly,
+                modifier = content,
+            )
         } else {
             val weeks = remember(model) { model.days.groupBy { WeekId.of(it.date) }.toList() }
             LazyColumn(content, contentPadding = PaddingValues(bottom = 24.dp)) {
                 item(key = "header") { MyHeader(model) }
                 item(key = "next") { NextShift(model.next) }
+                item(key = "trades") { TradeInbox(state, viewModel) }
+                item(key = "open") { OpenShiftsCard(state, viewModel) }
                 item(key = "wishes") {
                     WishCalendar(
                         plan = state.plan,
@@ -143,7 +164,7 @@ fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit)
                         )
                     }
                     items(days, key = { it.date.toString() }) { day ->
-                        MyDayRow(day = day, types = model.types, onClick = { openDate = day.date })
+                        MyDayRow(day = day, types = model.types, holiday = model.holidays[day.date]?.name, onClick = { openDate = day.date })
                     }
                 }
             }
@@ -172,23 +193,45 @@ fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit)
             onDismiss = { openDate = null },
             lastChange = lastChangeText(state.plan, ref),
             restIssueFor = restCheck(state.plan, ref),
+            trade = cellTrade(state, ref, viewModel, onSwap = {
+                swapFor = ref
+                openDate = null
+            }, onDone = { openDate = null }),
+        )
+    }
+    swapFor?.let { ref ->
+        SwapPickerSheet(
+            plan = state.plan,
+            memberId = ref.memberId,
+            date = ref.date,
+            onPick = { candidate ->
+                swapFor = null
+                viewModel.proposeSwap(ref.memberId, ref.date, candidate.memberId, candidate.date)
+            },
+            onDismiss = { swapFor = null },
         )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChooseMe(members: List<Member>, onChoose: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun ChooseMe(
+    members: List<Member>,
+    onChoose: (String) -> Unit,
+    onCreate: (String) -> Unit,
+    nameProblem: (String) -> NameProblem?,
+    readOnly: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    var creating by rememberSaveable { mutableStateOf(false) }
     LazyColumn(modifier, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
-            Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.me_choose_title), style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    stringResource(if (members.isEmpty()) R.string.notify_no_members else R.string.me_choose_text),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            EmptyState(
+                icon = R.drawable.ic_person,
+                title = stringResource(R.string.me_choose_title),
+                text = stringResource(if (members.isEmpty()) R.string.notify_no_members else R.string.me_choose_text),
+                action = if (readOnly) null else stringResource(R.string.who_new_title) to { creating = true },
+            )
         }
         items(members, key = { it.id }) { member ->
             OutlinedCard(onClick = { onChoose(member.id) }, modifier = Modifier.fillMaxWidth()) {
@@ -199,6 +242,19 @@ private fun ChooseMe(members: List<Member>, onChoose: (String) -> Unit, modifier
                 }
             }
         }
+    }
+    if (creating) {
+        MemberNameDialog(
+            title = stringResource(R.string.who_new_title),
+            initialName = "",
+            confirmLabel = stringResource(R.string.who_new_action),
+            nameProblem = nameProblem,
+            onConfirm = { name ->
+                creating = false
+                onCreate(name)
+            },
+            onDismiss = { creating = false },
+        )
     }
 }
 
@@ -226,9 +282,25 @@ private fun MyHeader(model: MyShiftsModel) {
                 )
                 Text(
                     stringResource(R.string.me_hours, Format.hours(model.weekMinutes), Format.monthLabel(YearMonth.from(model.today)), Format.hours(model.monthMinutes)),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.tabular(),
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
+                val target = model.monthBalance.targetMinutes
+                val delta = model.monthBalance.deltaMinutes
+                if (target != null && delta != null) {
+                    Text(
+                        stringResource(R.string.me_balance, Format.hours(model.monthBalance.plannedMinutes), Format.hours(target), Format.signedHours(delta)),
+                        style = MaterialTheme.typography.bodySmall.tabular(),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+                model.yearDeltaMinutes?.let {
+                    Text(
+                        stringResource(R.string.me_balance_year, Format.signedHours(it)),
+                        style = MaterialTheme.typography.bodySmall.tabular(),
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                    )
+                }
             }
         }
     }
@@ -268,7 +340,7 @@ private fun NextShift(next: MyDay?) {
 }
 
 @Composable
-private fun MyDayRow(day: MyDay, types: ShiftTypeSet, onClick: () -> Unit) {
+private fun MyDayRow(day: MyDay, types: ShiftTypeSet, holiday: String?, onClick: () -> Unit) {
     val cell = day.cell
     val type = cell.type
     val dayLabel = WeekFormat.longDate(day.date)
@@ -319,6 +391,12 @@ private fun MyDayRow(day: MyDay, types: ShiftTypeSet, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            holiday?.let {
+                Text(stringResource(R.string.holiday_line, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+            }
+            if (cell.offered) {
+                Text(stringResource(R.string.marker_offered), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
             }
             cell.rest?.let { RestWarning(restIssueText(it)) }
             cell.note?.let {

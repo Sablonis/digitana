@@ -21,10 +21,12 @@ class BackgroundSyncWorker(appContext: Context, params: WorkerParameters) : Coro
     override suspend fun doWork(): Result {
         val container = (applicationContext as DienstplanApp).container
         if (!container.awaitReady(READY_TIMEOUT_MILLIS)) return Result.retry()
-        when (container.syncController.backgroundSync()) {
-            BackgroundSyncResult.NO_TEAM, BackgroundSyncResult.SKIPPED -> Unit
-            BackgroundSyncResult.DONE, BackgroundSyncResult.TIMEOUT -> container.shiftAlerts.afterBackgroundSync()
+        val synced = when (container.syncController.backgroundSync()) {
+            BackgroundSyncResult.NO_TEAM, BackgroundSyncResult.SKIPPED -> false
+            BackgroundSyncResult.DONE, BackgroundSyncResult.TIMEOUT -> true
         }
+        // Neues melden; Erinnerungen und Kalender auch ohne Änderung nachführen.
+        container.afterBackgroundSync(synced)
         // Auch ohne Änderungen: Das Widget soll nach Mitternacht „heute“ richtig zeigen.
         runCatching {
             WidgetUpdater.updateAll(applicationContext, container.planRepository.state.value, container.settingsRepository.settings.value.myMemberId)

@@ -19,10 +19,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -31,6 +36,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -53,7 +59,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.digitana.dienstplan.R
+import ch.digitana.dienstplan.core.crdt.Canton
+import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanRules
+import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crdt.ShiftKind
 import ch.digitana.dienstplan.core.crdt.ShiftType
 import ch.digitana.dienstplan.core.plan.WeekFormat
@@ -63,12 +72,17 @@ import ch.digitana.dienstplan.ui.plan.LockHint
 import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
 import ch.digitana.dienstplan.ui.plan.kindLabel
+import ch.digitana.dienstplan.ui.theme.tabular
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneOffset
 
 /**
- * Planungsregeln des Teams: Mindestruhezeit zwischen zwei Diensten und Soll-Besetzung pro
- * Arbeitsschicht und Wochentag. Änderungen gelten erst mit „Speichern“.
+ * Planungsregeln des Teams: Mindestruhezeit zwischen zwei Diensten, Wochenstunden bei 100 %,
+ * Kanton für Feiertage, Soll-Besetzung pro Arbeitsschicht und Wochentag (gelten mit
+ * „Speichern“) sowie Wunschfristen für die nächsten Monate (gelten sofort).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,13 +96,21 @@ fun RulesScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
     val storedTargets = state.plan.targets
     // Entwürfe: nur, was geändert wurde (Ruhezeit in Minuten, Soll als Text pro Wochentag).
     var restDraft by remember { mutableStateOf<Int?>(null) }
+    var hoursDraft by remember { mutableStateOf<Int?>(null) }
+    // Kanton: null = kein Entwurf; Liste mit einem Element null = „kein Kanton“ gewählt.
+    var cantonDraft by remember { mutableStateOf<List<Canton?>?>(null) }
+    var deadlineFor by remember { mutableStateOf<YearMonth?>(null) }
     val targetDrafts = remember { mutableStateMapOf<String, List<String>>() }
     val rest = restDraft ?: state.plan.restMinutes
+    val weekMinutes = hoursDraft ?: state.plan.weekMinutes
+    val canton = cantonDraft?.firstOrNull() ?: if (cantonDraft != null) null else state.plan.canton
     fun storedTexts(typeId: String): List<String> = (storedTargets[typeId] ?: List(7) { 0 }).map { if (it == 0) "" else it.toString() }
     fun parsed(texts: List<String>): List<Int> = texts.map { it.toIntOrNull()?.coerceIn(0, PlanRules.MAX_TARGET) ?: 0 }
     val changedTargets = targetDrafts.filter { (typeId, texts) -> parsed(texts) != parsed(storedTexts(typeId)) }
     val restChanged = restDraft != null && restDraft != state.plan.restMinutes
-    val changed = restChanged || changedTargets.isNotEmpty()
+    val hoursChanged = hoursDraft != null && hoursDraft != state.plan.weekMinutes
+    val cantonChanged = cantonDraft != null && canton != state.plan.canton
+    val changed = restChanged || hoursChanged || cantonChanged || changedTargets.isNotEmpty()
 
     PlanMessages(viewModel, snackbar, resources)
 
@@ -105,8 +127,12 @@ fun RulesScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
                     TextButton(
                         onClick = {
                             if (restChanged) viewModel.setRestMinutes(rest)
+                            if (hoursChanged) viewModel.setWeekMinutes(weekMinutes)
+                            if (cantonChanged) viewModel.setCanton(canton)
                             for ((typeId, texts) in changedTargets) viewModel.setTargets(typeId, parsed(texts))
                             restDraft = null
+                            hoursDraft = null
+                            cantonDraft = null
                             targetDrafts.clear()
                             scope.launch { snackbar.showSnackbar(resources.getString(R.string.rules_saved)) }
                         },
@@ -133,6 +159,21 @@ fun RulesScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
                 )
             }
             item {
+                WeekHoursCard(minutes = weekMinutes, enabled = editable, onChange = { hoursDraft = it })
+            }
+            item {
+                CantonCard(canton = canton, enabled = editable, onChange = { cantonDraft = listOf(it) })
+            }
+            item {
+                DeadlineCard(
+                    plan = state.plan,
+                    today = state.today,
+                    enabled = editable,
+                    onEdit = { deadlineFor = it },
+                    onRemove = { viewModel.setWishDeadline(it, null) },
+                )
+            }
+            item {
                 Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(stringResource(R.string.rules_targets_title), style = MaterialTheme.typography.titleMedium)
                     Text(
@@ -156,6 +197,18 @@ fun RulesScreen(viewModel: PlanViewModel, onBack: () -> Unit) {
                 )
             }
         }
+    }
+
+    deadlineFor?.let { month ->
+        DeadlineDialog(
+            month = month,
+            initial = state.plan.wishDeadline(month) ?: defaultDeadline(month),
+            onConfirm = { date ->
+                deadlineFor = null
+                viewModel.setWishDeadline(month, date)
+            },
+            onDismiss = { deadlineFor = null },
+        )
     }
 }
 
@@ -259,4 +312,149 @@ private fun TargetCard(type: ShiftType, texts: List<String>, enabled: Boolean, o
     }
 }
 
+/** Wochenstunden bei 100 %: Grundlage für Soll-Stunden und Saldo. */
+@Composable
+private fun WeekHoursCard(minutes: Int, enabled: Boolean, onChange: (Int) -> Unit) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.rules_hours_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.rules_hours_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val less = stringResource(R.string.rules_hours_less)
+            val more = stringResource(R.string.rules_hours_more)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    onClick = { onChange((minutes - PlanRules.WEEK_STEP_MINUTES).coerceAtLeast(MIN_WEEK_MINUTES_UI)) },
+                    enabled = enabled && minutes > MIN_WEEK_MINUTES_UI,
+                    modifier = Modifier.semantics { contentDescription = less },
+                ) { Text("−", style = MaterialTheme.typography.titleLarge) }
+                Text(
+                    Format.hours(minutes),
+                    style = MaterialTheme.typography.headlineSmall.tabular(),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(120.dp),
+                )
+                TextButton(
+                    onClick = { onChange((minutes + PlanRules.WEEK_STEP_MINUTES).coerceAtMost(PlanRules.MAX_WEEK_MINUTES)) },
+                    enabled = enabled && minutes < PlanRules.MAX_WEEK_MINUTES,
+                    modifier = Modifier.semantics { contentDescription = more },
+                ) { Text("+", style = MaterialTheme.typography.titleLarge) }
+            }
+            if (minutes != PlanRules.DEFAULT_WEEK_MINUTES) {
+                TextButton(onClick = { onChange(PlanRules.DEFAULT_WEEK_MINUTES) }, enabled = enabled) {
+                    Text(stringResource(R.string.rules_hours_default, Format.hours(PlanRules.DEFAULT_WEEK_MINUTES)))
+                }
+            }
+        }
+    }
+}
+
+/** Kanton für die Feiertage im Raster, bei Soll-Stunden und im Plan-Vorschlag. */
+@Composable
+private fun CantonCard(canton: Canton?, enabled: Boolean, onChange: (Canton?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.rules_canton_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.rules_canton_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Box {
+                OutlinedButton(onClick = { open = true }, enabled = enabled) {
+                    Text(canton?.let { "${it.label} (${it.code})" } ?: stringResource(R.string.rules_canton_none))
+                }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.rules_canton_none)) },
+                        onClick = {
+                            open = false
+                            onChange(null)
+                        },
+                    )
+                    for (option in Canton.entries.sortedBy { it.label }) {
+                        DropdownMenuItem(
+                            text = { Text("${option.label} (${option.code})") },
+                            onClick = {
+                                open = false
+                                onChange(option)
+                            },
+                        )
+                    }
+                }
+            }
+            Text(stringResource(R.string.rules_canton_limits), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Wunschfristen der nächsten drei Monate: bis wann alle ihre Wünsche eintragen. */
+@Composable
+private fun DeadlineCard(plan: PlanState, today: LocalDate, enabled: Boolean, onEdit: (YearMonth) -> Unit, onRemove: (YearMonth) -> Unit) {
+    val first = YearMonth.from(today).plusMonths(1)
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.rules_deadline_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.rules_deadline_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            for (offset in 0L..2L) {
+                val month = first.plusMonths(offset)
+                if (month.year > PlanKeys.MAX_DATE.year) continue
+                val deadline = plan.wishDeadline(month)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(Format.monthLabel(month), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            deadline?.let { stringResource(R.string.rules_deadline_until, WeekFormat.longDate(it)) } ?: stringResource(R.string.rules_deadline_none),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { onEdit(month) }, enabled = enabled) {
+                        Text(stringResource(if (deadline == null) R.string.rules_deadline_set else R.string.rules_deadline_change))
+                    }
+                    if (deadline != null) {
+                        IconButton(onClick = { onRemove(month) }, enabled = enabled) {
+                            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.rules_deadline_remove))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Datum der Frist wählen (Kalender von Material 3, in UTC gerechnet). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeadlineDialog(month: YearMonth, initial: LocalDate, onConfirm: (LocalDate) -> Unit, onDismiss: () -> Unit) {
+    val pickerState = rememberDatePickerState(initialSelectedDateMillis = initial.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    pickerState.selectedDateMillis?.let { millis ->
+                        val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                        if (PlanKeys.isValidDate(date)) onConfirm(date)
+                    }
+                },
+                enabled = pickerState.selectedDateMillis != null,
+            ) { Text(stringResource(R.string.action_ok)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    ) {
+        DatePicker(
+            state = pickerState,
+            title = {
+                Text(
+                    stringResource(R.string.rules_deadline_dialog, Format.monthLabel(month)),
+                    modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp),
+                )
+            },
+        )
+    }
+}
+
+/** Vorschlag für eine neue Frist: der 15. des Vormonats. */
+private fun defaultDeadline(month: YearMonth): LocalDate = month.minusMonths(1).atDay(15)
+
 private const val MIN_REST_MINUTES = 4 * 60
+
+/** In der Oberfläche ab 10 Stunden pro Woche. */
+private const val MIN_WEEK_MINUTES_UI = 10 * 60

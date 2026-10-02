@@ -62,6 +62,7 @@ import ch.digitana.dienstplan.core.plan.DayInfo
 import ch.digitana.dienstplan.core.plan.MonthModel
 import ch.digitana.dienstplan.core.plan.WeekFormat
 import ch.digitana.dienstplan.core.plan.WishTally
+import ch.digitana.dienstplan.core.plan.WorkTime
 import ch.digitana.dienstplan.ui.components.Format
 import ch.digitana.dienstplan.ui.components.MemberAvatar
 import ch.digitana.dienstplan.ui.components.SyncStatusChip
@@ -75,10 +76,16 @@ import ch.digitana.dienstplan.ui.plan.PlanChecks
 import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
 import ch.digitana.dienstplan.ui.plan.ShiftCellView
+import ch.digitana.dienstplan.ui.plan.SwapPickerSheet
 import ch.digitana.dienstplan.ui.plan.cellOf
+import ch.digitana.dienstplan.ui.plan.cellTrade
+import ch.digitana.dienstplan.ui.plan.claimAction
+import ch.digitana.dienstplan.ui.plan.dayDescription
 import ch.digitana.dienstplan.ui.plan.dayTint
+import ch.digitana.dienstplan.ui.plan.keys
 import ch.digitana.dienstplan.ui.plan.lastChangeText
 import ch.digitana.dienstplan.ui.plan.restCheck
+import ch.digitana.dienstplan.ui.theme.tabular
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -90,7 +97,7 @@ private val HEADER_HEIGHT = 52.dp
 /** Monatsansicht: alle Personen über den ganzen Monat, Tage waagrecht scrollbar. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShareMonth: (YearMonth) -> Unit) {
+fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onOpenStats: () -> Unit, onShareMonth: (YearMonth) -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val lockBusy by viewModel.lockBusy.collectAsStateWithLifecycle()
@@ -103,6 +110,12 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
     var openDay by remember { mutableStateOf<LocalDate?>(null) }
     var editMember by remember { mutableStateOf<Member?>(null) }
     var lockDialog by remember { mutableStateOf(false) }
+    var swapFor by remember { mutableStateOf<CellRef?>(null) }
+    // Soll und Saldo pro Person (nur mit Pensum).
+    val balances = remember(state.plan, month) {
+        state.plan.members().associate { it.id to WorkTime.balance(state.plan, it.id, month) }
+    }
+    LaunchedEffect(openCell) { openCell?.let { viewModel.markSeen(it.keys()) } }
 
     PlanMessages(viewModel, snackbar, resources)
     val dayWidthPx = with(LocalDensity.current) { DAY_WIDTH.toPx() }
@@ -118,6 +131,9 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                 title = { Text(stringResource(R.string.tab_month)) },
                 actions = {
                     SyncStatusChip(status = state.sync, onClick = onOpenDiagnostics, compact = true)
+                    IconButton(onClick = onOpenStats) {
+                        Icon(painterResource(R.drawable.ic_insights), contentDescription = stringResource(R.string.stats_title))
+                    }
                     IconButton(onClick = { onShareMonth(month) }) {
                         Icon(painterResource(R.drawable.ic_share), contentDescription = stringResource(R.string.menu_share_month))
                     }
@@ -208,6 +224,7 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                             NameCell(
                                 member = row.member,
                                 minutes = row.minutes,
+                                deltaMinutes = balances[row.member.id]?.deltaMinutes,
                                 isMe = row.member.id == state.myMemberId,
                                 enabled = !state.readOnly,
                                 onClick = { editMember = row.member },
@@ -219,6 +236,7 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                             Row(Modifier.height(ROW_HEIGHT)) {
                                 model.days.forEachIndexed { index, day ->
                                     val ref = CellRef(row.member.id, day.date)
+                                    val keys = remember(ref) { ref.keys() }
                                     ShiftCellView(
                                         cell = row.cells[index],
                                         day = day,
@@ -226,10 +244,18 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                                         types = model.types,
                                         enabled = day.editable && !state.readOnly,
                                         onClick = { openCell = ref },
-                                        onLongClick = { viewModel.setShift(ref, null) },
+                                        onLongClick = { viewModel.clearShift(ref) },
                                         modifier = Modifier.width(DAY_WIDTH),
                                         showTime = false,
                                         allowLongClick = day.editable && state.canEditShift(day.date),
+                                        unseen = keys.any { it in state.markers.unseen },
+                                        pending = keys.any { it in state.markers.pending },
+                                        selected = openCell == ref,
+                                        onOpenDay = if (day.editable) {
+                                            { openDay = day.date }
+                                        } else {
+                                            null
+                                        },
                                     )
                                 }
                             }
@@ -304,6 +330,10 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                 onDismiss = { openCell = null },
                 lastChange = lastChangeText(state.plan, ref),
                 restIssueFor = restCheck(state.plan, ref),
+                trade = cellTrade(state, ref, viewModel, onSwap = {
+                    swapFor = ref
+                    openCell = null
+                }, onDone = { openCell = null }),
             )
         }
     }
@@ -316,6 +346,19 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
             noteProblem = viewModel::noteProblem,
             onSaveNote = { viewModel.setDayNote(date, it) },
             onDismiss = { openDay = null },
+            onClaim = claimAction(state, date, viewModel) { openDay = null },
+        )
+    }
+    swapFor?.let { ref ->
+        SwapPickerSheet(
+            plan = state.plan,
+            memberId = ref.memberId,
+            date = ref.date,
+            onPick = { candidate ->
+                swapFor = null
+                viewModel.proposeSwap(ref.memberId, ref.date, candidate.memberId, candidate.date)
+            },
+            onDismiss = { swapFor = null },
         )
     }
     MemberDialogs(
@@ -326,6 +369,8 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
         onEditClosed = { editMember = null },
         myMemberId = state.myMemberId,
         canDelete = state.canDeleteMembers,
+        canEditPensum = state.canEditRules,
+        pensumOf = { state.plan.pensum(it) },
     )
     if (lockDialog) {
         LockDialog(
@@ -388,9 +433,7 @@ private fun WishTallyCard(month: YearMonth, tallies: List<WishTally>) {
 
 @Composable
 private fun DayHeader(day: DayInfo, locked: Boolean, onClick: () -> Unit) {
-    val today = stringResource(R.string.today_marker)
-    val lockMarker = stringResource(R.string.lock_day_marker)
-    val description = WeekFormat.longDate(day.date) + (if (day.isToday) ", $today" else "") + (if (locked) ", $lockMarker" else "")
+    val description = dayDescription(day, locked)
     Column(
         modifier = Modifier
             .width(DAY_WIDTH)
@@ -404,7 +447,11 @@ private fun DayHeader(day: DayInfo, locked: Boolean, onClick: () -> Unit) {
         Text(
             WeekFormat.weekday(day.date),
             style = MaterialTheme.typography.labelSmall,
-            color = if (day.isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = when {
+                day.isToday -> MaterialTheme.colorScheme.primary
+                day.holiday != null -> MaterialTheme.colorScheme.tertiary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
         )
         Box(
             modifier = Modifier
@@ -415,11 +462,22 @@ private fun DayHeader(day: DayInfo, locked: Boolean, onClick: () -> Unit) {
         ) {
             Text(
                 day.date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.labelLarge,
-                color = if (day.isToday) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelLarge.tabular(),
+                color = when {
+                    day.isToday -> MaterialTheme.colorScheme.onPrimary
+                    day.holiday != null -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
             )
         }
-        if (locked) {
+        if (day.holiday != null) {
+            Icon(
+                painterResource(R.drawable.ic_celebration),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.size(9.dp),
+            )
+        } else if (locked) {
             Icon(
                 painterResource(R.drawable.ic_lock),
                 contentDescription = null,
@@ -438,7 +496,7 @@ private fun DayHeader(day: DayInfo, locked: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun NameCell(member: Member, minutes: Int, isMe: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun NameCell(member: Member, minutes: Int, deltaMinutes: Int?, isMe: Boolean, enabled: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .width(NAME_WIDTH)
@@ -458,7 +516,16 @@ private fun NameCell(member: Member, minutes: Int, isMe: Boolean, enabled: Boole
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(Format.hours(minutes), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                if (deltaMinutes != null) "${Format.hours(minutes)} · ${Format.signedHours(deltaMinutes)}" else Format.hours(minutes),
+                style = MaterialTheme.typography.labelSmall.tabular(),
+                color = when {
+                    deltaMinutes == null || deltaMinutes == 0 -> MaterialTheme.colorScheme.onSurfaceVariant
+                    deltaMinutes < 0 -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.primary
+                },
+                maxLines = 1,
+            )
         }
     }
 }

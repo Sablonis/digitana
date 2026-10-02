@@ -22,7 +22,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -49,12 +48,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.digitana.dienstplan.R
+import ch.digitana.dienstplan.core.crdt.Member
 import ch.digitana.dienstplan.core.crdt.PlanLock
 import ch.digitana.dienstplan.core.group.Fingerprint
 import ch.digitana.dienstplan.core.group.TeamState
+import ch.digitana.dienstplan.ui.components.MemberAvatar
 import ch.digitana.dienstplan.ui.components.SecureWindow
 import ch.digitana.dienstplan.ui.plan.LockDialog
 import ch.digitana.dienstplan.ui.plan.lockDateLabel
@@ -73,6 +75,8 @@ fun TeamScreen(
     onOpenPatterns: () -> Unit = {},
     onOpenRules: () -> Unit = {},
     onOpenDiagnostics: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onOpenStats: () -> Unit = {},
 ) {
     SecureWindow()
     val state by viewModel.teamState.collectAsStateWithLifecycle()
@@ -163,15 +167,17 @@ fun TeamScreen(
             member?.let { current ->
                 ElevatedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(stringResource(R.string.devices_title, devices.size), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.people_devices_title, devices.size), style = MaterialTheme.typography.titleMedium)
                         Text(
                             stringResource(if (current.isAdmin) R.string.team_role_admin else R.string.team_role_member),
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        devices.forEachIndexed { index, device ->
-                            if (index > 0) HorizontalDivider()
-                            DeviceRow(device, onClick = { selected = device })
-                        }
+                        PeopleWithDevices(
+                            members = members,
+                            devices = devices,
+                            myMemberId = settings.myMemberId,
+                            onDevice = { selected = it },
+                        )
                         if (current.isAdmin) {
                             FilledTonalButton(onClick = { addOpen = true }, enabled = !busy) {
                                 Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
@@ -204,13 +210,15 @@ fun TeamScreen(
                 onOpenPatterns = onOpenPatterns,
                 onOpenRules = onOpenRules,
                 onOpenDiagnostics = onOpenDiagnostics,
+                onOpenStats = onOpenStats,
+                onOpenSettings = onOpenSettings,
             )
 
             NotificationSection(
                 members = members,
                 settings = settings,
                 onSelectMember = viewModel::setMyMember,
-                onNotifyChange = viewModel::setNotifyOnChanges,
+                onOpenSettings = onOpenSettings,
             )
 
             Section(
@@ -340,15 +348,58 @@ fun TeamScreen(
     }
 }
 
+/**
+ * Personen mit ihren Geräten: Wer ein Gerät hat („Das bin ich“ auf dem Gerät), steht mit den
+ * Geräten darunter; Geräte ohne Person und Personen ohne Gerät folgen am Schluss.
+ */
 @Composable
-private fun DeviceRow(device: DeviceItem, onClick: () -> Unit) {
+private fun PeopleWithDevices(members: List<Member>, devices: List<DeviceItem>, myMemberId: String?, onDevice: (DeviceItem) -> Unit) {
+    val byOwner = devices.groupBy { it.ownerId }
+    val withDevices = members.filter { byOwner[it.id] != null }
+    for (person in withDevices) {
+        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            MemberAvatar(person.name, person.id, size = 32.dp, highlighted = person.id == myMemberId)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                person.name,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        for (device in byOwner[person.id].orEmpty()) DeviceRow(device, indent = true, onClick = { onDevice(device) })
+    }
+    val unassigned = byOwner[null].orEmpty()
+    if (unassigned.isNotEmpty()) {
+        Text(
+            stringResource(R.string.people_devices_unassigned),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        for (device in unassigned) DeviceRow(device, indent = false, onClick = { onDevice(device) })
+    }
+    val withoutDevice = members.filter { byOwner[it.id] == null }
+    if (withoutDevice.isNotEmpty()) {
+        Text(
+            stringResource(R.string.people_without_device, withoutDevice.joinToString(", ") { it.name }),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+    }
+}
+
+@Composable
+private fun DeviceRow(device: DeviceItem, indent: Boolean, onClick: () -> Unit) {
     val clickLabel = stringResource(R.string.device_click_label)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClickLabel = clickLabel, onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(start = if (indent) 44.dp else 0.dp, top = 6.dp, bottom = 6.dp),
     ) {
         Column(Modifier.weight(1f)) {
             Text(
@@ -357,13 +408,6 @@ private fun DeviceRow(device: DeviceItem, onClick: () -> Unit) {
                 fontWeight = if (device.isMe) FontWeight.SemiBold else FontWeight.Normal,
             )
             Text(device.fingerprint, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
-            device.owner?.let {
-                Text(
-                    stringResource(R.string.device_owner, it),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
         if (device.isMe) SuggestionChip(onClick = onClick, label = { Text(stringResource(R.string.device_me)) })
         if (device.isAdmin) {
@@ -428,7 +472,7 @@ private fun Section(title: String, text: String, content: @Composable ColumnScop
     }
 }
 
-/** Einstellungen für die Planung und die Diagnose. */
+/** Einstellungen für die Planung, Auswertung, Gerät und Diagnose. */
 @Composable
 private fun PlanningSection(
     readOnly: Boolean,
@@ -436,6 +480,8 @@ private fun PlanningSection(
     onOpenPatterns: () -> Unit,
     onOpenRules: () -> Unit,
     onOpenDiagnostics: () -> Unit,
+    onOpenStats: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 8.dp)) {
@@ -449,6 +495,8 @@ private fun PlanningSection(
                 PlanningRow(R.drawable.ic_repeat, R.string.menu_patterns, R.string.team_planning_patterns_hint, onOpenPatterns)
                 PlanningRow(R.drawable.ic_tune, R.string.rules_title, R.string.team_planning_rules_hint, onOpenRules)
             }
+            PlanningRow(R.drawable.ic_insights, R.string.stats_title, R.string.team_planning_stats_hint, onOpenStats)
+            PlanningRow(R.drawable.ic_settings, R.string.settings_title, R.string.team_planning_settings_hint, onOpenSettings)
             PlanningRow(R.drawable.ic_cloud, R.string.menu_diagnostics, R.string.team_planning_diagnostics_hint, onOpenDiagnostics)
         }
     }

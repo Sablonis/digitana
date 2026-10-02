@@ -14,6 +14,7 @@ import java.util.Locale
 /** Schweizer Schreibweise: Dezimalpunkt, „h“ für Stunden. */
 object Format {
     private val MONTH_YEAR = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.GERMAN)
+    private val MONTH = DateTimeFormatter.ofPattern("LLLL", Locale.GERMAN)
     private val DAY_MONTH = DateTimeFormatter.ofPattern("d. MMMM", Locale.GERMAN)
     private val CHANGE_TIME = DateTimeFormatter.ofPattern("d. MMM, HH:mm", Locale.GERMAN)
 
@@ -25,6 +26,17 @@ object Format {
 
     /** „8 h“, „8.5 h“ */
     fun hours(minutes: Int): String = "${hoursNumber(minutes)} h"
+
+    /** Eine Nachkommastelle mit Dezimalpunkt: „1.5“, „2“. */
+    fun decimal(value: Double): String =
+        BigDecimal(value).setScale(1, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+
+    /** Mit Vorzeichen für Saldi: „+4 h“, „−2.5 h“, „0 h“ (echtes Minuszeichen). */
+    fun signedHours(minutes: Int): String = when {
+        minutes > 0 -> "+${hours(minutes)}"
+        minutes < 0 -> "−${hours(-minutes)}"
+        else -> hours(0)
+    }
 
     /** „06:00–14:00“ oder null ohne Zeiten. */
     fun timeRange(type: ShiftType): String? {
@@ -44,6 +56,10 @@ object Format {
     /** „Oktober 2026“ */
     fun monthLabel(month: YearMonth): String =
         month.atDay(1).format(MONTH_YEAR).replaceFirstChar { it.titlecase(Locale.GERMAN) }
+
+    /** „November“ */
+    fun monthName(month: YearMonth): String =
+        month.atDay(1).format(MONTH).replaceFirstChar { it.titlecase(Locale.GERMAN) }
 
     /** „1. Oktober“ */
     fun dayMonth(date: LocalDate): String = date.format(DAY_MONTH)

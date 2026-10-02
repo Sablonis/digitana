@@ -110,7 +110,6 @@
     <string name="team_title">Team und Geräte</string>
     <string name="team_role_admin">Dieses Gerät ist Admin.</string>
     <string name="team_role_member">Dieses Gerät ist Mitglied.</string>
-    <string name="devices_title">Geräte im Team (%1$d)</string>
     <string name="device_unnamed">Gerät ohne Namen</string>
     <string name="device_admin">Admin</string>
     <string name="device_me">Dieses Gerät</string>
@@ -191,8 +190,6 @@
     <string name="time_minutes_ago">%1$s (vor %2$d min)</string>
 
     <!-- Benachrichtigungen -->
-    <string name="notify_section_title">Benachrichtigungen</string>
-    <string name="notify_section_text">Wähle, wer du im Plan bist. Ändert jemand deine künftigen Dienste, meldet sich die App, auch wenn sie geschlossen ist. Im Hintergrund gleicht sie sich etwa alle 15 Minuten ab.</string>
     <string name="notify_me_label">Ich bin: %1$s</string>
     <string name="notify_me_choose">Person wählen</string>
     <string name="notify_me_nobody">Niemand</string>
@@ -418,14 +415,13 @@
 
     <!-- Schnell eintragen und Rückgängig -->
     <string name="brush_menu">Schnell eintragen</string>
-    <string name="brush_hint">Schicht wählen, dann Felder antippen.</string>
+    <string name="brush_hint">Schicht wählen, dann Felder antippen oder über eine Zeile wischen.</string>
     <string name="brush_done">Fertig</string>
     <string name="brush_eraser">Leeren</string>
     <string name="action_undo">Rückgängig</string>
     <string name="undo_done">Rückgängig gemacht</string>
 
     <!-- Geräte und Personen -->
-    <string name="device_owner">Gehört zu %1$s</string>
     <string name="change_last">Zuletzt geändert von %1$s · %2$s</string>
     <string name="change_unknown_device">Gerät %1$s…</string>
 
@@ -463,4 +459,294 @@
         <item quantity="one">%d Dienst mit zu kurzer Ruhezeit</item>
         <item quantity="other">%d Dienste mit zu kurzer Ruhezeit</item>
     </plurals>
+
+    <!-- Einstellungen -->
+    <string name="action_expand">Aufklappen</string>
+    <string name="action_collapse">Zuklappen</string>
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_appearance">Darstellung</string>
+    <string name="settings_theme">Thema</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Hell</string>
+    <string name="settings_theme_dark">Dunkel</string>
+    <string name="settings_dynamic_color">Farben des Hintergrundbilds</string>
+    <string name="settings_dynamic_color_hint">Leisten und Knöpfe übernehmen die Farben des Systems. Die Schichtfarben bleiben gleich.</string>
+    <string name="settings_density">Wochenraster</string>
+    <string name="settings_density_times">Mit Zeiten</string>
+    <string name="settings_density_compact">Nur Kürzel</string>
+    <string name="settings_density_hint">Im Querformat und auf Tablets zeigt das Raster die Zeiten immer.</string>
+    <string name="settings_notifications">Benachrichtigungen</string>
+    <string name="settings_choose_me_first">Wähle zuerst unter „Team“ aus, wer dieses Gerät benutzt („Das bin ich“).</string>
+    <string name="settings_trade_alerts">Tausch und abgegebene Dienste</string>
+    <string name="settings_trade_alerts_hint">Tauschvorschläge an dich, Antworten und Dienste, die jemand abgibt</string>
+    <string name="settings_publish_alerts">Plan veröffentlicht</string>
+    <string name="settings_publish_alerts_hint">Wenn ein Admin den Plan sperrt</string>
+    <string name="settings_deadline_reminders">Wunschfristen</string>
+    <string name="settings_deadline_reminders_hint">Zwei Tage vor der Frist, falls du noch keine Wünsche eingetragen hast</string>
+    <string name="settings_reminder">Erinnerung an meine Dienste</string>
+    <string name="settings_reminder_off">Aus</string>
+    <string name="settings_reminder_evening">Am Vorabend um 19 Uhr</string>
+    <string name="settings_reminder_two_hours">2 Stunden vor Dienstbeginn</string>
+    <string name="settings_reminder_one_hour">1 Stunde vor Dienstbeginn</string>
+    <string name="settings_notifications_limits">Ohne eigenen Server kommen Hinweise mit dem Abgleich im Hintergrund, etwa alle 15 Minuten, im Energiesparmodus auch später. Erinnerungen an Dienste plant das Gerät selbst.</string>
+    <string name="settings_calendar">Kalender</string>
+    <string name="settings_calendar_sync">Meine Dienste im Gerätekalender</string>
+    <string name="settings_calendar_sync_hint">Ein eigener Kalender „Dienstplan“, der sich nach jeder Änderung selbst nachführt</string>
+    <string name="settings_calendar_privacy">Der Kalender liegt nur auf diesem Gerät und wird nicht mit einem Konto abgeglichen. Andere Apps mit Kalenderzugriff können die Termine aber lesen.</string>
+    <string name="settings_help">Hilfe</string>
+    <string name="settings_tips_reset">Tipps wieder anzeigen</string>
+    <string name="settings_tips_reset_hint">Kurze Hinweise zu Wischen, langem Drücken und Schnell eintragen</string>
+    <string name="settings_about">Über die App</string>
+    <string name="settings_licenses">Lizenzen</string>
+    <string name="settings_licenses_hint">Schrift, Symbole und Bibliotheken</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="licenses_intro">Der Dienstplan baut auf offener Software auf. Danke an alle, die sie entwickeln und pflegen.</string>
+    <string name="licenses_texts">Lizenztexte</string>
+
+    <!-- Allgemein (neu) -->
+    <string name="action_close">Schliessen</string>
+
+    <!-- Markierungen im Raster -->
+    <string name="marker_unseen">neu</string>
+    <string name="marker_pending">noch nicht abgeglichen</string>
+    <string name="marker_offered">wird abgegeben</string>
+    <string name="holiday_line">Feiertag: %1$s</string>
+    <string name="brush_undo">Letzten Strich rückgängig machen</string>
+    <plurals name="painted">
+        <item quantity="one">%d Feld eingetragen</item>
+        <item quantity="other">%d Felder eingetragen</item>
+    </plurals>
+
+    <!-- Leerzustände und Tipps -->
+    <string name="empty_week_title">Diese Woche ist noch leer</string>
+    <string name="empty_week_text">Tippe auf ein Feld, um einen Dienst einzutragen, oder fülle die Woche mit einem Rhythmus.</string>
+    <string name="empty_week_pattern">Rhythmus anwenden</string>
+    <string name="empty_members_title">Noch niemand im Plan</string>
+    <string name="tip_swipe">Wische nach links oder rechts, um die Woche zu wechseln.</string>
+    <string name="tip_cell">Tippe auf ein Feld für Dienst, Wunsch und Notiz. Langes Drücken leert es.</string>
+    <string name="tip_brush">Schnell eintragen: Schicht wählen und mit dem Finger über eine Zeile fahren.</string>
+    <string name="tip_ok">Verstanden</string>
+
+    <!-- Rückmeldungen mit „Rückgängig“ -->
+    <string name="changed_shift">Dienst geändert</string>
+    <string name="changed_wish">Wunsch gespeichert</string>
+    <string name="changed_note">Notiz gespeichert</string>
+    <string name="changed_member_deleted">Person entfernt</string>
+    <string name="changed_claimed">Dienst übernommen</string>
+    <string name="changed_offered">Dienst zur Abgabe angeboten</string>
+
+    <!-- Aktivität -->
+    <string name="activity_title">Aktivität</string>
+    <plurals name="activity_unseen">
+        <item quantity="one">Aktivität, %d neue Änderung</item>
+        <item quantity="other">Aktivität, %d neue Änderungen</item>
+    </plurals>
+    <string name="activity_mark_seen">Alle gesehen</string>
+    <string name="activity_empty_title">Noch keine Änderungen</string>
+    <string name="activity_empty_text">Hier siehst du, wer was eingetragen hat. Neue Änderungen anderer sind hervorgehoben.</string>
+    <string name="activity_limits">Die App kennt von jedem Eintrag nur den letzten Stand. Wer ein Feld zweimal ändert, erscheint hier nur mit der letzten Änderung.</string>
+    <string name="activity_yesterday">Gestern</string>
+    <string name="activity_by">%1$s · %2$s</string>
+    <string name="activity_open_week">Woche öffnen</string>
+    <string name="activity_unknown_person">Unbekannte Person</string>
+    <string name="activity_shift">%1$s am %2$s: %3$s</string>
+    <string name="activity_shift_removed">Dienst von %1$s am %2$s entfernt</string>
+    <string name="activity_wish">Wunsch von %1$s am %2$s: %3$s</string>
+    <string name="activity_wish_removed">Wunsch von %1$s am %2$s entfernt</string>
+    <string name="activity_member_note">Notiz bei %1$s am %2$s: %3$s</string>
+    <string name="activity_note_removed">Notiz bei %1$s am %2$s gelöscht</string>
+    <string name="activity_day_note">Tagesnotiz am %1$s: %2$s</string>
+    <string name="activity_day_note_removed">Tagesnotiz am %1$s gelöscht</string>
+    <string name="activity_member">Person „%1$s“ angelegt oder umbenannt</string>
+    <string name="activity_member_deleted">Person entfernt</string>
+    <string name="activity_shift_type">Schichtart „%1$s“ gespeichert</string>
+    <string name="activity_shift_type_reset">Schichtart „%1$s“ zurückgesetzt</string>
+    <string name="activity_pattern">Rhythmus „%1$s“ gespeichert</string>
+    <string name="activity_pattern_deleted">Rhythmus gelöscht</string>
+    <string name="activity_target">Soll-Besetzung für %1$s geändert</string>
+    <string name="activity_target_removed">Soll-Besetzung für %1$s entfernt</string>
+    <string name="activity_pensum">Pensum von %1$s: %2$d %%</string>
+    <string name="activity_pensum_removed">Pensum von %1$s entfernt</string>
+    <string name="activity_offer">%1$s gibt %2$s am %3$s ab</string>
+    <string name="activity_offer_claimed">%1$s möchte den Dienst von %2$s am %3$s übernehmen</string>
+    <string name="activity_offer_closed">Abgabe von %1$s am %2$s beendet</string>
+    <string name="activity_swap_proposed">%1$s schlägt %2$s einen Tausch vor (%3$s gegen %4$s)</string>
+    <string name="activity_swap_accepted">%1$s nimmt den Tausch mit %2$s an</string>
+    <string name="activity_swap_declined">%1$s lehnt den Tausch mit %2$s ab</string>
+    <string name="activity_swap_done">Tausch zwischen %1$s und %2$s ausgeführt</string>
+    <string name="activity_swap_withdrawn">Tausch zwischen %1$s und %2$s zurückgezogen</string>
+    <string name="activity_deadline">Wunschfrist für %1$s: %2$s</string>
+    <string name="activity_deadline_removed">Wunschfrist für %1$s entfernt</string>
+    <string name="activity_rest">Mindestruhezeit: %1$s</string>
+    <string name="activity_rest_off">keine Warnung</string>
+    <string name="activity_hours">Wochenstunden bei vollem Pensum: %1$s</string>
+    <string name="activity_canton">Kanton für die Feiertage: %1$s</string>
+    <string name="activity_canton_removed">Kanton für die Feiertage entfernt</string>
+    <string name="activity_setting">Einstellung geändert</string>
+
+    <!-- Offene Dienste -->
+    <string name="open_title">Offene Dienste</string>
+    <string name="open_text">In diesen Schichten fehlt noch jemand. Ein Tipp genügt, und der Dienst ist deiner.</string>
+    <string name="open_line">%1$s · offen: %2$d</string>
+    <string name="open_more">und %1$d weitere in den nächsten zwei Wochen</string>
+    <string name="open_claim">Ich übernehme</string>
+    <string name="open_claim_type">Ich übernehme %1$s</string>
+    <plurals name="open_shifts">
+        <item quantity="one">%d Dienst offen:</item>
+        <item quantity="other">%d Dienste offen:</item>
+    </plurals>
+
+    <!-- Tausch und Abgabe -->
+    <string name="trade_section">Tausch und Abgabe</string>
+    <string name="trade_offer">Abgeben</string>
+    <string name="trade_swap">Tauschen</string>
+    <string name="trade_take">Ich übernehme</string>
+    <string name="trade_withdraw">Zurückziehen</string>
+    <string name="trade_accept">Annehmen</string>
+    <string name="trade_decline">Ablehnen</string>
+    <string name="trade_approve">Bestätigen</string>
+    <string name="trade_reject">Ablehnen</string>
+    <string name="trade_hint">Abgeben: Alle sehen den Dienst und können ihn übernehmen. Tauschen: Du schlägst einer Person einen Tausch vor. Bis dahin bleibt der Dienst deiner.</string>
+    <string name="trade_offer_open">Wird abgegeben. Noch hat sich niemand gemeldet.</string>
+    <string name="trade_offer_claimed">%1$s möchte übernehmen. Ein Admin muss bestätigen.</string>
+    <string name="trade_done">Erledigt. Der Plan ist angepasst.</string>
+    <string name="trade_awaiting_admin">Angemeldet. Weil der Tag gesperrt ist, bestätigt ein Admin.</string>
+    <string name="trade_failed_stale">Der Plan hat sich inzwischen geändert. Bitte noch einmal ansehen.</string>
+    <string name="trade_failed_self">Das ist dein eigener Dienst.</string>
+    <string name="trade_failed_busy">An dem Tag ist schon ein Dienst oder eine Abwesenheit eingetragen.</string>
+    <string name="trade_not_allowed">Das dürfen nur die betroffenen Personen und Admins.</string>
+    <string name="swap_title">Dienst tauschen</string>
+    <string name="swap_text">Mit wem möchtest du %1$s am %2$s tauschen?</string>
+    <string name="swap_none">Zurzeit kommt niemand für einen Tausch in Frage.</string>
+    <string name="swap_gets">Du bekommst dafür %1$s am %2$s</string>
+    <string name="swap_give_only">Übernimmt deinen Dienst ohne Gegendienst</string>
+    <string name="swap_proposed">Tausch vorgeschlagen</string>
+    <string name="swap_declined">Tausch abgelehnt</string>
+    <string name="inbox_swap_incoming">%1$s schlägt einen Tausch vor: Du übernimmst %2$s am %3$s und gibst dafür %4$s am %5$s ab.</string>
+    <string name="inbox_swap_give">%1$s möchte dir %2$s am %3$s abgeben.</string>
+    <string name="inbox_swap_mine">Tausch an %1$s vorgeschlagen (%2$s am %3$s). Wartet auf eine Antwort.</string>
+    <string name="inbox_swap_mine_accepted">%1$s hat den Tausch angenommen (%2$s am %3$s). Ein Admin muss noch bestätigen.</string>
+    <string name="inbox_swap_admin">%1$s und %2$s möchten am %3$s tauschen. Bitte bestätigen.</string>
+    <string name="inbox_offer_mine">Du gibst %1$s am %2$s ab. Noch hat sich niemand gemeldet.</string>
+    <string name="inbox_offer_mine_claimed">Du gibst %1$s am %2$s ab. %3$s möchte übernehmen; ein Admin bestätigt.</string>
+    <string name="inbox_offer_other">%1$s gibt %2$s am %3$s ab.</string>
+    <string name="inbox_offer_other_busy">%1$s gibt %2$s am %3$s ab. Du hast an dem Tag schon einen Eintrag.</string>
+    <string name="inbox_offer_admin">%1$s möchte %3$s von %2$s am %4$s übernehmen. Bitte bestätigen.</string>
+
+    <!-- Plan-Vorschlag -->
+    <string name="suggest_menu">Plan vorschlagen</string>
+    <string name="suggest_title">Vorschlag für diese Woche</string>
+    <string name="suggest_nothing">Nichts vorzuschlagen: Die Soll-Besetzung ist erfüllt, oder es ist niemand frei.</string>
+    <string name="suggest_rules">Berücksichtigt Wünsche, Abwesenheiten, die Ruhezeit, höchstens sechs Tage am Stück und eine faire Verteilung. Bestehende Einträge bleiben, wie sie sind.</string>
+    <string name="suggest_apply">Übernehmen</string>
+    <string name="suggest_discard">Verwerfen</string>
+    <plurals name="suggest_summary">
+        <item quantity="one">%d neuer Dienst in freien Feldern</item>
+        <item quantity="other">%d neue Dienste in freien Feldern</item>
+    </plurals>
+    <plurals name="suggest_gaps">
+        <item quantity="one">%d Dienst bleibt unbesetzt</item>
+        <item quantity="other">%d Dienste bleiben unbesetzt</item>
+    </plurals>
+    <plurals name="suggest_applied">
+        <item quantity="one">%d Dienst aus dem Vorschlag eingetragen</item>
+        <item quantity="other">%d Dienste aus dem Vorschlag eingetragen</item>
+    </plurals>
+
+    <!-- Planungsrunde -->
+    <string name="deadline_banner">Wünsche für %1$s bis %2$s eintragen</string>
+    <string name="rules_deadline_title">Wunschfristen</string>
+    <string name="rules_deadline_text">Bis wann alle ihre Wünsche für einen Monat eintragen. Zwei Tage vorher erinnert die App alle, die noch keine Wünsche haben. Sperrt ein Admin danach den Plan, gilt er als veröffentlicht.</string>
+    <string name="rules_deadline_until">Bis %1$s</string>
+    <string name="rules_deadline_none">Keine Frist</string>
+    <string name="rules_deadline_set">Frist setzen</string>
+    <string name="rules_deadline_change">Ändern</string>
+    <string name="rules_deadline_remove">Frist entfernen</string>
+    <string name="rules_deadline_dialog">Wunschfrist für %1$s</string>
+
+    <!-- Wochenstunden, Kanton und Pensum -->
+    <string name="rules_hours_title">Wochenstunden</string>
+    <string name="rules_hours_text">Arbeitszeit pro Woche bei vollem Pensum. Daraus rechnet die App Soll und Saldo jeder Person.</string>
+    <string name="rules_hours_less">Weniger Wochenstunden</string>
+    <string name="rules_hours_more">Mehr Wochenstunden</string>
+    <string name="rules_hours_default">Zurück auf %1$s</string>
+    <string name="rules_canton_title">Kanton</string>
+    <string name="rules_canton_text">Bestimmt die Feiertage im Raster, beim Soll und im Plan-Vorschlag.</string>
+    <string name="rules_canton_none">Kein Kanton</string>
+    <string name="rules_canton_limits">Enthalten sind die kantonalen Feiertage. Feiertage einzelner Gemeinden und halbe Feiertage fehlen; im Zweifel gilt das Reglement des Betriebs.</string>
+    <string name="member_pensum">Pensum</string>
+    <string name="member_pensum_value">%1$d %%</string>
+    <string name="member_pensum_none">Nicht angegeben, die App rechnet kein Soll</string>
+    <string name="member_pensum_set">Angeben</string>
+    <string name="member_pensum_less">Pensum verringern</string>
+    <string name="member_pensum_more">Pensum erhöhen</string>
+    <string name="member_pensum_clear">Entfernen</string>
+
+    <!-- Auswertung -->
+    <string name="stats_title">Auswertung</string>
+    <string name="team_planning_stats_hint">Stunden, Saldo und faire Verteilung</string>
+    <string name="team_planning_settings_hint">Darstellung, Erinnerungen und Kalender</string>
+    <string name="stats_empty_title">Noch nichts auszuwerten</string>
+    <string name="stats_averages">Durchschnitt pro Person: %1$s Wochenend- und %2$s Nachtdienste</string>
+    <string name="stats_holidays">Feiertage im Monat: %1$d</string>
+    <string name="stats_pensum">Pensum %1$d %%</string>
+    <string name="stats_no_pensum">Ohne Pensum</string>
+    <string name="stats_target">Soll %1$s · %2$s</string>
+    <string name="stats_year">Seit Jahresbeginn %1$s</string>
+    <string name="stats_weekend">Wochenende</string>
+    <string name="stats_night">Nacht</string>
+    <string name="stats_shifts">Dienste: %1$d</string>
+    <string name="stats_holiday_shifts">an Feiertagen: %1$d</string>
+    <string name="stats_wishes">Wünsche erfüllt: %1$d von %2$d</string>
+    <string name="stats_limits">Gezählt werden die Dienste im Plan, keine Stempelzeiten. Wochenende heisst Samstag oder Sonntag, Nacht mindestens drei Stunden zwischen 23 und 6 Uhr. Abwesenheiten zählen an Werktagen mit dem Tagessoll.</string>
+    <string name="me_balance">Geplant %1$s von %2$s Soll · Saldo %3$s</string>
+    <string name="me_balance_year">Saldo seit Jahresbeginn: %1$s</string>
+
+    <!-- Einstieg: QR-Code und „Wer bist du?“ -->
+    <string name="onboarding_feature_private">Ende-zu-Ende-verschlüsselt: Kein Server kann den Plan lesen.</string>
+    <string name="onboarding_feature_offline">Funktioniert auch offline und gleicht sich ab, sobald wieder Netz da ist.</string>
+    <string name="onboarding_feature_equal">Alle tragen gleichberechtigt Dienste und Wünsche ein; Admins können den Plan sperren.</string>
+    <string name="join_qr_hint">Ein Admin scannt diesen QR-Code unter „Team“ → „Gerät hinzufügen“. Du kannst den Code auch als Text teilen.</string>
+    <string name="join_qr_description">QR-Code mit deinem Beitrittscode</string>
+    <string name="scan_action">QR-Code scannen</string>
+    <string name="scan_or_type">oder den Beitrittscode einfügen:</string>
+    <string name="scan_hint">Richte die Kamera auf den QR-Code des neuen Geräts.</string>
+    <string name="scan_permission_denied">Ohne Zugriff auf die Kamera bitte den Code einfügen.</string>
+    <string name="scan_recognized">Erkannt · Fingerabdruck %1$s</string>
+    <string name="who_title">Wer bist du?</string>
+    <string name="who_text">Wähle deinen Namen. Dann zeigt „Ich“ deine Dienste, und deine Wünsche ändern nur du und die Admins.</string>
+    <string name="who_new_title">Ich bin neu im Plan</string>
+    <string name="who_new_label">Dein Name</string>
+    <string name="who_new_action">Anlegen</string>
+    <string name="who_later">Später</string>
+    <string name="people_devices_title">Personen und Geräte (%1$d)</string>
+    <string name="people_devices_unassigned">Geräte ohne Person</string>
+    <string name="people_without_device">Noch ohne Gerät: %1$s</string>
+    <string name="me_section_title">Das bin ich</string>
+    <string name="me_section_text">Wähle, wer dieses Gerät benutzt. Dann zeigt „Ich“ deine Dienste, und deine Wünsche ändern nur du und die Admins.</string>
+    <string name="me_section_settings">Benachrichtigungen und Erinnerungen</string>
+    <string name="me_reminders">Erinnerungen</string>
+
+    <!-- Erinnerungen und Benachrichtigungen -->
+    <string name="reminder_channel_name">Erinnerungen</string>
+    <string name="reminder_channel_description">Vor deinen Diensten und vor Wunschfristen</string>
+    <string name="reminder_shift_tomorrow">Morgen: %1$s</string>
+    <string name="reminder_shift_soon">Bald Dienst: %1$s</string>
+    <string name="reminder_deadline_title">Wünsche für %1$s eintragen</string>
+    <string name="reminder_deadline_text">Die Frist läuft bis %1$s.</string>
+    <string name="reminder_public_text">Du hast eine Erinnerung.</string>
+    <string name="team_channel_name">Tausch und Team</string>
+    <string name="team_channel_description">Tauschvorschläge, Antworten, abgegebene Dienste und veröffentlichte Pläne</string>
+    <string name="alert_trades_title">%1$d Neuigkeiten zu Tausch und Abgabe</string>
+    <string name="alert_swap_proposed">%1$s möchte %2$s am %3$s mit dir tauschen</string>
+    <string name="alert_swap_accepted">%1$s nimmt deinen Tausch für %2$s an</string>
+    <string name="alert_swap_declined">%1$s lehnt deinen Tausch für %2$s ab</string>
+    <string name="alert_swap_done">Tausch mit %1$s für %2$s ist eingetragen</string>
+    <string name="alert_swap_admin">Tausch zwischen %1$s und %2$s wartet auf deine Bestätigung</string>
+    <string name="alert_offer_open">%1$s gibt %2$s am %3$s ab</string>
+    <string name="alert_offer_admin">Übernahme des Dienstes von %1$s am %2$s wartet auf deine Bestätigung</string>
+    <string name="alert_published_title">Plan veröffentlicht</string>
+    <string name="alert_published_whole">Der ganze Plan ist gesperrt und gilt als verbindlich.</string>
+    <string name="alert_published_until">Der Plan ist bis %1$s gesperrt und gilt als verbindlich.</string>
+    <string name="calendar_name">Dienstplan</string>
 </resources>

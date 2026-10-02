@@ -2,6 +2,7 @@ package ch.digitana.dienstplan
 
 import android.content.Context
 import android.os.Build
+import ch.digitana.dienstplan.calendar.DeviceCalendar
 import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.data.EncryptedPlanStore
 import ch.digitana.dienstplan.core.data.EncryptedSettingsStore
@@ -14,16 +15,20 @@ import ch.digitana.dienstplan.core.group.EncryptedGroupRecordStore
 import ch.digitana.dienstplan.core.group.Team
 import ch.digitana.dienstplan.core.group.TeamRepository
 import ch.digitana.dienstplan.core.group.TeamState
+import ch.digitana.dienstplan.core.plan.ReminderMode
 import ch.digitana.dienstplan.core.sync.OkHttpRelayTransport
 import ch.digitana.dienstplan.core.sync.RelayUrls
 import ch.digitana.dienstplan.core.sync.SecureHttp
 import ch.digitana.dienstplan.core.util.Logger
 import ch.digitana.dienstplan.export.PlanExport
+import ch.digitana.dienstplan.notify.ReminderScheduler
 import ch.digitana.dienstplan.notify.ShiftAlerts
 import ch.digitana.dienstplan.notify.ShiftNotifications
+import ch.digitana.dienstplan.notify.TeamAlerts
 import ch.digitana.dienstplan.security.AndroidKeystoreKeyWrapper
 import ch.digitana.dienstplan.sync.BackgroundSyncScheduler
 import ch.digitana.dienstplan.sync.SyncController
+import ch.digitana.dienstplan.ui.UiPreferences
 import ch.digitana.dienstplan.util.AndroidLogger
 import ch.digitana.dienstplan.widget.WidgetUpdater
 import kotlinx.coroutines.CancellationException
@@ -78,8 +83,20 @@ class AppContainer(context: Context) {
     val planRepository = PlanRepository(EncryptedPlanStore(secureFiles), scope, logger = logger)
     val settingsRepository = SettingsRepository(EncryptedSettingsStore(secureFiles))
 
+    /** Darstellung (Thema, Systemfarben, Rasterdichte); sofort lesbar, nicht vertraulich. */
+    val uiPreferences = UiPreferences(this.context)
+
     private val notifications = ShiftNotifications(this.context)
     val shiftAlerts = ShiftAlerts(settingsRepository, planRepository, notifications)
+
+    /** Erinnerungen vor dem eigenen Dienst und vor Wunschfristen, nur auf diesem Gerät. */
+    val reminders = ReminderScheduler(this.context)
+
+    /** Benachrichtigungen zu Tausch, Abgabe und neuen Sperren. */
+    val teamAlerts = TeamAlerts(this.context, settingsRepository)
+
+    /** Eigene Dienste im Kalender des Geräts, nur auf Wunsch. */
+    val deviceCalendar = DeviceCalendar(this.context, logger)
 
     private val httpClient by lazy { SecureHttp.newClient() }
 
@@ -105,6 +122,8 @@ class AppContainer(context: Context) {
     @OptIn(FlowPreview::class)
     fun initialize() {
         notifications.createChannel()
+        reminders.createChannel()
+        teamAlerts.createChannel()
         scope.launch {
             // Geteilte Exporte (PDF, Bild, Kalender) nicht länger als nötig aufbewahren.
             withContext(Dispatchers.IO) { runCatching { PlanExport.cleanUp(context) } }
@@ -153,6 +172,24 @@ class AppContainer(context: Context) {
                             .onFailure { logger.warn(TAG, "Widget nicht aktualisiert", it) }
                     }
             }
+            // Erinnerungen nach jeder Änderung am Plan oder an den Einstellungen neu setzen.
+            launch {
+                combine(planRepository.state, settingsRepository.settings) { plan, settings ->
+                    ReminderInput(plan, settings.myMemberId, settings.reminderMode, settings.deadlineReminders)
+                }
+                    .distinctUntilChanged()
+                    .debounce(REMINDER_DEBOUNCE_MILLIS)
+                    .collect { scheduleReminders() }
+            }
+            // Eigene Dienste im Gerätekalender nachführen; ausgeschaltet wird der Kalender entfernt.
+            launch {
+                combine(planRepository.state, settingsRepository.settings) { plan, settings ->
+                    if (settings.calendarSync) plan to settings.myMemberId else null
+                }
+                    .distinctUntilChanged()
+                    .debounce(CALENDAR_DEBOUNCE_MILLIS)
+                    .collect { wanted -> updateCalendar(wanted) }
+            }
             // Hintergrund-Abgleich nur, solange das Gerät einem Team angehört oder beitritt.
             launch {
                 teamRepository.state
@@ -176,6 +213,36 @@ class AppContainer(context: Context) {
         teamRepository.load()
         planRepository.load()
         settingsRepository.load()
+    }
+
+    private fun scheduleReminders() {
+        runCatching { reminders.schedule(planRepository.state.value, settingsRepository.settings.value) }
+            .onFailure { logger.warn(TAG, "Erinnerung nicht gesetzt", it) }
+    }
+
+    private suspend fun updateCalendar(wanted: Pair<PlanState, String?>?) = withContext(Dispatchers.IO) {
+        runCatching { if (wanted == null) deviceCalendar.remove() else deviceCalendar.sync(wanted.first, wanted.second) }
+            .onFailure { logger.warn(TAG, "Kalender nicht nachgeführt", it) }
+    }
+
+    /** App geöffnet oder verlassen: Plan, Tausch und Sperre gelten als gesehen. */
+    suspend fun planSeen() {
+        shiftAlerts.planSeen()
+        teamAlerts.seen(planRepository.state.value, teamRepository.state.value, teamRepository.deviceId)
+    }
+
+    /**
+     * Nach einem Abgleich im Hintergrund: Neues melden ([synced]), dann Erinnerungen und Kalender
+     * nachführen – auch ohne Änderung, denn „heute“ wandert weiter.
+     */
+    suspend fun afterBackgroundSync(synced: Boolean) {
+        if (synced) {
+            shiftAlerts.afterBackgroundSync()
+            teamAlerts.afterBackgroundSync(planRepository.state.value, teamRepository.state.value, teamRepository.deviceId)
+        }
+        scheduleReminders()
+        val settings = settingsRepository.settings.value
+        if (settings.calendarSync) updateCalendar(planRepository.state.value to settings.myMemberId)
     }
 
     /** Wartet, bis die lokalen Daten geladen sind (oder nach einem Fehler zurückgesetzt wurden). */
@@ -278,7 +345,9 @@ class AppContainer(context: Context) {
         planRepository.replaceAll(PlanState.EMPTY)
         settingsRepository.clear()
         notifications.cancel()
+        reminders.cancelAll()
         withContext(Dispatchers.IO) {
+            runCatching { deviceCalendar.remove() }
             secureFiles.wipe()
             mlsDir.deleteRecursively()
         }
@@ -289,9 +358,14 @@ class AppContainer(context: Context) {
         if (label.isNotBlank()) planRepository.setDeviceLabel(deviceId, label)
     }
 
+    /** Was die Erinnerungen bestimmt; Änderungen an anderen Einstellungen lösen nichts aus. */
+    private data class ReminderInput(val plan: PlanState, val me: String?, val mode: ReminderMode, val deadlines: Boolean)
+
     private companion object {
         const val TAG = "AppContainer"
         const val WIDGET_DEBOUNCE_MILLIS = 1_000L
+        const val REMINDER_DEBOUNCE_MILLIS = 1_000L
+        const val CALENDAR_DEBOUNCE_MILLIS = 3_000L
         /** Markiert „Zuordnung stimmt schon“ (eine Personen-ID ist nie so lang). */
         const val NO_CHANGE = "-"
         /** Teamdatei der alten Version (DP2). */

@@ -60,7 +60,7 @@ class DienstplanApp : Application(), Configuration.Provider {
 
     private fun markPlanSeen() {
         container.scope.launch {
-            if (container.awaitReady(READY_TIMEOUT_MILLIS)) container.shiftAlerts.planSeen()
+            if (container.awaitReady(READY_TIMEOUT_MILLIS)) container.planSeen()
         }
     }
 

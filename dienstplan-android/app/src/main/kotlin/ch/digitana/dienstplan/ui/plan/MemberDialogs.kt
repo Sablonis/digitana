@@ -1,12 +1,14 @@
 package ch.digitana.dienstplan.ui.plan
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -16,8 +18,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -26,6 +31,8 @@ import ch.digitana.dienstplan.core.crdt.Limits
 import ch.digitana.dienstplan.core.crdt.Member
 import ch.digitana.dienstplan.core.crdt.NameProblem
 import ch.digitana.dienstplan.core.crdt.Names
+import ch.digitana.dienstplan.core.crdt.PlanRules
+import ch.digitana.dienstplan.ui.theme.tabular
 
 /** Eingabe eines Namens (max. 40 Zeichen) mit Zähler und Fehlermeldung. */
 @Composable
@@ -97,6 +104,10 @@ fun EditMemberDialog(
     onDismiss: () -> Unit,
     isMe: Boolean = false,
     onToggleMe: (() -> Unit)? = null,
+    /** Pensum in Prozent; null = nicht angegeben. */
+    pensum: Int? = null,
+    /** Pensum ändern (sofort gespeichert); null = nicht erlaubt (Plan gesperrt). */
+    onPensum: ((Int?) -> Unit)? = null,
 ) {
     var confirmDelete by rememberSaveable(member.id) { mutableStateOf(false) }
     if (confirmDelete && onDelete != null) {
@@ -124,6 +135,7 @@ fun EditMemberDialog(
         onConfirm = onRename,
         onDismiss = onDismiss,
         extraContent = {
+            PensumRow(pensum = pensum, onPensum = onPensum)
             if (onToggleMe != null) {
                 TextButton(onClick = onToggleMe) {
                     Text(stringResource(if (isMe) R.string.member_not_me else R.string.member_is_me))
@@ -141,6 +153,47 @@ fun EditMemberDialog(
     )
 }
 
+/**
+ * Pensum in Schritten von 5 %: Grundlage für Soll-Stunden und Saldo. Ohne Angabe rechnet die
+ * App kein Soll für die Person.
+ */
+@Composable
+private fun PensumRow(pensum: Int?, onPensum: ((Int?) -> Unit)?) {
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.member_pensum), style = MaterialTheme.typography.labelLarge)
+            Text(
+                if (pensum != null) stringResource(R.string.member_pensum_value, pensum) else stringResource(R.string.member_pensum_none),
+                style = MaterialTheme.typography.bodyMedium.tabular(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (onPensum != null) {
+            if (pensum == null) {
+                TextButton(onClick = { onPensum(PlanRules.MAX_PENSUM) }) { Text(stringResource(R.string.member_pensum_set)) }
+            } else {
+                val less = stringResource(R.string.member_pensum_less)
+                val more = stringResource(R.string.member_pensum_more)
+                IconButton(
+                    onClick = { onPensum((pensum - PENSUM_STEP).coerceAtLeast(PlanRules.MIN_PENSUM)) },
+                    enabled = pensum > PlanRules.MIN_PENSUM,
+                    modifier = Modifier.semantics { contentDescription = less },
+                ) {
+                    Text("−", style = MaterialTheme.typography.titleLarge)
+                }
+                IconButton(
+                    onClick = { onPensum((pensum + PENSUM_STEP).coerceAtMost(PlanRules.MAX_PENSUM)) },
+                    enabled = pensum < PlanRules.MAX_PENSUM,
+                    modifier = Modifier.semantics { contentDescription = more },
+                ) {
+                    Text("+", style = MaterialTheme.typography.titleLarge)
+                }
+                TextButton(onClick = { onPensum(null) }) { Text(stringResource(R.string.member_pensum_clear)) }
+            }
+        }
+    }
+}
+
 @Composable
 internal fun nameProblemText(problem: NameProblem): String = when (problem) {
     NameProblem.EMPTY -> stringResource(R.string.member_error_empty)
@@ -149,3 +202,4 @@ internal fun nameProblemText(problem: NameProblem): String = when (problem) {
 }
 
 private const val MAX_INPUT_CHARS = 200
+private const val PENSUM_STEP = 5

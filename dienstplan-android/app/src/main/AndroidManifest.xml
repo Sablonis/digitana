@@ -7,6 +7,16 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Hinweis, wenn jemand die eigenen Dienste ändert (ab Android 13 mit Rückfrage). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Nur zum Scannen eines Beitrittscodes (QR); gefragt erst beim Tippen auf „Scannen“. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Nur wenn „Eigene Dienste im Kalender“ eingeschaltet wird; gefragt erst dann. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
+    <!-- Ohne Kamera bleibt die Eingabe von Hand; die App ist auch dort installierbar. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
 
     <!-- Kalender-Export: prüfen, ob eine Kalender-App .ics-Dateien öffnet (Paket-Sichtbarkeit). -->
     <queries>
@@ -60,6 +70,11 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_my_shifts_info" />
         </receiver>
+
+        <!-- Erinnerungen vor dem eigenen Dienst und vor Wunschfristen (nur vom eigenen AlarmManager). -->
+        <receiver
+            android:name=".notify.ReminderReceiver"
+            android:exported="false" />
 
         <!-- Teilen von PDF, Bild und Kalenderdatei: nur der Ordner cache/exports, nur Leserecht auf Zeit. -->
         <provider

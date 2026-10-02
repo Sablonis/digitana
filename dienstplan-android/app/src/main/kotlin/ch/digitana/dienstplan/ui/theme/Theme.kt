@@ -1,18 +1,26 @@
 package ch.digitana.dienstplan.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ch.digitana.dienstplan.R
 
 // Eigene Farben statt Systemfarben: Indigo als Hauptfarbe, Koralle als Akzent. Berechnet mit den
 // Material-Tonpaletten (Töne 40/90/10 hell, 80/30/90 dunkel); alle Text-Hintergrund-Paare ≥ 4.5:1.
@@ -94,18 +102,47 @@ private val DarkColors = darkColorScheme(
     surfaceContainerHighest = Color(0xFF353439),
 )
 
+/**
+ * Inter (SIL Open Font License 1.1), in der App mitgeliefert statt heruntergeladen: Es geht
+ * keine Anfrage an einen Schriftendienst. Untermenge für lateinische Schrift (Deutsch,
+ * Französisch, Italienisch) in vier Schnitten.
+ */
+val Inter = FontFamily(
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold),
+)
+
 private val BaseTypography = Typography()
 
-/** Systemschrift mit kräftigeren Überschriften und Beschriftungen. */
-private val AppTypography = BaseTypography.copy(
-    headlineMedium = BaseTypography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
-    headlineSmall = BaseTypography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-    titleLarge = BaseTypography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-    titleMedium = BaseTypography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-    titleSmall = BaseTypography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-    labelLarge = BaseTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-    labelSmall = BaseTypography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.3.sp),
+private fun TextStyle.inter(weight: FontWeight? = null, tracking: Double? = null): TextStyle = copy(
+    fontFamily = Inter,
+    fontWeight = weight ?: fontWeight,
+    letterSpacing = tracking?.sp ?: letterSpacing,
 )
+
+/** Inter mit kräftigeren Überschriften; grosse Grade etwas enger gesetzt. */
+private val AppTypography = Typography(
+    displayLarge = BaseTypography.displayLarge.inter(tracking = -0.5),
+    displayMedium = BaseTypography.displayMedium.inter(tracking = -0.4),
+    displaySmall = BaseTypography.displaySmall.inter(tracking = -0.3),
+    headlineLarge = BaseTypography.headlineLarge.inter(FontWeight.SemiBold, -0.4),
+    headlineMedium = BaseTypography.headlineMedium.inter(FontWeight.SemiBold, -0.3),
+    headlineSmall = BaseTypography.headlineSmall.inter(FontWeight.SemiBold, -0.2),
+    titleLarge = BaseTypography.titleLarge.inter(FontWeight.SemiBold, -0.1),
+    titleMedium = BaseTypography.titleMedium.inter(FontWeight.SemiBold),
+    titleSmall = BaseTypography.titleSmall.inter(FontWeight.SemiBold),
+    bodyLarge = BaseTypography.bodyLarge.inter(),
+    bodyMedium = BaseTypography.bodyMedium.inter(),
+    bodySmall = BaseTypography.bodySmall.inter(),
+    labelLarge = BaseTypography.labelLarge.inter(FontWeight.SemiBold),
+    labelMedium = BaseTypography.labelMedium.inter(FontWeight.Medium),
+    labelSmall = BaseTypography.labelSmall.inter(FontWeight.Medium).copy(fontSize = 11.sp, letterSpacing = 0.3.sp),
+)
+
+/** Ziffern mit fester Breite: Zeiten, Stunden und Zahlen stehen in Spalten bündig. */
+fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
 
 private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(6.dp),
@@ -115,11 +152,41 @@ private val AppShapes = Shapes(
     extraLarge = RoundedCornerShape(32.dp),
 )
 
+/** Hell, dunkel oder wie das System. */
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/** Dunkel darstellen? */
 @Composable
-fun DienstplanTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun ThemeMode.isDark(): Boolean = when (this) {
+    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    ThemeMode.LIGHT -> false
+    ThemeMode.DARK -> true
+}
+
+/** Systemfarben (Material You) gibt es ab Android 12. */
+val dynamicColorAvailable: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+/**
+ * Farbschema der App. Mit [dynamicColor] übernehmen Leisten, Knöpfe und Flächen die Farben
+ * des Hintergrundbilds (Android 12+). Die Schichtfarben bleiben immer gleich: Sie tragen
+ * Bedeutung und sind auf Kontrast geprüft.
+ */
+@Composable
+fun DienstplanTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val context = LocalContext.current
+    val colors = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        darkTheme -> DarkColors
+        else -> LightColors
+    }
     CompositionLocalProvider(LocalShiftPalette provides if (darkTheme) DarkShiftPalette else LightShiftPalette) {
         MaterialTheme(
-            colorScheme = if (darkTheme) DarkColors else LightColors,
+            colorScheme = colors,
             typography = AppTypography,
             shapes = AppShapes,
             content = content,

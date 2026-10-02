@@ -1,15 +1,24 @@
 package ch.digitana.dienstplan.ui.team
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -17,15 +26,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import ch.digitana.dienstplan.R
 import ch.digitana.dienstplan.core.crdt.NameProblem
 import ch.digitana.dienstplan.core.group.Fingerprint
@@ -159,12 +173,30 @@ fun AddDeviceDialog(
     var code by rememberSaveable { mutableStateOf("") }
     var label by rememberSaveable { mutableStateOf("") }
     var codeError by rememberSaveable { mutableStateOf<Int?>(null) }
+    var scanning by rememberSaveable { mutableStateOf(false) }
     val labelError = labelProblem(label)
+    val context = LocalContext.current
+    val hasCamera = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) scanning = true else codeError = R.string.scan_permission_denied
+    }
+    // Gültiger Code (eingetippt oder gescannt): Fingerabdruck zum Vergleichen anzeigen.
+    val valid = (checkCode(code) as? JoinCodeCheck.Valid)?.publicKey
     fun submit() {
         when (val check = checkCode(code)) {
             is JoinCodeCheck.Error -> codeError = check.message
             is JoinCodeCheck.Valid -> onConfirm(check.publicKey, label)
         }
+    }
+    if (scanning) {
+        QrScannerDialog(
+            onResult = { text ->
+                scanning = false
+                code = text.take(MAX_CODE_INPUT)
+                codeError = (checkCode(code) as? JoinCodeCheck.Error)?.message
+            },
+            onDismiss = { scanning = false },
+        )
     }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -172,6 +204,23 @@ fun AddDeviceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.device_add_text), style = MaterialTheme.typography.bodySmall)
+                if (hasCamera) {
+                    FilledTonalButton(
+                        onClick = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                scanning = true
+                            } else {
+                                cameraPermission.launch(Manifest.permission.CAMERA)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(painterResource(R.drawable.ic_qr_code_scanner), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.scan_action))
+                    }
+                    Text(stringResource(R.string.scan_or_type), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 val error = codeError
                 OutlinedTextField(
                     value = code,
@@ -195,6 +244,14 @@ fun AddDeviceDialog(
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (valid != null) {
+                    Text(
+                        stringResource(R.string.scan_recognized, Fingerprint.of(valid)),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 NameField(label, { label = it }, stringResource(R.string.device_label_other), null, labelError)
             }
         },
