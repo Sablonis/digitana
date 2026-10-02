@@ -195,6 +195,12 @@ fun PlanScreen(
                                     menuOpen = false
                                     onOpenShiftTypes()
                                 }
+                                if (state.isAdmin) {
+                                    MenuItem(if (state.lock == null) R.string.lock_dialog_title else R.string.lock_action_change, R.drawable.ic_lock) {
+                                        menuOpen = false
+                                        lockDialog = true
+                                    }
+                                }
                             }
                             MenuItem(R.string.menu_share_week, R.drawable.ic_share) {
                                 menuOpen = false
