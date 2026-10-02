@@ -18,6 +18,9 @@ androidxTestRunner = "1.7.0"
 androidxTestExtJunit = "1.3.0"
 camerax = "1.6.2"
 zxing = "3.5.4"
+profileinstaller = "1.4.1"
+robolectric = "4.17"
+roborazzi = "1.76.0"
 
 [libraries]
 # Kern (reines Kotlin/JVM)
@@ -58,6 +61,13 @@ androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.r
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+# Baseline Profile auch bei Installation ohne Play Store anwenden.
+androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
+# Screenshots und Barrierefreiheit auf der JVM (Robolectric, Roborazzi, Accessibility Test Framework).
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
+roborazzi-junit-rule = { module = "io.github.takahirom.roborazzi:roborazzi-junit-rule", version.ref = "roborazzi" }
+roborazzi-accessibility-check = { module = "io.github.takahirom.roborazzi:roborazzi-accessibility-check", version.ref = "roborazzi" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestExtJunit" }
 junit4 = { module = "junit:junit", version.ref = "junit4" }

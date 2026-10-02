@@ -29,7 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -112,9 +112,9 @@ fun LicensesScreen(onBack: () -> Unit) {
 @Composable
 private fun LicenseText(name: String, @RawRes resource: Int) {
     var open by rememberSaveable(name) { mutableStateOf(false) }
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val text = remember(resource, open) {
-        if (open) context.resources.openRawResource(resource).bufferedReader(Charsets.UTF_8).use { it.readText() } else ""
+        if (open) resources.openRawResource(resource).bufferedReader(Charsets.UTF_8).use { it.readText() } else ""
     }
     OutlinedCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Row(

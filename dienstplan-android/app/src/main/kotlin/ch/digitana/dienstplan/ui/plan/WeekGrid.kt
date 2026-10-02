@@ -50,6 +50,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -87,6 +88,12 @@ private val NAME_WIDTH_NARROW = 64.dp
 private val NAME_WIDTH_WIDE = 148.dp
 private val ROW_HEIGHT = 58.dp
 private val HEADER_HEIGHT = 64.dp
+
+/**
+ * Test-Tag für Felder und Tage im Raster: Sieben Spalten passen auf schmalen Handys nur unter
+ * 48 dp; die Barrierefreiheitstests nehmen diese Ziele deshalb von der Mindestgrösse aus.
+ */
+const val DENSE_TARGET_TAG = "rasterfeld"
 
 /** Höchstens so viele Arbeitsschichten erscheinen einzeln in der Besetzung, sonst die Summe. */
 internal const val MAX_COVERAGE_TYPES = 4
@@ -260,7 +267,8 @@ private fun GridHeader(days: List<DayInfo>, metrics: GridMetrics, isLocked: (Loc
                     .fillMaxHeight()
                     .background(dayTint(day))
                     .clickable(enabled = day.editable, onClickLabel = dayClickLabel) { onDayClick(day.date) }
-                    .semantics(mergeDescendants = true) { contentDescription = description },
+                    .semantics(mergeDescendants = true) { contentDescription = description }
+                    .testTag(DENSE_TARGET_TAG),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -527,7 +535,8 @@ internal fun ShiftCellView(
                     if (onOpenDay != null) {
                         customActions = listOf(CustomAccessibilityAction(openDayLabel) { onOpenDay(); true })
                     }
-                },
+                }
+                .testTag(DENSE_TARGET_TAG),
             contentAlignment = Alignment.Center,
         ) {
             val type = cell.type

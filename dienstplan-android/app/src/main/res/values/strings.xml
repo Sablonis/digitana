@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Die Oberfläche ist deutsch; tools:locale sagt das Lint und der Rechtschreibprüfung. -->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="de">
+<!--
+    Die Oberfläche ist deutsch in Schweizer Schreibweise (ss statt Eszett). tools:locale sagt das Lint;
+    die Prüfung „Typos“ hielte „heisst“ oder „Schliessen“ für Tippfehler und ist deshalb aus.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="de" tools:ignore="Typos">
     <string name="app_name">Dienstplan</string>
 
     <!-- Allgemein -->

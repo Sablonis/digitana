@@ -3,6 +3,7 @@ package ch.digitana.dienstplan.ui
 import android.app.UiModeManager
 import android.content.Context
 import android.os.Build
+import androidx.core.content.edit
 import ch.digitana.dienstplan.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,11 +48,11 @@ class UiPreferences(context: Context) {
 
     private fun update(prefs: UiPrefs) {
         if (prefs == _state.value) return
-        this.prefs.edit()
-            .putString(KEY_THEME, prefs.themeMode.name)
-            .putBoolean(KEY_DYNAMIC, prefs.dynamicColor)
-            .putString(KEY_DENSITY, prefs.density.name)
-            .apply()
+        this.prefs.edit {
+            putString(KEY_THEME, prefs.themeMode.name)
+            putBoolean(KEY_DYNAMIC, prefs.dynamicColor)
+            putString(KEY_DENSITY, prefs.density.name)
+        }
         val modeChanged = prefs.themeMode != _state.value.themeMode
         _state.value = prefs
         if (modeChanged) applyNightMode(prefs.themeMode)

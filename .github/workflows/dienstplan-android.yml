@@ -84,3 +84,17 @@ jobs:
         with:
           name: dienstplan-debug-apk
           path: dienstplan-android/app/build/outputs/apk/debug/*.apk
+
+      # Nach dem APK, damit es auch dann bereitsteht, wenn hier etwas scheitert.
+      - name: Screenshots und Barrierefreiheit (Robolectric, Roborazzi, ATF)
+        run: ./gradlew --stacktrace :app:testDebugUnitTest
+
+      - name: Screenshots hochladen
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dienstplan-screenshots
+          path: |
+            dienstplan-android/app/build/outputs/roborazzi/
+            dienstplan-android/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
