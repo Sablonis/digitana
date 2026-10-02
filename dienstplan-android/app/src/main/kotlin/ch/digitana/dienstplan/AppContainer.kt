@@ -133,13 +133,8 @@ class AppContainer(context: Context) {
             // „Das bin ich“ für das Team sichtbar machen: Danach ändert nur dieses Gerät (und
             // Admins) die eigenen Wünsche. Auch für Geräte, die die Person schon vorher gewählt hatten.
             launch {
-                combine(teamRepository.state, settingsRepository.settings, planRepository.state) { team, settings, plan ->
-                    val device = teamRepository.deviceId
-                    if (team is TeamState.Member && device != null && plan.deviceOwners()[device] != settings.myMemberId) {
-                        settings.myMemberId
-                    } else {
-                        NO_CHANGE
-                    }
+                combine(planRepository.deviceIdFlow, settingsRepository.settings, planRepository.state) { device, settings, plan ->
+                    if (device != null && plan.deviceOwners()[device] != settings.myMemberId) settings.myMemberId else NO_CHANGE
                 }
                     .distinctUntilChanged()
                     .collect { owner ->

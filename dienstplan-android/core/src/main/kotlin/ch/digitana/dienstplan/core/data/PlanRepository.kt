@@ -100,9 +100,17 @@ class PlanRepository(
     private val _loaded = MutableStateFlow(false)
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
 
+    private val _deviceId = MutableStateFlow<String?>(null)
+
+    /** Geräte-ID des aktuellen Teams (als Flow, z. B. um auf den Beitritt zu warten). */
+    val deviceIdFlow: StateFlow<String?> = _deviceId.asStateFlow()
+
     /** Geräte-ID des aktuellen Teams; ohne Team sind keine Änderungen möglich. */
-    @Volatile
-    var deviceId: String? = null
+    var deviceId: String?
+        get() = _deviceId.value
+        set(value) {
+            _deviceId.value = value
+        }
 
     init {
         scope.launch {
