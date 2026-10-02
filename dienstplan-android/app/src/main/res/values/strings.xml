@@ -428,4 +428,39 @@
     <string name="device_owner">Gehört zu %1$s</string>
     <string name="change_last">Zuletzt geändert von %1$s · %2$s</string>
     <string name="change_unknown_device">Gerät %1$s…</string>
+
+    <!-- Ruhezeit und Soll-Besetzung -->
+    <string name="rules_title">Ruhezeit und Soll-Besetzung</string>
+    <string name="menu_rules">Ruhezeit und Soll</string>
+    <string name="team_planning_rules_hint">Mindestruhe zwischen Diensten, Personen pro Schicht</string>
+    <string name="rules_rest_title">Mindestruhezeit</string>
+    <string name="rules_rest_text">Zwischen zwei Diensten derselben Person. Das Arbeitsgesetz verlangt in der Regel 11 Stunden am Stück. Kürzere Ruhe markiert die App rot.</string>
+    <string name="rules_rest_warn">Warnen, wenn die Ruhe kürzer ist</string>
+    <string name="rules_rest_shorter">Kürzer</string>
+    <string name="rules_rest_longer">Länger</string>
+    <string name="rules_targets_title">Soll-Besetzung</string>
+    <string name="rules_targets_text">Wie viele Personen pro Schicht und Wochentag nötig sind. Tage unter dem Soll erscheinen rot in der Besetzungszeile.</string>
+    <string name="rules_targets_copy">Montag auf alle Tage</string>
+    <string name="rules_targets_field">%1$s, %2$s</string>
+    <string name="rules_targets_none">Noch keine Arbeitsschichten. Lege sie unter „Schichtarten“ an.</string>
+    <string name="rules_locked">Der Plan ist gesperrt: Ruhezeit und Soll-Besetzung ändern nur Admins.</string>
+    <string name="rules_saved">Gespeichert</string>
+    <string name="rest_before">Nur %1$s Ruhe nach %2$s am %3$s (mindestens %4$s).</string>
+    <string name="rest_after">Nur %1$s Ruhe bis %2$s am %3$s (mindestens %4$s).</string>
+    <string name="rest_overlap">Überschneidet sich mit %1$s am %2$s.</string>
+    <string name="rest_option_warning">zu wenig Ruhezeit</string>
+    <string name="rest_marker">Ruhezeit zu kurz</string>
+    <string name="day_rest">Ruhezeit</string>
+    <string name="day_target">%1$s (%2$d von %3$d)</string>
+    <string name="day_missing">Unter dem Soll: %1$s</string>
+    <string name="day_missing_item">%1$s fehlt %2$d</string>
+    <string name="coverage_target_description">%1$s %2$d von %3$d</string>
+    <plurals name="checks_understaffed">
+        <item quantity="one">%d Schicht unter dem Soll</item>
+        <item quantity="other">%d Schichten unter dem Soll</item>
+    </plurals>
+    <plurals name="checks_rest">
+        <item quantity="one">%d Dienst mit zu kurzer Ruhezeit</item>
+        <item quantity="other">%d Dienste mit zu kurzer Ruhezeit</item>
+    </plurals>
 </resources>

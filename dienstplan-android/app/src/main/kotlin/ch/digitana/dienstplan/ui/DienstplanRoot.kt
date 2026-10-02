@@ -54,6 +54,7 @@ import ch.digitana.dienstplan.ui.month.MonthScreen
 import ch.digitana.dienstplan.ui.patterns.PatternsScreen
 import ch.digitana.dienstplan.ui.plan.PlanScreen
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
+import ch.digitana.dienstplan.ui.rules.RulesScreen
 import ch.digitana.dienstplan.ui.team.JoiningScreen
 import ch.digitana.dienstplan.ui.team.OnboardingScreen
 import ch.digitana.dienstplan.ui.team.TeamScreen
@@ -73,7 +74,7 @@ private enum class Tab(@StringRes val label: Int, @DrawableRes val icon: Int) {
 }
 
 /** Seiten, die über den Reitern liegen (mit Zurück-Pfeil, ohne untere Leiste). */
-private enum class Page { SHIFT_TYPES, PATTERNS, DIAGNOSTICS }
+private enum class Page { SHIFT_TYPES, PATTERNS, RULES, DIAGNOSTICS }
 
 /** Was geteilt werden soll, bevor das Format gewählt ist. */
 private sealed interface ShareRequest {
@@ -170,6 +171,7 @@ private fun MainNavigation(container: AppContainer, startWithTeam: () -> Boolean
     when (page) {
         Page.SHIFT_TYPES -> ShiftTypesScreen(planViewModel, onBack = { page = null })
         Page.PATTERNS -> PatternsScreen(planViewModel, onBack = { page = null })
+        Page.RULES -> RulesScreen(planViewModel, onBack = { page = null })
         Page.DIAGNOSTICS -> DiagnosticsScreen(container = container, onBack = { page = null })
         null -> Scaffold(
             // Die Abstände für Status- und Navigationsleiste setzen die Reiter und die untere Leiste selbst.
@@ -194,6 +196,7 @@ private fun MainNavigation(container: AppContainer, startWithTeam: () -> Boolean
                         onOpenDiagnostics = { page = Page.DIAGNOSTICS },
                         onOpenShiftTypes = { page = Page.SHIFT_TYPES },
                         onOpenPatterns = { page = Page.PATTERNS },
+                        onOpenRules = { page = Page.RULES },
                         onShareWeek = { share = ShareRequest.Week(it) },
                     )
                     Tab.MONTH -> MonthScreen(
@@ -217,6 +220,7 @@ private fun MainNavigation(container: AppContainer, startWithTeam: () -> Boolean
                             onCreatedHintShown = { createdHintPending = false },
                             onOpenShiftTypes = { page = Page.SHIFT_TYPES },
                             onOpenPatterns = { page = Page.PATTERNS },
+                            onOpenRules = { page = Page.RULES },
                             onOpenDiagnostics = { page = Page.DIAGNOSTICS },
                         )
                     }

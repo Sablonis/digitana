@@ -2,6 +2,7 @@ package ch.digitana.dienstplan.ui.plan
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -286,6 +288,8 @@ internal fun ShiftCellView(
                 .fillMaxSize()
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (cell.typeId != null) color.container else MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f))
+                // Zu kurze Ruhezeit vor diesem Dienst: roter Rand.
+                .then(if (cell.rest != null) Modifier.border(2.dp, MaterialTheme.colorScheme.error, RoundedCornerShape(12.dp)) else Modifier)
                 .combinedClickable(
                     enabled = enabled,
                     onClickLabel = stringResource(R.string.cell_click_label),
@@ -376,7 +380,9 @@ internal fun cellDescription(cell: Cell, memberName: String, date: LocalDate, ty
             wish.label(types)
         }
     }
+    val restText = cell.rest?.let { stringResource(R.string.rest_marker) + " (" + Format.hours(it.restMinutes.coerceAtLeast(0)) + ")" }
     val extras = buildList {
+        restText?.let { add(it) }
         wishText?.let { add(it) }
         cell.note?.let { add(it) }
     }
@@ -446,10 +452,14 @@ private fun CoverageFooter(model: WeekModel) {
             }
             model.days.forEachIndexed { index, day ->
                 val coverage = model.coverage[index]
+                val parts = coverage.counts.map { (type, count) ->
+                    val target = coverage.target(type.id)
+                    if (target > 0) stringResource(R.string.coverage_target_description, type.name, count, target) else "${type.name} $count"
+                }
                 val description = stringResource(
                     R.string.coverage_description,
                     WeekFormat.longDate(day.date),
-                    coverage.counts.joinToString(", ") { (type, count) -> "${type.name} $count" }.ifEmpty { "0" },
+                    parts.joinToString(", ").ifEmpty { "0" },
                 )
                 Column(
                     modifier = Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = description },
@@ -457,22 +467,59 @@ private fun CoverageFooter(model: WeekModel) {
                 ) {
                     if (single) {
                         for ((type, count) in coverage.counts) {
+                            val target = coverage.target(type.id)
+                            val under = count < target
                             Text(
-                                text = count.toString(),
+                                text = if (target > 0) "$count/$target" else count.toString(),
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (count > 0) FontWeight.Bold else FontWeight.Normal,
-                                color = if (count > 0) palette.of(type).strong else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                fontWeight = if (count > 0 || under) FontWeight.Bold else FontWeight.Normal,
+                                color = when {
+                                    under -> MaterialTheme.colorScheme.error
+                                    count > 0 -> palette.of(type).strong
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                },
+                                maxLines = 1,
                             )
                         }
                     } else {
+                        val under = coverage.shortfall > 0
                         Text(
-                            text = coverage.total.toString(),
+                            text = if (coverage.hasTargets) "${coverage.total}/${coverage.totalTarget}" else coverage.total.toString(),
                             style = MaterialTheme.typography.labelLarge,
-                            color = if (coverage.total > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = when {
+                                under -> MaterialTheme.colorScheme.error
+                                coverage.total > 0 -> MaterialTheme.colorScheme.onSurface
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            maxLines = 1,
                         )
                     }
                 }
             }
         }
+    }
+}
+
+/** Kurze Zusammenfassung über dem Plan: Schichten unter dem Soll und zu kurze Ruhezeiten. */
+@Composable
+internal fun PlanChecks(understaffed: Int, restIssues: Int, modifier: Modifier = Modifier) {
+    if (understaffed == 0 && restIssues == 0) return
+    val resources = LocalResources.current
+    val text = listOfNotNull(
+        understaffed.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.checks_understaffed, it, it) },
+        restIssues.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.checks_rest, it, it) },
+    ).joinToString(" · ")
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painterResource(R.drawable.ic_warning),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
     }
 }

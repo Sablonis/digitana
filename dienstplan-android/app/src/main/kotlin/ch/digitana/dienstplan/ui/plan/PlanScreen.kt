@@ -112,6 +112,7 @@ fun PlanScreen(
     onOpenDiagnostics: () -> Unit,
     onOpenShiftTypes: () -> Unit,
     onOpenPatterns: () -> Unit,
+    onOpenRules: () -> Unit,
     onShareWeek: (WeekId) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -195,6 +196,10 @@ fun PlanScreen(
                                     menuOpen = false
                                     onOpenShiftTypes()
                                 }
+                                MenuItem(R.string.menu_rules, R.drawable.ic_tune) {
+                                    menuOpen = false
+                                    onOpenRules()
+                                }
                                 if (state.isAdmin) {
                                     MenuItem(if (state.lock == null) R.string.lock_dialog_title else R.string.lock_action_change, R.drawable.ic_lock) {
                                         menuOpen = false
@@ -270,24 +275,28 @@ fun PlanScreen(
             HorizontalPager(state = pagerState, modifier = Modifier.weight(1f), key = { it }) { page ->
                 val week = weekAt(page)
                 val model = remember(state.plan, week, state.today) { WeekModel.build(state.plan, week, state.today) }
-                WeekGrid(
-                    model = model,
-                    myMemberId = state.myMemberId,
-                    readOnly = state.readOnly,
-                    onCellClick = { ref ->
-                        when {
-                            !brushReady -> openCell = ref
-                            state.canEditShift(ref.date) -> viewModel.setShift(ref, brushType)
-                            else -> viewModel.notify(PlanMessage.Locked)
-                        }
-                    },
-                    onCellLongClick = { viewModel.setShift(it, null) },
-                    onDayClick = { openDay = it },
-                    onMemberClick = { editMember = it },
-                    onAddMember = { showAddMember = true },
-                    isLocked = { state.lock?.isLocked(it) == true },
-                    canEditShift = state::canEditShift,
-                )
+                Column(Modifier.fillMaxSize()) {
+                    PlanChecks(understaffed = model.understaffedCount, restIssues = model.restIssueCount)
+                    WeekGrid(
+                        model = model,
+                        myMemberId = state.myMemberId,
+                        readOnly = state.readOnly,
+                        onCellClick = { ref ->
+                            when {
+                                !brushReady -> openCell = ref
+                                state.canEditShift(ref.date) -> viewModel.setShift(ref, brushType)
+                                else -> viewModel.notify(PlanMessage.Locked)
+                            }
+                        },
+                        onCellLongClick = { viewModel.setShift(it, null) },
+                        onDayClick = { openDay = it },
+                        onMemberClick = { editMember = it },
+                        onAddMember = { showAddMember = true },
+                        isLocked = { state.lock?.isLocked(it) == true },
+                        canEditShift = state::canEditShift,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
@@ -316,6 +325,7 @@ fun PlanScreen(
                 onSaveNote = { viewModel.setMemberNote(ref, it) },
                 onDismiss = { openCell = null },
                 lastChange = lastChangeText(state.plan, ref),
+                restIssueFor = restCheck(state.plan, ref),
             )
         }
     }
@@ -660,7 +670,7 @@ private fun TodayCard(plan: PlanState, today: LocalDate, myMemberId: String?, on
                 )
             }
             val working = summary.groups.filter { (type, _) -> type.first?.countsForCoverage == true }
-            if (working.isEmpty()) {
+            if (working.isEmpty() && summary.missing.isEmpty()) {
                 Text(
                     stringResource(R.string.today_nobody),
                     style = MaterialTheme.typography.bodySmall,
@@ -669,14 +679,23 @@ private fun TodayCard(plan: PlanState, today: LocalDate, myMemberId: String?, on
             } else {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     for ((type, members) in working) {
+                        val target = summary.targets[type.second] ?: 0
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             ShiftBadge(type = type.first, typeId = type.second, size = 22.dp)
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                members.size.toString(),
+                                if (target > 0) "${members.size}/$target" else members.size.toString(),
                                 style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                color = if (members.size < target) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer,
                             )
+                        }
+                    }
+                    // Schichten mit Soll, in denen noch niemand eingeteilt ist.
+                    for ((type, missing) in summary.missing.filter { (type, _) -> working.none { it.first.second == type.id } }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ShiftBadge(type = type, typeId = type.id, size = 22.dp)
+                            Spacer(Modifier.width(6.dp))
+                            Text("0/$missing", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }

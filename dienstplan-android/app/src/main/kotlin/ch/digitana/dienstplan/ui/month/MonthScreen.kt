@@ -71,12 +71,14 @@ import ch.digitana.dienstplan.ui.plan.DaySheet
 import ch.digitana.dienstplan.ui.plan.LockBanner
 import ch.digitana.dienstplan.ui.plan.LockDialog
 import ch.digitana.dienstplan.ui.plan.MemberDialogs
+import ch.digitana.dienstplan.ui.plan.PlanChecks
 import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
 import ch.digitana.dienstplan.ui.plan.ShiftCellView
 import ch.digitana.dienstplan.ui.plan.cellOf
-import ch.digitana.dienstplan.ui.plan.lastChangeText
 import ch.digitana.dienstplan.ui.plan.dayTint
+import ch.digitana.dienstplan.ui.plan.lastChangeText
+import ch.digitana.dienstplan.ui.plan.restCheck
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -173,6 +175,8 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                 )
             }
 
+            PlanChecks(understaffed = model.understaffedCount, restIssues = model.restIssueCount)
+
             // Kopfzeile mit Tagen; scrollt waagrecht mit dem Raster (gemeinsamer ScrollState).
             Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
                 Box(Modifier.width(NAME_WIDTH).height(HEADER_HEIGHT), contentAlignment = Alignment.CenterStart) {
@@ -247,8 +251,10 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                     )
                     Row(Modifier.horizontalScroll(horizontal)) {
                         model.days.forEachIndexed { index, day ->
-                            val total = model.coverage[index].total
-                            val description = stringResource(R.string.coverage_description, WeekFormat.longDate(day.date), total.toString())
+                            val coverage = model.coverage[index]
+                            val total = coverage.total
+                            val shown = if (coverage.hasTargets) "$total/${coverage.totalTarget}" else total.toString()
+                            val description = stringResource(R.string.coverage_description, WeekFormat.longDate(day.date), shown)
                             Box(
                                 modifier = Modifier
                                     .width(DAY_WIDTH)
@@ -258,9 +264,14 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    total.toString(),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = if (total > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    shown,
+                                    style = if (coverage.hasTargets) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
+                                    color = when {
+                                        coverage.shortfall > 0 -> MaterialTheme.colorScheme.error
+                                        total > 0 -> MaterialTheme.colorScheme.onSurface
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    },
+                                    maxLines = 1,
                                 )
                             }
                         }
@@ -292,6 +303,7 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                 onSaveNote = { viewModel.setMemberNote(ref, it) },
                 onDismiss = { openCell = null },
                 lastChange = lastChangeText(state.plan, ref),
+                restIssueFor = restCheck(state.plan, ref),
             )
         }
     }

@@ -57,6 +57,8 @@ import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
 import ch.digitana.dienstplan.core.crdt.Wish
 import ch.digitana.dienstplan.core.crdt.WishStatus
 import ch.digitana.dienstplan.core.plan.Cell
+import ch.digitana.dienstplan.core.plan.RestIssue
+import ch.digitana.dienstplan.core.plan.RestRules
 import ch.digitana.dienstplan.core.plan.WeekFormat
 import ch.digitana.dienstplan.ui.components.Format
 import ch.digitana.dienstplan.ui.components.MemberAvatar
@@ -85,6 +87,8 @@ fun CellSheet(
     onDismiss: () -> Unit,
     /** „Zuletzt geändert von … · …“ für die Schicht; null = unbekannt. */
     lastChange: String? = null,
+    /** Ruhezeit-Befund, falls diese Schichtart hier eingetragen wäre (siehe [restCheck]). */
+    restIssueFor: (String) -> RestIssue? = { null },
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var choosingShiftWish by rememberSaveable(member.id, date) { mutableStateOf(false) }
@@ -112,9 +116,17 @@ fun CellSheet(
 
             SheetLabel(stringResource(R.string.sheet_shift))
             if (!shiftsEditable && !readOnly) LockHint(stringResource(R.string.sheet_shift_locked))
+            val currentIssue = cell.typeId?.let(restIssueFor)
+            if (currentIssue != null) RestWarning(restIssueText(currentIssue))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (type in types.active) {
-                    ShiftOption(type = type, typeId = type.id, selected = cell.typeId == type.id, enabled = shiftsEditable) {
+                    ShiftOption(
+                        type = type,
+                        typeId = type.id,
+                        selected = cell.typeId == type.id,
+                        enabled = shiftsEditable,
+                        warning = shiftsEditable && cell.typeId != type.id && restIssueFor(type.id) != null,
+                    ) {
                         onSelectType(type.id)
                     }
                 }
@@ -242,7 +254,12 @@ fun DaySheet(
                     Column(Modifier.weight(1f)) {
                         val label = type.first?.let { t -> listOfNotNull(t.name, Format.timeRange(t)).joinToString(" · ") }
                             ?: stringResource(R.string.shift_unknown)
-                        Text("$label (${members.size})", style = MaterialTheme.typography.titleSmall)
+                        val target = summary.targets[type.second] ?: 0
+                        Text(
+                            if (target > 0) stringResource(R.string.day_target, label, members.size, target) else "$label (${members.size})",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (members.size < target) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                        )
                         Text(
                             members.joinToString(", ") { it.name },
                             style = MaterialTheme.typography.bodyMedium,
@@ -257,6 +274,16 @@ fun DaySheet(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (summary.missing.isNotEmpty()) {
+                val items = summary.missing.map { (type, count) -> stringResource(R.string.day_missing_item, type.name, count) }
+                RestWarning(stringResource(R.string.day_missing, items.joinToString(", ")))
+            }
+            if (summary.restIssues.isNotEmpty()) {
+                SheetLabel(stringResource(R.string.day_rest))
+                for ((member, issue) in summary.restIssues) {
+                    RestWarning("${member.name}: ${restIssueText(issue)}")
+                }
             }
 
             if (summary.wishes.isNotEmpty()) {
@@ -310,6 +337,12 @@ internal data class DaySummary(
     val groups: List<Pair<Pair<ShiftType?, String>, List<Member>>>,
     val unassigned: List<Member>,
     val wishes: List<DayWish>,
+    /** Soll des Wochentags: Schichtart-ID → Personen (nur > 0). */
+    val targets: Map<String, Int> = emptyMap(),
+    /** Arbeitsschichten unter dem Soll und wie viele fehlen. */
+    val missing: List<Pair<ShiftType, Int>> = emptyList(),
+    /** Personen mit zu kurzer Ruhezeit vor ihrem Dienst an diesem Tag. */
+    val restIssues: List<Pair<Member, RestIssue>> = emptyList(),
 ) {
     companion object {
         fun of(plan: PlanState, date: LocalDate): DaySummary {
@@ -331,9 +364,64 @@ internal data class DaySummary(
                     DayWish(member, wish, wish.status(typeId, types[typeId]))
                 }
             }
-            return DaySummary(groups, unassigned, wishes)
+            val weekday = date.dayOfWeek.value - 1
+            val targets = plan.targets.mapNotNull { (typeId, values) ->
+                values[weekday].takeIf { it > 0 && types[typeId]?.countsForCoverage == true }?.let { typeId to it }
+            }.toMap()
+            val missing = types.all.mapNotNull { type ->
+                val shortBy = (targets[type.id] ?: 0) - (byType[type.id]?.size ?: 0)
+                if (shortBy > 0) type to shortBy else null
+            }
+            val restMinutes = plan.restMinutes
+            val restIssues = members.mapNotNull { member ->
+                RestRules.issueBefore(plan, types, member.id, date, plan.shift(member.id, date), restMinutes)?.let { member to it }
+            }
+            return DaySummary(groups, unassigned, wishes, targets, missing, restIssues)
         }
     }
+}
+
+/** Warnung in der Fehlerfarbe (zu wenig Ruhezeit, unter dem Soll). */
+@Composable
+internal fun RestWarning(text: String, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.Top) {
+        Icon(
+            painterResource(R.drawable.ic_warning),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+}
+
+/** „Nur 8 h Ruhe nach Spät am Mo 5.10. (mindestens 11 h).“ */
+@Composable
+internal fun restIssueText(issue: RestIssue): String {
+    val day = "${WeekFormat.weekday(issue.otherDate)} ${WeekFormat.shortDate(issue.otherDate)}"
+    return when {
+        issue.restMinutes < 0 -> stringResource(R.string.rest_overlap, issue.other.name, day)
+        issue.otherBefore -> stringResource(
+            R.string.rest_before,
+            Format.hours(issue.restMinutes),
+            issue.other.name,
+            day,
+            Format.hours(issue.minimumMinutes),
+        )
+        else -> stringResource(
+            R.string.rest_after,
+            Format.hours(issue.restMinutes),
+            issue.other.name,
+            day,
+            Format.hours(issue.minimumMinutes),
+        )
+    }
+}
+
+/** Ruhezeit-Befund für jede mögliche Schichtart in einem Feld (Auswahl im Eintragsfenster). */
+internal fun restCheck(plan: PlanState, ref: CellRef): (String) -> RestIssue? = { typeId ->
+    if (PlanKeys.isValidDate(ref.date)) RestRules.issueFor(plan, plan.shiftTypes, ref.memberId, ref.date, typeId, plan.restMinutes) else null
 }
 
 /** Hinweis mit Schloss, z. B. wenn ein Tag gesperrt ist. */
@@ -394,11 +482,20 @@ internal fun SheetLabel(text: String) {
 /** Auswahlkarte einer Schichtart: Kürzel, Name, Zeiten. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ShiftOption(type: ShiftType?, typeId: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun ShiftOption(
+    type: ShiftType?,
+    typeId: String,
+    selected: Boolean,
+    enabled: Boolean,
+    /** Diese Schicht liesse zu wenig Ruhezeit. */
+    warning: Boolean = false,
+    onClick: () -> Unit,
+) {
     val color = LocalShiftPalette.current.of(type)
     val name = type?.name ?: stringResource(R.string.shift_unknown)
     val detail = type?.let { Format.timeRange(it) ?: kindLabel(it.kind) } ?: ""
     val selectedDescription = stringResource(R.string.state_selected)
+    val warningDescription = stringResource(R.string.rest_option_warning)
     Surface(
         onClick = onClick,
         enabled = enabled,
@@ -407,10 +504,27 @@ private fun ShiftOption(type: ShiftType?, typeId: String, selected: Boolean, ena
         border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) color.strong else MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier
             .width(104.dp)
-            .semantics { if (selected) contentDescription = "$name, $selectedDescription" },
+            .semantics {
+                if (selected) {
+                    contentDescription = "$name, $selectedDescription"
+                } else if (warning) {
+                    contentDescription = "$name, $warningDescription"
+                }
+            },
     ) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            ShiftBadge(type = type, typeId = typeId, size = 34.dp)
+            Row(verticalAlignment = Alignment.Top) {
+                ShiftBadge(type = type, typeId = typeId, size = 34.dp)
+                Spacer(Modifier.weight(1f))
+                if (warning) {
+                    Icon(
+                        painterResource(R.drawable.ic_warning),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
             Text(
                 name,
                 style = MaterialTheme.typography.labelLarge,

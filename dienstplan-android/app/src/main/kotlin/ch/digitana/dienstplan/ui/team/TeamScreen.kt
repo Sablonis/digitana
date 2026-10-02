@@ -71,6 +71,7 @@ fun TeamScreen(
     onCreatedHintShown: () -> Unit = {},
     onOpenShiftTypes: () -> Unit = {},
     onOpenPatterns: () -> Unit = {},
+    onOpenRules: () -> Unit = {},
     onOpenDiagnostics: () -> Unit = {},
 ) {
     SecureWindow()
@@ -201,6 +202,7 @@ fun TeamScreen(
                 readOnly = member == null,
                 onOpenShiftTypes = onOpenShiftTypes,
                 onOpenPatterns = onOpenPatterns,
+                onOpenRules = onOpenRules,
                 onOpenDiagnostics = onOpenDiagnostics,
             )
 
@@ -432,6 +434,7 @@ private fun PlanningSection(
     readOnly: Boolean,
     onOpenShiftTypes: () -> Unit,
     onOpenPatterns: () -> Unit,
+    onOpenRules: () -> Unit,
     onOpenDiagnostics: () -> Unit,
 ) {
     OutlinedCard(Modifier.fillMaxWidth()) {
@@ -444,6 +447,7 @@ private fun PlanningSection(
             if (!readOnly) {
                 PlanningRow(R.drawable.ic_palette, R.string.menu_shift_types, R.string.team_planning_types_hint, onOpenShiftTypes)
                 PlanningRow(R.drawable.ic_repeat, R.string.menu_patterns, R.string.team_planning_patterns_hint, onOpenPatterns)
+                PlanningRow(R.drawable.ic_tune, R.string.rules_title, R.string.team_planning_rules_hint, onOpenRules)
             }
             PlanningRow(R.drawable.ic_cloud, R.string.menu_diagnostics, R.string.team_planning_diagnostics_hint, onOpenDiagnostics)
         }

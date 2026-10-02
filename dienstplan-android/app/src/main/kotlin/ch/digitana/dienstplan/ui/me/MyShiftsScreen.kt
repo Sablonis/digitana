@@ -65,9 +65,12 @@ import ch.digitana.dienstplan.ui.plan.CellSheet
 import ch.digitana.dienstplan.ui.plan.MenuItem
 import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
+import ch.digitana.dienstplan.ui.plan.RestWarning
 import ch.digitana.dienstplan.ui.plan.cellOf
-import ch.digitana.dienstplan.ui.plan.lastChangeText
 import ch.digitana.dienstplan.ui.plan.kindLabel
+import ch.digitana.dienstplan.ui.plan.lastChangeText
+import ch.digitana.dienstplan.ui.plan.restCheck
+import ch.digitana.dienstplan.ui.plan.restIssueText
 import ch.digitana.dienstplan.ui.plan.wishStatusText
 import java.time.LocalDate
 import java.time.YearMonth
@@ -168,6 +171,7 @@ fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit)
             onSaveNote = { viewModel.setMemberNote(ref, it) },
             onDismiss = { openDate = null },
             lastChange = lastChangeText(state.plan, ref),
+            restIssueFor = restCheck(state.plan, ref),
         )
     }
 }
@@ -316,6 +320,7 @@ private fun MyDayRow(day: MyDay, types: ShiftTypeSet, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            cell.rest?.let { RestWarning(restIssueText(it)) }
             cell.note?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }

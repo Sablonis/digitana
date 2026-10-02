@@ -246,6 +246,12 @@ class PlanViewModel(private val container: AppContainer) : ViewModel() {
 
     fun resetShiftType(typeId: String) = launchWrite { repository.resetShiftType(typeId) }
 
+    /** Mindestruhezeit in Minuten (0 = keine Warnung). */
+    fun setRestMinutes(minutes: Int) = launchWrite { repository.setRestMinutes(minutes) }
+
+    /** Soll-Besetzung einer Schichtart pro Wochentag (Montag zuerst). */
+    fun setTargets(typeId: String, targets: List<Int>) = launchWrite { repository.setTargets(typeId, targets) }
+
     fun newPatternId(): String = repository.newPatternId()
 
     fun savePattern(pattern: ShiftPattern) = launchWrite { repository.savePattern(pattern) }
