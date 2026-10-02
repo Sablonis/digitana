@@ -9,6 +9,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import ch.digitana.dienstplan.DienstplanApp
+import ch.digitana.dienstplan.widget.WidgetUpdater
 import java.util.concurrent.TimeUnit
 
 /**
@@ -23,6 +24,10 @@ class BackgroundSyncWorker(appContext: Context, params: WorkerParameters) : Coro
         when (container.syncController.backgroundSync()) {
             BackgroundSyncResult.NO_TEAM, BackgroundSyncResult.SKIPPED -> Unit
             BackgroundSyncResult.DONE, BackgroundSyncResult.TIMEOUT -> container.shiftAlerts.afterBackgroundSync()
+        }
+        // Auch ohne Änderungen: Das Widget soll nach Mitternacht „heute“ richtig zeigen.
+        runCatching {
+            WidgetUpdater.updateAll(applicationContext, container.planRepository.state.value, container.settingsRepository.settings.value.myMemberId)
         }
         return Result.success()
     }

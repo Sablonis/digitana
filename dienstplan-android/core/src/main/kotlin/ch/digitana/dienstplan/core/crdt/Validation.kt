@@ -34,9 +34,14 @@ object EntryValidator {
         return null
     }
 
-    fun isValidValue(key: PlanKey, value: String): Boolean = when (key) {
-        is PlanKey.Member, is PlanKey.Device -> value.isEmpty() || Names.isValid(value, Limits.MAX_NAME_LENGTH_REMOTE)
-        is PlanKey.Shift -> value.isEmpty() || Shift.fromCode(value) != null
+    fun isValidValue(key: PlanKey, value: String): Boolean = value.isEmpty() || when (key) {
+        is PlanKey.Member, is PlanKey.Device -> Names.isValid(value, Limits.MAX_NAME_LENGTH_REMOTE)
+        // Verweis auf eine Schichtart; ob sie (schon) definiert ist, entscheidet die Anzeige.
+        is PlanKey.Shift -> ShiftTypes.isValidId(value)
+        is PlanKey.ShiftType -> ShiftTypes.isValidValue(key.typeId, value)
+        is PlanKey.Pattern -> ShiftPatterns.isValidValue(key.patternId, value)
+        is PlanKey.DayNote, is PlanKey.MemberNote -> Notes.isValid(value)
+        is PlanKey.Wish -> Wish.fromCode(value) != null
     }
 }
 

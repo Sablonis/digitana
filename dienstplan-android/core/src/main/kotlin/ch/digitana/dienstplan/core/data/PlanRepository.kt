@@ -4,10 +4,16 @@ import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.HybridClock
 import ch.digitana.dienstplan.core.crdt.NameProblem
 import ch.digitana.dienstplan.core.crdt.Names
+import ch.digitana.dienstplan.core.crdt.Notes
 import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanState
-import ch.digitana.dienstplan.core.crdt.Shift
+import ch.digitana.dienstplan.core.crdt.ShiftPattern
+import ch.digitana.dienstplan.core.crdt.ShiftPatterns
+import ch.digitana.dienstplan.core.crdt.ShiftType
+import ch.digitana.dienstplan.core.crdt.ShiftTypes
 import ch.digitana.dienstplan.core.crdt.WeekId
+import ch.digitana.dienstplan.core.crdt.Wish
+import ch.digitana.dienstplan.core.plan.PatternPlanner
 import ch.digitana.dienstplan.core.group.PlanSync
 import ch.digitana.dienstplan.core.util.Clock
 import ch.digitana.dienstplan.core.util.Logger
@@ -29,8 +35,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
-/** Ungültige lokale Eingabe (z. B. leerer oder zu langer Name). */
-class InvalidInputException(val problem: NameProblem) : IllegalArgumentException("Ungültiger Name: $problem")
+/** Ungültige lokale Eingabe (z. B. leerer oder zu langer Name oder Notiz). */
+class InvalidInputException(val problem: NameProblem) : IllegalArgumentException("Ungültige Eingabe: $problem")
 
 /**
  * CRDT-Speicher des Plans. Lokale Änderungen bekommen einen Zeitstempel der hybriden Uhr
@@ -86,23 +92,61 @@ class PlanRepository(
         _loaded.value = true
     }
 
-    suspend fun setShift(memberId: String, date: LocalDate, shift: Shift?) {
-        write { listOf(PlanKeys.shift(memberId, date) to (shift?.code ?: "")) }
+    /** Trägt eine Schichtart ein; null leert das Feld. */
+    suspend fun setShift(memberId: String, date: LocalDate, typeId: String?) {
+        require(typeId == null || ShiftTypes.isValidId(typeId)) { "Ungültige Schichtart" }
+        write { listOf(PlanKeys.shift(memberId, date) to (typeId ?: "")) }
+    }
+
+    /** Notiz zum Tag; leer löscht sie. */
+    suspend fun setDayNote(date: LocalDate, note: String) {
+        val value = validateNote(note)
+        write { listOf(PlanKeys.dayNote(date) to value) }
+    }
+
+    /** Notiz zum Dienst einer Person; leer löscht sie. */
+    suspend fun setMemberNote(memberId: String, date: LocalDate, note: String) {
+        val value = validateNote(note)
+        write { listOf(PlanKeys.memberNote(memberId, date) to value) }
+    }
+
+    /** Wunsch einer Person; null löscht ihn. */
+    suspend fun setWish(memberId: String, date: LocalDate, wish: Wish?) {
+        write { listOf(PlanKeys.wish(memberId, date) to (wish?.code ?: "")) }
+    }
+
+    /** Freie ID für eine neue Schichtart. */
+    fun newShiftTypeId(): String = ShiftTypes.newId(_state.value.shiftTypes.ids)
+
+    /** Legt eine Schichtart an oder ändert sie (auch Archivieren). */
+    suspend fun saveShiftType(type: ShiftType) {
+        write { listOf(PlanKeys.shiftType(type.id) to ShiftTypes.encode(type)) }
+    }
+
+    /** Setzt eine Standardart (F, S, N, X, U) auf ihre ursprünglichen Werte zurück. */
+    suspend fun resetShiftType(typeId: String) {
+        require(typeId in ShiftTypes.BUILT_IN_IDS) { "Nur Standardarten lassen sich zurücksetzen" }
+        write { listOf(PlanKeys.shiftType(typeId) to "") }
+    }
+
+    fun newPatternId(): String = ShiftPatterns.newId(_state.value.patterns().map { it.id }.toSet())
+
+    suspend fun savePattern(pattern: ShiftPattern) {
+        write { listOf(PlanKeys.pattern(pattern.id) to ShiftPatterns.encode(pattern)) }
+    }
+
+    suspend fun deletePattern(patternId: String) {
+        write { listOf(PlanKeys.pattern(patternId) to "") }
     }
 
     /**
-     * Schaltet ein Feld weiter (leer → F → S → N → X → U → leer). Lesen und Schreiben
-     * geschehen unter derselben Sperre, damit schnelles Mehrfachtippen keinen Schritt verliert.
-     * @return die neue Schicht.
+     * Wendet einen Rhythmus ab dem Montag [start] für [weeks] Wochen auf Personen an.
+     * Mit [overwrite] wird der Zeitraum genau wie der Rhythmus (leere Tage leeren das Feld),
+     * sonst werden nur leere Felder gefüllt.
+     * @return Anzahl geänderter Felder.
      */
-    suspend fun cycleShift(memberId: String, date: LocalDate): Shift? {
-        var next: Shift? = null
-        write { state ->
-            next = Shift.next(state.shift(memberId, date))
-            listOf(PlanKeys.shift(memberId, date) to (next?.code ?: ""))
-        }
-        return next
-    }
+    suspend fun applyPattern(pattern: ShiftPattern, memberIds: List<String>, start: LocalDate, weeks: Int, overwrite: Boolean): Int =
+        write { state -> PatternPlanner.changes(state, pattern, memberIds, start, weeks, overwrite) }
 
     /** @return die ID der neuen Person. */
     suspend fun addMember(name: String): String {
@@ -148,7 +192,7 @@ class PlanRepository(
             for (member in state.members()) {
                 source.days.zip(target.days).forEach { (from, to) ->
                     if (!PlanKeys.isValidDate(from) || !PlanKeys.isValidDate(to)) return@forEach
-                    val value = state.shift(member.id, from)?.code ?: ""
+                    val value = state.shift(member.id, from) ?: ""
                     changes += PlanKeys.shift(member.id, to) to value
                 }
             }
@@ -265,6 +309,11 @@ class PlanRepository(
     private fun validateName(input: String): String {
         Names.checkLocalInput(input)?.let { throw InvalidInputException(it) }
         return Names.normalizeInput(input)
+    }
+
+    private fun validateNote(input: String): String {
+        Notes.checkLocalInput(input)?.let { throw InvalidInputException(it) }
+        return Notes.normalizeInput(input)
     }
 
     companion object {

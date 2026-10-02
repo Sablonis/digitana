@@ -18,19 +18,24 @@ import ch.digitana.dienstplan.core.sync.OkHttpRelayTransport
 import ch.digitana.dienstplan.core.sync.RelayUrls
 import ch.digitana.dienstplan.core.sync.SecureHttp
 import ch.digitana.dienstplan.core.util.Logger
+import ch.digitana.dienstplan.export.PlanExport
 import ch.digitana.dienstplan.notify.ShiftAlerts
 import ch.digitana.dienstplan.notify.ShiftNotifications
 import ch.digitana.dienstplan.security.AndroidKeystoreKeyWrapper
 import ch.digitana.dienstplan.sync.BackgroundSyncScheduler
 import ch.digitana.dienstplan.sync.SyncController
 import ch.digitana.dienstplan.util.AndroidLogger
+import ch.digitana.dienstplan.widget.WidgetUpdater
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -96,9 +101,12 @@ class AppContainer(context: Context) {
     private val teamMutex = Mutex()
     private val justCreatedTeam = AtomicBoolean(false)
 
+    @OptIn(FlowPreview::class)
     fun initialize() {
         notifications.createChannel()
         scope.launch {
+            // Geteilte Exporte (PDF, Bild, Kalender) nicht länger als nötig aufbewahren.
+            withContext(Dispatchers.IO) { runCatching { PlanExport.cleanUp(context) } }
             val readable = try {
                 loadAll()
                 true
@@ -118,6 +126,16 @@ class AppContainer(context: Context) {
                 teamRepository.state.collect { state ->
                     planRepository.deviceId = if (state is TeamState.Member) teamRepository.deviceId else null
                 }
+            }
+            // Widget „Meine Dienste“ nach Änderungen am Plan oder an „Ich“ neu zeichnen (gebündelt).
+            launch {
+                combine(planRepository.state, settingsRepository.settings) { plan, settings -> plan to settings.myMemberId }
+                    .distinctUntilChanged()
+                    .debounce(WIDGET_DEBOUNCE_MILLIS)
+                    .collect { (plan, me) ->
+                        runCatching { WidgetUpdater.updateAll(context, plan, me) }
+                            .onFailure { logger.warn(TAG, "Widget nicht aktualisiert", it) }
+                    }
             }
             // Hintergrund-Abgleich nur, solange das Gerät einem Team angehört oder beitritt.
             launch {
@@ -254,6 +272,7 @@ class AppContainer(context: Context) {
 
     private companion object {
         const val TAG = "AppContainer"
+        const val WIDGET_DEBOUNCE_MILLIS = 1_000L
         /** Teamdatei der alten Version (DP2). */
         const val LEGACY_TEAM_FILE = "team.bin"
 

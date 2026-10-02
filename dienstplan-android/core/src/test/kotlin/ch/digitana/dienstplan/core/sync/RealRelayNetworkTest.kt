@@ -2,7 +2,6 @@ package ch.digitana.dienstplan.core.sync
 
 import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.PlanKeys
-import ch.digitana.dienstplan.core.crdt.Shift
 import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.group.GroupSyncConfig
 import ch.digitana.dienstplan.core.group.TeamState
@@ -96,13 +95,13 @@ class RealRelayNetworkTest {
         var writtenByB: Entry? = null
         coroutineScope {
             launch {
-                a.plan.setShift(anna, week.days[0], Shift.FRUEH)
-                a.plan.setShift(anna, week.days[2], Shift.NACHT)
+                a.plan.setShift(anna, week.days[0], "F")
+                a.plan.setShift(anna, week.days[2], "N")
                 writtenByA = a.state.entry(conflictKey)
             }
             launch {
-                b.plan.setShift(ben, week.days[1], Shift.SPAET)
-                b.plan.setShift(anna, week.days[2], Shift.URLAUB)
+                b.plan.setShift(ben, week.days[1], "S")
+                b.plan.setShift(anna, week.days[2], "U")
                 writtenByB = b.state.entry(conflictKey)
             }
         }

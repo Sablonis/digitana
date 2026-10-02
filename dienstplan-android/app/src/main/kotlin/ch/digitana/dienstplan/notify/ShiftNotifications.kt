@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import ch.digitana.dienstplan.R
+import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
 import ch.digitana.dienstplan.core.plan.ShiftChange
 import ch.digitana.dienstplan.core.plan.ShiftChangeText
 import ch.digitana.dienstplan.ui.MainActivity
@@ -29,7 +30,7 @@ class ShiftNotifications(private val context: Context) {
         NotificationManagerCompat.from(context).createNotificationChannel(channel)
     }
 
-    fun show(changes: List<ShiftChange>) {
+    fun show(changes: List<ShiftChange>, types: ShiftTypeSet) {
         if (changes.isEmpty()) return
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return
@@ -39,7 +40,7 @@ class ShiftNotifications(private val context: Context) {
             return
         }
 
-        val lines = changes.take(MAX_LINES).map(ShiftChangeText::line)
+        val lines = changes.take(MAX_LINES).map { ShiftChangeText.line(it, types) }
         val style = NotificationCompat.InboxStyle()
         lines.forEach { style.addLine(it) }
         if (changes.size > MAX_LINES) {

@@ -3,7 +3,7 @@ package ch.digitana.dienstplan.core.plan
 import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanState
-import ch.digitana.dienstplan.core.crdt.Shift
+import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
 import ch.digitana.dienstplan.core.data.DeviceSettings
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
@@ -37,20 +37,20 @@ class ShiftWatchTest {
     @Test
     fun `kuenftige Dienste ohne Vergangenheit, leere Felder und andere Personen`() {
         assertEquals(
-            mapOf(today to Shift.FRUEH, today.plusDays(1) to Shift.SPAET, today.plusDays(9) to Shift.URLAUB),
+            mapOf(today to "F", today.plusDays(1) to "S", today.plusDays(9) to "U"),
             ShiftWatch.upcomingShifts(base, anna, today),
         )
     }
 
     @Test
     fun `Unterschiede nach Datum sortiert, Vergangenheit ignoriert`() {
-        val before = mapOf(today.minusDays(1) to Shift.FRUEH, today to Shift.FRUEH, today.plusDays(3) to Shift.NACHT)
-        val after = mapOf(today to Shift.SPAET, today.plusDays(1) to Shift.FREI)
+        val before = mapOf(today.minusDays(1) to "F", today to "F", today.plusDays(3) to "N")
+        val after = mapOf(today to "S", today.plusDays(1) to "X")
         assertEquals(
             listOf(
-                ShiftChange(today, Shift.FRUEH, Shift.SPAET),
-                ShiftChange(today.plusDays(1), null, Shift.FREI),
-                ShiftChange(today.plusDays(3), Shift.NACHT, null),
+                ShiftChange(today, "F", "S"),
+                ShiftChange(today.plusDays(1), null, "X"),
+                ShiftChange(today.plusDays(3), "N", null),
             ),
             ShiftWatch.diff(before, after, today),
         )
@@ -69,7 +69,7 @@ class ShiftWatchTest {
         val changed = base.set(anna, today.plusDays(1), "N")
 
         val (afterFirst, first) = ShiftWatch.afterSync(seen, changed, today)
-        assertEquals(ChangeAlert.Show(listOf(ShiftChange(today.plusDays(1), Shift.SPAET, Shift.NACHT))), first)
+        assertEquals(ChangeAlert.Show(listOf(ShiftChange(today.plusDays(1), "S", "N"))), first)
 
         val (afterRepeat, repeat) = ShiftWatch.afterSync(afterFirst, changed, today)
         assertEquals(ChangeAlert.None, repeat, "derselbe Stand wird nicht nochmals gemeldet")
@@ -79,8 +79,8 @@ class ShiftWatchTest {
         assertEquals(
             ChangeAlert.Show(
                 listOf(
-                    ShiftChange(today.plusDays(1), Shift.SPAET, Shift.NACHT),
-                    ShiftChange(today.plusDays(4), null, Shift.FRUEH),
+                    ShiftChange(today.plusDays(1), "S", "N"),
+                    ShiftChange(today.plusDays(4), null, "F"),
                 ),
             ),
             second,
@@ -130,15 +130,15 @@ class ShiftWatchTest {
     @Test
     fun `Texte fuer die Benachrichtigung`() {
         val changes = listOf(
-            ShiftChange(LocalDate.of(2026, 10, 5), Shift.FRUEH, Shift.SPAET),
-            ShiftChange(LocalDate.of(2026, 10, 6), null, Shift.NACHT),
-            ShiftChange(LocalDate.of(2026, 10, 7), Shift.URLAUB, null),
+            ShiftChange(LocalDate.of(2026, 10, 5), "F", "S"),
+            ShiftChange(LocalDate.of(2026, 10, 6), null, "N"),
+            ShiftChange(LocalDate.of(2026, 10, 7), "U", null),
         )
         assertEquals("3 Änderungen an deinem Dienstplan", ShiftChangeText.title(changes))
         assertEquals("Dein Dienstplan wurde geändert", ShiftChangeText.title(changes.take(1)))
         assertEquals(
             listOf("Mo 5.10.: Früh → Spät", "Di 6.10.: Nacht (neu)", "Mi 7.10.: Urlaub entfällt"),
-            changes.map(ShiftChangeText::line),
+            changes.map { ShiftChangeText.line(it, ShiftTypeSet.DEFAULT) },
         )
     }
 }

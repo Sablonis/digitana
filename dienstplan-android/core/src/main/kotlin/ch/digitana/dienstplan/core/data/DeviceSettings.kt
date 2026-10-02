@@ -1,7 +1,7 @@
 package ch.digitana.dienstplan.core.data
 
 import ch.digitana.dienstplan.core.crdt.PlanKeys
-import ch.digitana.dienstplan.core.crdt.Shift
+import ch.digitana.dienstplan.core.crdt.ShiftTypes
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,10 +31,10 @@ data class DeviceSettings(
     val myMemberId: String? = null,
     /** Benachrichtigen, wenn sich die eigenen künftigen Dienste ändern. */
     val notifyOnChanges: Boolean = false,
-    /** Eigene Dienste, wie sie zuletzt in der App zu sehen waren; null = noch keine Grundlage. */
-    val seenShifts: Map<LocalDate, Shift>? = null,
+    /** Eigene Dienste (IDs der Schichtarten), wie sie zuletzt in der App zu sehen waren; null = noch keine Grundlage. */
+    val seenShifts: Map<LocalDate, String>? = null,
     /** Stand, über den zuletzt benachrichtigt wurde; null = keine offene Benachrichtigung. */
-    val notifiedShifts: Map<LocalDate, Shift>? = null,
+    val notifiedShifts: Map<LocalDate, String>? = null,
 ) {
     init {
         require(myMemberId == null || PlanKeys.isValidId(myMemberId)) { "Ungültige Mitglieds-ID" }
@@ -63,13 +63,13 @@ object DeviceSettingsCodec {
         return DeviceSettings(me, notify, shifts(root["seen"]), shifts(root["notified"]))
     }
 
-    private fun JsonObjectBuilder.putShifts(name: String, shifts: Map<LocalDate, Shift>) {
+    private fun JsonObjectBuilder.putShifts(name: String, shifts: Map<LocalDate, String>) {
         putJsonObject(name) {
-            for ((date, shift) in shifts.toSortedMap()) put(date.toString(), shift.code)
+            for ((date, typeId) in shifts.toSortedMap()) put(date.toString(), typeId)
         }
     }
 
-    private fun shifts(element: JsonElement?): Map<LocalDate, Shift>? {
+    private fun shifts(element: JsonElement?): Map<LocalDate, String>? {
         if (element == null) return null
         val obj = element as? JsonObject ?: throw IllegalArgumentException("Dienste ungültig")
         require(obj.size <= MAX_SHIFTS) { "Zu viele Dienste" }
@@ -80,9 +80,9 @@ object DeviceSettingsCodec {
                 throw IllegalArgumentException("Datum ungültig", e)
             }
             require(PlanKeys.isValidDate(date)) { "Datum ausserhalb 2000–2100" }
-            val code = (value as? JsonPrimitive)?.takeIf { it.isString }?.content
-            val shift = code?.let { Shift.fromCode(it) } ?: throw IllegalArgumentException("Kürzel ungültig")
-            date to shift
+            val typeId = (value as? JsonPrimitive)?.takeIf { it.isString }?.content
+                ?.takeIf { ShiftTypes.isValidId(it) } ?: throw IllegalArgumentException("Schichtart ungültig")
+            date to typeId
         }
     }
 }

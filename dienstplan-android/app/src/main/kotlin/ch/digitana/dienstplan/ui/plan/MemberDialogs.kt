@@ -84,7 +84,7 @@ fun MemberNameDialog(
     )
 }
 
-/** Umbenennen oder Löschen (mit Rückfrage). */
+/** Umbenennen, „Das bin ich“ oder Löschen (mit Rückfrage). */
 @Composable
 fun EditMemberDialog(
     member: Member,
@@ -92,6 +92,8 @@ fun EditMemberDialog(
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
+    isMe: Boolean = false,
+    onToggleMe: (() -> Unit)? = null,
 ) {
     var confirmDelete by rememberSaveable(member.id) { mutableStateOf(false) }
     if (confirmDelete) {
@@ -119,6 +121,11 @@ fun EditMemberDialog(
         onConfirm = onRename,
         onDismiss = onDismiss,
         extraContent = {
+            if (onToggleMe != null) {
+                TextButton(onClick = onToggleMe) {
+                    Text(stringResource(if (isMe) R.string.member_not_me else R.string.member_is_me))
+                }
+            }
             TextButton(
                 onClick = { confirmDelete = true },
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),

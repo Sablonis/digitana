@@ -2,7 +2,6 @@ package ch.digitana.dienstplan.core.group
 
 import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.PlanKeys
-import ch.digitana.dienstplan.core.crdt.Shift
 import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.nostr.Nip01
 import ch.digitana.dienstplan.core.testing.FakeRelay
@@ -81,12 +80,12 @@ class GroupSyncEngineTest {
         awaitLive(a)
         val anna = a.plan.addMember("Anna")
         val ben = a.plan.addMember("Ben")
-        a.plan.setShift(anna, week.days[0], Shift.FRUEH)
+        a.plan.setShift(anna, week.days[0], "F")
 
         val b = device("B")
         join(a, b)
         // Das neue Gerät bekommt den ganzen Plan, obwohl es ältere Nachrichten nicht lesen kann.
-        assertTrue(awaitCondition(20_000) { b.state.members().size == 2 && b.state.shift(anna, week.days[0]) == Shift.FRUEH }, "B hat den Plan nicht")
+        assertTrue(awaitCondition(20_000) { b.state.members().size == 2 && b.state.shift(anna, week.days[0]) == "F" }, "B hat den Plan nicht")
 
         val c = device("C")
         join(a, c)
@@ -99,13 +98,13 @@ class GroupSyncEngineTest {
         var writtenByC: Entry? = null
         coroutineScope {
             launch {
-                b.plan.setShift(ben, week.days[1], Shift.SPAET)
-                b.plan.setShift(anna, week.days[2], Shift.NACHT)
+                b.plan.setShift(ben, week.days[1], "S")
+                b.plan.setShift(anna, week.days[2], "N")
                 writtenByB = b.state.entry(conflictKey)
                 b.plan.addMember("Chiara")
             }
             launch {
-                c.plan.setShift(anna, week.days[2], Shift.URLAUB)
+                c.plan.setShift(anna, week.days[2], "U")
                 writtenByC = c.state.entry(conflictKey)
                 c.plan.addMember("Dario")
             }
@@ -114,7 +113,7 @@ class GroupSyncEngineTest {
         assertTrue(awaitConvergence(listOf(a, b, c), 30_000), "Änderungen konvergieren nicht")
         assertEquals(Entry.newer(writtenByB, writtenByC), a.state.entry(conflictKey), "Last-Writer-Wins")
         assertEquals(setOf("Anna", "Ben", "Chiara", "Dario"), a.state.members().map { it.name }.toSet())
-        assertEquals(Shift.SPAET, c.state.shift(ben, week.days[1]))
+        assertEquals("S", c.state.shift(ben, week.days[1]))
 
         // Auf den Relays liegt nichts Lesbares; das KeyPackage von B ist nach dem Beitritt gelöscht.
         for (relay in relays) {
@@ -195,10 +194,10 @@ class GroupSyncEngineTest {
         assertTrue(awaitConvergence(listOf(a, b), 30_000))
 
         b.stopEngine()
-        b.plan.setShift(anna, week.days[4], Shift.NACHT)
+        b.plan.setShift(anna, week.days[4], "N")
         assertEquals(1, b.plan.pendingEntries().size)
         b.restart()
-        assertTrue(awaitCondition(20_000) { a.state.shift(anna, week.days[4]) == Shift.NACHT }, "Offline-Änderung kam nicht an")
+        assertTrue(awaitCondition(20_000) { a.state.shift(anna, week.days[4]) == "N" }, "Offline-Änderung kam nicht an")
         assertTrue(awaitCondition(10_000) { b.plan.pendingEntries().isEmpty() })
     }
 
@@ -217,14 +216,14 @@ class GroupSyncEngineTest {
         Thread.sleep(1_000)
 
         b.stopEngine()
-        a.plan.setShift(anna, week.days[3], Shift.SPAET)
+        a.plan.setShift(anna, week.days[3], "S")
         assertTrue(awaitCondition(10_000) { a.plan.pendingEntries().isEmpty() })
         // Die Relays verlieren alles (z. B. Aufbewahrungsfrist abgelaufen).
         relays.forEach { it.wipe() }
         // Übersicht sofort fällig (sonst alle paar Stunden).
         b.team.updateRecord { it.copy(lastOverviewAt = 0) }
         b.restart()
-        assertTrue(awaitCondition(20_000) { b.state.shift(anna, week.days[3]) == Shift.SPAET }, "Verlust nicht repariert")
+        assertTrue(awaitCondition(20_000) { b.state.shift(anna, week.days[3]) == "S" }, "Verlust nicht repariert")
     }
 
     @Test
@@ -288,9 +287,9 @@ class GroupSyncEngineTest {
         assertEquals(before + 1, member(a).team.epoch)
 
         // Danach geht der Austausch normal weiter.
-        a.plan.setShift(anna, week.days[5], Shift.FRUEH)
-        assertTrue(awaitCondition(20_000) { b.state.shift(anna, week.days[5]) == Shift.FRUEH }, "A sendet nicht mehr")
-        b.plan.setShift(anna, week.days[6], Shift.SPAET)
-        assertTrue(awaitCondition(20_000) { a.state.shift(anna, week.days[6]) == Shift.SPAET }, "A liest nicht mehr")
+        a.plan.setShift(anna, week.days[5], "F")
+        assertTrue(awaitCondition(20_000) { b.state.shift(anna, week.days[5]) == "F" }, "A sendet nicht mehr")
+        b.plan.setShift(anna, week.days[6], "S")
+        assertTrue(awaitCondition(20_000) { a.state.shift(anna, week.days[6]) == "S" }, "A liest nicht mehr")
     }
 }

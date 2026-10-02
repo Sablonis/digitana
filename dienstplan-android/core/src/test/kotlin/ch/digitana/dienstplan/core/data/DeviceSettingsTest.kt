@@ -1,6 +1,5 @@
 package ch.digitana.dienstplan.core.data
 
-import ch.digitana.dienstplan.core.crdt.Shift
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -18,8 +17,8 @@ class DeviceSettingsTest {
         val settings = DeviceSettings(
             myMemberId = anna,
             notifyOnChanges = true,
-            seenShifts = mapOf(LocalDate.of(2026, 10, 7) to Shift.FRUEH, LocalDate.of(2026, 10, 8) to Shift.URLAUB),
-            notifiedShifts = mapOf(LocalDate.of(2026, 10, 7) to Shift.SPAET),
+            seenShifts = mapOf(LocalDate.of(2026, 10, 7) to "F", LocalDate.of(2026, 10, 8) to "U", LocalDate.of(2026, 10, 9) to "0a1b2c3d"),
+            notifiedShifts = mapOf(LocalDate.of(2026, 10, 7) to "S"),
         )
         assertEquals(settings, DeviceSettingsCodec.decode(DeviceSettingsCodec.encode(settings)))
         assertEquals(DeviceSettings(), DeviceSettingsCodec.decode(DeviceSettingsCodec.encode(DeviceSettings())))
@@ -36,6 +35,7 @@ class DeviceSettingsTest {
             """{"v":1,"notify":true,"seen":{"2026-02-30":"F"}}""",
             """{"v":1,"notify":true,"seen":{"1999-12-31":"F"}}""",
             """{"v":1,"notify":true,"seen":{"2026-10-07":"Q"}}""",
+            """{"v":1,"notify":true,"seen":{"2026-10-07":"0A1B2C3D"}}""",
             """{"v":1,"notify":true,"seen":{"2026-10-07":1}}""",
             """{"v":1,"notify":true,"seen":[]}""",
         )

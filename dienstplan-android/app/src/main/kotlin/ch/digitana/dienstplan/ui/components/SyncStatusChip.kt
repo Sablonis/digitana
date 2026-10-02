@@ -26,11 +26,12 @@ import androidx.compose.ui.unit.dp
 import ch.digitana.dienstplan.R
 import ch.digitana.dienstplan.core.sync.SyncStatus
 
-/** „Live · 3/3 Relays“ – Tipp öffnet die Diagnose. */
+/** „Live · 3/3 Relays“ – Tipp öffnet die Diagnose. [compact]: nur „Live“, „Offline“ … */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SyncStatusChip(status: SyncStatus, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun SyncStatusChip(status: SyncStatus, onClick: () -> Unit, modifier: Modifier = Modifier, compact: Boolean = false) {
     val label = syncStatusLabel(status)
+    val shown = if (compact) compactSyncStatusLabel(status) else label
     val dot = when {
         status.liveRelays > 0 && status.pendingBuckets == 0 -> Color(0xFF2E7D32)
         status.liveRelays > 0 || status.connectingRelays > 0 -> Color(0xFFF9A825)
@@ -49,7 +50,7 @@ fun SyncStatusChip(status: SyncStatus, onClick: () -> Unit, modifier: Modifier =
         ) {
             Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
             Spacer(Modifier.width(6.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(shown, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -67,4 +68,13 @@ fun syncStatusLabel(status: SyncStatus): String {
     } else {
         base
     }
+}
+
+@Composable
+fun compactSyncStatusLabel(status: SyncStatus): String = when {
+    !status.running -> stringResource(R.string.sync_stopped_short)
+    status.liveRelays > 0 && status.pendingBuckets > 0 -> stringResource(R.string.sync_pending_short)
+    status.liveRelays > 0 -> stringResource(R.string.sync_live_short)
+    status.connectingRelays > 0 -> stringResource(R.string.sync_connecting_short)
+    else -> stringResource(R.string.sync_offline)
 }

@@ -64,25 +64,20 @@
     <!-- Wochenplan -->
     <string name="menu_more">Weitere Optionen</string>
     <string name="menu_copy_week">Woche kopieren</string>
-    <string name="menu_team">Team und Geräte</string>
     <string name="menu_diagnostics">Sync-Diagnose</string>
     <string name="action_add_member">Person hinzufügen</string>
     <string name="week_previous">Vorherige Woche</string>
     <string name="week_next">Nächste Woche</string>
     <string name="week_today_hint">Zur aktuellen Woche springen</string>
-    <string name="column_name">Name</string>
-    <string name="column_hours">Std.</string>
-    <string name="hours_value">%1$d h</string>
     <string name="coverage_label">Besetzung</string>
-    <string name="empty_members">Noch keine Mitarbeitenden. Tippe unten auf „Person hinzufügen“.</string>
-    <string name="legend">Tippen: F → S → N → X → U → leer · Lange drücken: leeren</string>
-    <string name="cell_click_label">Schicht wechseln</string>
+    <string name="empty_members">Noch keine Personen im Plan. Füge die erste hinzu.</string>
+    <string name="cell_click_label">Feld bearbeiten</string>
     <string name="cell_long_click_label">Feld leeren</string>
     <string name="cell_description">%1$s, %2$s: %3$s</string>
     <string name="cell_empty">kein Eintrag</string>
-    <string name="coverage_description">%1$s: Früh %2$d, Spät %3$d, Nacht %4$d</string>
+    <string name="coverage_description">%1$s: %2$s</string>
     <string name="member_click_label">Umbenennen oder löschen</string>
-    <string name="member_hours_description">%1$s, %2$d Stunden diese Woche</string>
+    <string name="member_hours_description">%1$s, %2$s diese Woche</string>
     <string name="today_marker">heute</string>
 
     <!-- Woche kopieren -->
@@ -221,4 +216,148 @@
     <!-- Speicher zurückgesetzt -->
     <string name="storage_reset_title">Lokale Daten zurückgesetzt</string>
     <string name="storage_reset_text">Die gespeicherten Daten konnten nicht mehr entschlüsselt werden (z. B. nach einem Zurücksetzen des Schlüsselspeichers). Sie wurden gelöscht. Lass dieses Gerät von einem Admin neu hinzufügen – der Plan kommt dann von den anderen Geräten.</string>
+
+    <!-- Navigation -->
+    <string name="tab_week">Woche</string>
+    <string name="tab_month">Monat</string>
+    <string name="tab_me">Ich</string>
+    <string name="tab_team">Team</string>
+
+    <!-- Wochen- und Monatsansicht -->
+    <string name="column_team">Team</string>
+    <string name="today_label">Heute</string>
+    <string name="today_title">Heute, %1$s</string>
+    <string name="today_mine">Du: %1$s</string>
+    <string name="today_mine_none">Du: kein Eintrag</string>
+    <string name="today_nobody">Heute ist noch niemand im Dienst eingetragen.</string>
+    <string name="coverage_total">Im Dienst</string>
+    <string name="day_click_label">Tag öffnen</string>
+    <string name="day_has_note">mit Notiz</string>
+    <string name="menu_shift_types">Schichtarten</string>
+    <string name="menu_patterns">Rhythmen</string>
+    <string name="menu_share_week">Woche teilen</string>
+    <string name="menu_share_month">Monat teilen</string>
+    <string name="month_previous">Vorheriger Monat</string>
+    <string name="month_next">Nächster Monat</string>
+    <string name="month_total">%1$s geplant</string>
+    <string name="shift_unknown">Unbekannte Schicht</string>
+    <string name="selected">ausgewählt</string>
+    <string name="member_is_me">Das bin ich</string>
+    <string name="member_not_me">Das bin nicht ich</string>
+
+    <!-- Feld und Tag bearbeiten -->
+    <string name="sheet_shift">Schicht</string>
+    <string name="sheet_clear">Feld leeren</string>
+    <string name="sheet_wish">Wunsch</string>
+    <string name="sheet_member_note">Notiz zum Dienst</string>
+    <string name="sheet_member_note_hint">z. B. Schlüssel holen</string>
+    <string name="day_coverage">Besetzung</string>
+    <string name="day_nobody">Noch niemand eingeteilt.</string>
+    <string name="day_unassigned">Ohne Eintrag: %1$s</string>
+    <string name="day_wishes">Wünsche</string>
+    <string name="day_note">Notiz zum Tag</string>
+    <string name="day_note_hint">z. B. Teamsitzung um 14 Uhr</string>
+    <string name="note_delete">Notiz löschen</string>
+    <string name="note_error_invalid">Die Notiz enthält unzulässige Zeichen (z. B. Zeilenumbrüche).</string>
+    <string name="kind_work">Arbeit</string>
+    <string name="kind_off">Frei</string>
+    <string name="kind_absence">Abwesend</string>
+    <string name="kind_all_day">Ganztägig</string>
+
+    <!-- Meine Dienste -->
+    <string name="me_title">Meine Dienste</string>
+    <string name="me_choose_title">Wer bist du?</string>
+    <string name="me_choose_text">Wähle, wer du im Plan bist. Dann siehst du hier deine Dienste, Stunden und Wünsche. Die Auswahl gilt nur auf diesem Gerät.</string>
+    <string name="me_change_person">Andere Person wählen</string>
+    <string name="me_export_calendar">In den Kalender übernehmen</string>
+    <string name="me_hours">Diese Woche %1$s · %2$s: %3$s</string>
+    <string name="me_next">Nächster Dienst</string>
+    <string name="me_next_none">In den nächsten Wochen sind keine Dienste eingetragen.</string>
+    <string name="me_no_shift">Kein Eintrag</string>
+    <string name="me_day_note">Team: %1$s</string>
+    <string name="me_day_click_label">Tag bearbeiten</string>
+
+    <!-- Schichtarten -->
+    <string name="types_title">Schichtarten</string>
+    <string name="types_intro">Schichtarten gelten für das ganze Team. Änderungen erscheinen auf allen Geräten; bestehende Einträge behalten ihre Art.</string>
+    <string name="types_new">Neue Schichtart</string>
+    <string name="types_edit">Schichtart bearbeiten</string>
+    <string name="types_code">Kürzel</string>
+    <string name="types_code_duplicate">Kürzel schon vergeben</string>
+    <string name="types_name">Name</string>
+    <string name="types_kind">Art</string>
+    <string name="types_kind_work_hint">Arbeitsschichten zählen zur Besetzung des Tages.</string>
+    <string name="types_kind_off_hint">Freie Tage zählen weder zur Besetzung noch zu den Stunden.</string>
+    <string name="types_kind_absence_hint">Abwesenheiten wie Ferien, Kurs oder Krankheit zählen nicht zur Besetzung; Stunden lassen sich anrechnen.</string>
+    <string name="types_with_times">Mit Zeiten</string>
+    <string name="types_start">Beginn %1$s</string>
+    <string name="types_end">Ende %1$s</string>
+    <string name="types_start_title">Beginn</string>
+    <string name="types_end_title">Ende</string>
+    <string name="types_break">Pause (Minuten)</string>
+    <string name="types_break_short">%1$d min Pause</string>
+    <string name="types_credit">Angerechnete Stunden</string>
+    <string name="types_credit_hint">z. B. 8.4 für einen Ferientag; 0 = zählt nicht</string>
+    <string name="types_counts_as">Zählt %1$s</string>
+    <string name="types_color">Farbe</string>
+    <string name="types_archive">Archivieren</string>
+    <string name="types_restore">Wiederherstellen</string>
+    <string name="types_archive_hint">Archivierte Schichtarten bleiben im Plan sichtbar, werden aber nicht mehr zur Auswahl angeboten.</string>
+    <string name="types_archived">Archiviert</string>
+    <string name="types_reset">Zurücksetzen</string>
+
+    <!-- Rhythmen -->
+    <string name="patterns_title">Rhythmen</string>
+    <string name="patterns_intro">Ein Rhythmus ist eine Abfolge von Schichten über eine oder mehrere Wochen. Du kannst ihn auf Personen und beliebig viele Wochen anwenden.</string>
+    <string name="patterns_empty">Noch keine Rhythmen. Lege einen an, z. B. zwei Wochen Früh und zwei Wochen Spät.</string>
+    <string name="patterns_new">Neuer Rhythmus</string>
+    <string name="patterns_edit">Rhythmus bearbeiten</string>
+    <string name="patterns_name">Name</string>
+    <string name="patterns_name_hint">z. B. Wechselschicht</string>
+    <string name="patterns_weeks">%1$d Wo.</string>
+    <string name="patterns_brush">Pinsel: Schichtart wählen, dann Tage antippen</string>
+    <string name="patterns_brush_empty">Leer</string>
+    <string name="patterns_paint">Tag setzen</string>
+    <string name="patterns_paint_hint">Tippen setzt den Pinsel, nochmals tippen leert den Tag.</string>
+    <string name="patterns_apply">Anwenden</string>
+    <string name="patterns_apply_title">„%1$s“ anwenden</string>
+    <string name="patterns_apply_people">Für wen?</string>
+    <string name="patterns_apply_start">Ab Woche</string>
+    <string name="patterns_apply_weeks">Dauer: %1$d Wo.</string>
+    <string name="patterns_mode_fill">Nur leere Felder füllen</string>
+    <string name="patterns_mode_overwrite">Bestehende Einträge überschreiben</string>
+    <string name="patterns_delete_title">„%1$s“ löschen?</string>
+    <string name="patterns_delete_text">Bereits eingetragene Schichten bleiben im Plan.</string>
+    <string name="pattern_applied">Rhythmus angewendet: %1$d Felder geändert.</string>
+
+    <!-- Teilen und Export -->
+    <string name="share_title">Plan teilen</string>
+    <string name="share_unencrypted">Die Datei ist nicht verschlüsselt: Wer sie erhält, sieht Namen und Schichten.</string>
+    <string name="share_pdf">Als PDF</string>
+    <string name="share_image">Als Bild (PNG)</string>
+    <string name="share_week_chooser">Woche teilen</string>
+    <string name="share_month_chooser">Monat teilen</string>
+    <string name="share_calendar_chooser">Dienste in den Kalender übernehmen</string>
+
+    <!-- Widget -->
+    <string name="widget_title">Meine Dienste</string>
+    <string name="widget_description">Deine nächsten Dienste auf dem Startbildschirm</string>
+    <string name="widget_week_hours">Woche: %1$s</string>
+    <string name="widget_today">Heute</string>
+    <string name="widget_tomorrow">Morgen</string>
+    <string name="widget_no_plan">Noch kein Plan auf diesem Gerät.</string>
+    <string name="widget_choose_me">Öffne die App und wähle unter „Ich“, wer du bist.</string>
+    <string name="widget_no_shifts">Keine Dienste in den nächsten Wochen.</string>
+
+    <!-- Team: Planung -->
+    <string name="team_planning_title">Planung</string>
+    <string name="team_planning_types_hint">Kürzel, Zeiten und Farben festlegen</string>
+    <string name="team_planning_patterns_hint">Abfolgen anlegen und auf Wochen anwenden</string>
+    <string name="team_planning_diagnostics_hint">Verbindung zu den Relays prüfen</string>
+
+    <!-- Kurzer Sync-Status in der oberen Leiste -->
+    <string name="sync_live_short">Live</string>
+    <string name="sync_connecting_short">Verbinde …</string>
+    <string name="sync_pending_short">Sendet …</string>
+    <string name="sync_stopped_short">Pausiert</string>
 </resources>

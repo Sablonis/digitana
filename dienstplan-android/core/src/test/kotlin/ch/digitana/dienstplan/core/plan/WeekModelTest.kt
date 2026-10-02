@@ -3,7 +3,6 @@ package ch.digitana.dienstplan.core.plan
 import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanState
-import ch.digitana.dienstplan.core.crdt.Shift
 import ch.digitana.dienstplan.core.crdt.WeekId
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
@@ -42,15 +41,19 @@ class WeekModelTest {
         val model = WeekModel.build(state, week, today = LocalDate.of(2026, 9, 23))
         assertEquals(listOf("anna", "Ben"), model.rows.map { it.member.name }) // deutsche Sortierung, gelöschte fehlen
         val annaRow = model.rows[0]
-        assertEquals(listOf(Shift.FRUEH, Shift.SPAET, Shift.NACHT, Shift.FREI, Shift.URLAUB, null, null), annaRow.shifts)
-        assertEquals(24, annaRow.hours) // X und U zählen 0 h
-        assertEquals(16, model.rows[1].hours)
-        assertEquals(40, model.totalHours)
-        assertEquals(WeekModel.Coverage(2, 0, 0), model.coverage[0]) // Gelöschte zählen nicht
-        assertEquals(WeekModel.Coverage(0, 1, 0), model.coverage[1])
-        assertEquals(WeekModel.Coverage(0, 0, 1), model.coverage[2])
-        assertEquals(WeekModel.Coverage(0, 0, 0), model.coverage[5])
-        assertEquals(WeekModel.Coverage(0, 0, 1), model.coverage[6])
+        assertEquals(listOf("F", "S", "N", "X", "U", null, null), annaRow.cells.map { it.typeId })
+        assertEquals(listOf("Früh", "Spät", "Nacht", "Frei", "Urlaub"), annaRow.cells.take(5).map { it.type?.name })
+        assertEquals(24 * 60, annaRow.minutes) // X und U zählen 0 h
+        assertEquals(16 * 60, model.rows[1].minutes)
+        assertEquals(40 * 60, model.totalMinutes)
+        assertEquals(listOf("F", "S", "N"), model.coverageTypes.map { it.id }) // nur Arbeitsschichten
+        fun counts(day: Int) = model.coverage[day].counts.map { it.second }
+        assertEquals(listOf(2, 0, 0), counts(0)) // Gelöschte zählen nicht
+        assertEquals(listOf(0, 1, 0), counts(1))
+        assertEquals(listOf(0, 0, 1), counts(2))
+        assertEquals(listOf(0, 0, 0), counts(5))
+        assertEquals(listOf(0, 0, 1), counts(6))
+        assertEquals(1, model.coverage[6].count("N"))
     }
 
     @Test

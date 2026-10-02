@@ -5,8 +5,11 @@ import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.NameProblem
 import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanState
-import ch.digitana.dienstplan.core.crdt.Shift
+import ch.digitana.dienstplan.core.crdt.ShiftPattern
+import ch.digitana.dienstplan.core.crdt.ShiftType
+import ch.digitana.dienstplan.core.crdt.ShiftTypes
 import ch.digitana.dienstplan.core.crdt.WeekId
+import ch.digitana.dienstplan.core.crdt.Wish
 import ch.digitana.dienstplan.core.util.Clock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
@@ -19,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.LocalDate
+import java.time.LocalTime
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -56,8 +60,8 @@ class PlanRepositoryTest {
         val repo = repository()
         val id = repo.addMember("  Anna   Muster ")
         val date = LocalDate.of(2026, 9, 21)
-        repo.setShift(id, date, Shift.FRUEH)
-        repo.setShift(id, date, Shift.SPAET) // gleiche Millisekunde → trotzdem neuer Zeitstempel
+        repo.setShift(id, date, "F")
+        repo.setShift(id, date, "S") // gleiche Millisekunde → trotzdem neuer Zeitstempel
         val state = repo.state.value
         assertEquals("Anna Muster", state.members().single().name)
         val entry = state.entry(PlanKeys.shift(id, date))!!
@@ -67,14 +71,15 @@ class PlanRepositoryTest {
     }
 
     @Test
-    fun `schnelles Mehrfachtippen verliert keinen Schritt`() = runTest {
+    fun `gleichzeitige Aenderungen gehen nicht verloren`() = runTest {
         val repo = repository()
         val id = repo.addMember("Anna")
-        val date = LocalDate.of(2026, 9, 21)
-        coroutineScope { repeat(3) { launch { repo.cycleShift(id, date) } } }
-        assertEquals(Shift.NACHT, repo.state.value.shift(id, date)) // leer → F → S → N
-        repeat(3) { repo.cycleShift(id, date) } // → X → U → leer
-        assertNull(repo.state.value.shift(id, date))
+        val monday = LocalDate.of(2026, 9, 21)
+        val types = listOf("F", "S", "N", "X", "U")
+        coroutineScope { types.forEachIndexed { i, type -> launch { repo.setShift(id, monday.plusDays(i.toLong()), type) } } }
+        assertEquals(types, (0L..4L).map { repo.state.value.shift(id, monday.plusDays(it)) })
+        repo.setShift(id, monday, null)
+        assertNull(repo.state.value.shift(id, monday))
     }
 
     @Test
@@ -99,7 +104,7 @@ class PlanRepositoryTest {
         val repo = repository()
         val id = repo.addMember("Anna")
         val date = LocalDate.of(2026, 9, 21)
-        repo.setShift(id, date, Shift.NACHT)
+        repo.setShift(id, date, "N")
         repo.setShift(id, date, null)
         repo.deleteMember(id)
         val state = repo.state.value
@@ -116,10 +121,10 @@ class PlanRepositoryTest {
         val ben = repo.addMember("Ben")
         val source = WeekId(2026, 39)
         val target = source.next()
-        repo.setShift(anna, source.days[0], Shift.FRUEH)
-        repo.setShift(anna, source.days[6], Shift.URLAUB)
-        repo.setShift(ben, target.days[2], Shift.NACHT) // wird geleert
-        repo.setShift(anna, target.days[0], Shift.FRUEH) // schon gleich → nicht neu schreiben
+        repo.setShift(anna, source.days[0], "F")
+        repo.setShift(anna, source.days[6], "U")
+        repo.setShift(ben, target.days[2], "N") // wird geleert
+        repo.setShift(anna, target.days[0], "F") // schon gleich → nicht neu schreiben
         val before = repo.state.value.entry(PlanKeys.shift(anna, target.days[0]))
 
         assertTrue(repo.hasEntries(target))
@@ -128,7 +133,7 @@ class PlanRepositoryTest {
         val state = repo.state.value
         assertEquals(2, changed) // Anna So = U, Ben Mi geleert
         assertEquals(before, state.entry(PlanKeys.shift(anna, target.days[0])))
-        assertEquals(Shift.URLAUB, state.shift(anna, target.days[6]))
+        assertEquals("U", state.shift(anna, target.days[6]))
         assertNull(state.shift(ben, target.days[2]))
         for (i in 0..6) {
             assertEquals(state.shift(anna, source.days[i]), state.shift(anna, target.days[i]))
@@ -153,7 +158,7 @@ class PlanRepositoryTest {
     fun `speichert entprellt und laedt wieder`() = runTest {
         val repo = repository()
         val id = repo.addMember("Anna")
-        repeat(5) { repo.setShift(id, LocalDate.of(2026, 9, 21 + it), Shift.FRUEH) }
+        repeat(5) { repo.setShift(id, LocalDate.of(2026, 9, 21 + it), "F") }
         // Der Speicher-Job läuft im backgroundScope; advanceUntilIdle() würde ihn nicht vorspulen.
         advanceTimeBy(1_000)
         runCurrent()
@@ -165,7 +170,7 @@ class PlanRepositoryTest {
         val reloaded = repository()
         reloaded.load()
         assertEquals(repo.state.value, reloaded.state.value)
-        reloaded.setShift(id, LocalDate.of(2026, 9, 21), Shift.NACHT)
+        reloaded.setShift(id, LocalDate.of(2026, 9, 21), "N")
         val ts = reloaded.state.value.entry(PlanKeys.shift(id, LocalDate.of(2026, 9, 21)))!!.timestamp
         assertTrue(ts > repo.state.value.maxTimestamp, "HLC setzt nach dem Laden über dem höchsten bekannten Zeitstempel fort")
     }
@@ -184,13 +189,13 @@ class PlanRepositoryTest {
         val repo = repository()
         val id = repo.addMember("Anna")
         val date = LocalDate.of(2026, 9, 21)
-        repo.setShift(id, date, Shift.FRUEH)
+        repo.setShift(id, date, "F")
         val pending = repo.pendingEntries()
         assertEquals(setOf(PlanKeys.member(id), PlanKeys.shift(id, date)), pending.keys)
 
         // Bestätigung eines älteren Stands lässt die neuere Änderung ausstehend.
         val sentShift = pending.getValue(PlanKeys.shift(id, date)).timestamp
-        repo.setShift(id, date, Shift.NACHT)
+        repo.setShift(id, date, "N")
         repo.markSent(mapOf(PlanKeys.member(id) to pending.getValue(PlanKeys.member(id)).timestamp, PlanKeys.shift(id, date) to sentShift))
         assertEquals(setOf(PlanKeys.shift(id, date)), repo.pendingEntries().keys)
         assertEquals("N", repo.pendingEntries().getValue(PlanKeys.shift(id, date)).value)
@@ -232,5 +237,49 @@ class PlanRepositoryTest {
         repo.setDeviceLabel("0123456789abcdef", "")
         assertTrue(repo.state.value.deviceLabels().isEmpty())
         assertThrows<InvalidInputException> { repo.setDeviceLabel("0123456789abcdef", "x".repeat(41)) }
+    }
+
+    @Test
+    fun `Notizen, Wuensche, Schichtarten und Rhythmen`() = runTest {
+        val repo = repository()
+        val anna = repo.addMember("Anna")
+        val monday = LocalDate.of(2026, 10, 5)
+
+        repo.setDayNote(monday, "  Teamsitzung   14 Uhr ")
+        repo.setMemberNote(anna, monday, "Schlüssel holen")
+        assertEquals("Teamsitzung 14 Uhr", repo.state.value.dayNote(monday))
+        assertEquals("Schlüssel holen", repo.state.value.memberNote(anna, monday))
+        repo.setDayNote(monday, "   ")
+        assertNull(repo.state.value.dayNote(monday))
+        val tooLong = assertThrows<InvalidInputException> { repo.setMemberNote(anna, monday, "x".repeat(201)) }
+        assertEquals(NameProblem.TOO_LONG, tooLong.problem)
+        assertThrows<InvalidInputException> { repo.setDayNote(monday, "a\u202eb") }
+
+        repo.setWish(anna, monday, Wish.DAY_OFF)
+        assertEquals(Wish.DAY_OFF, repo.state.value.wish(anna, monday))
+        repo.setWish(anna, monday, null)
+        assertNull(repo.state.value.wish(anna, monday))
+
+        val typeId = repo.newShiftTypeId()
+        val type = ShiftType(typeId, "T", "Tagdienst", LocalTime.of(7, 0), LocalTime.of(16, 0), color = 5)
+        repo.saveShiftType(type)
+        assertEquals(type, repo.state.value.shiftTypes[typeId])
+        repo.saveShiftType(type.copy(archived = true))
+        assertTrue(repo.state.value.shiftTypes.active.none { it.id == typeId })
+        repo.saveShiftType(ShiftTypes.default("F")!!.copy(name = "Frühdienst"))
+        assertEquals("Frühdienst", repo.state.value.shiftTypes["F"]?.name)
+        repo.resetShiftType("F")
+        assertEquals("Früh", repo.state.value.shiftTypes["F"]?.name)
+        assertThrows<IllegalArgumentException> { repo.resetShiftType(typeId) }
+        assertThrows<IllegalArgumentException> { repo.setShift(anna, monday, "Q") }
+
+        val pattern = ShiftPattern(repo.newPatternId(), "Tagwoche", listOf(typeId, typeId, typeId, typeId, typeId, null, null))
+        repo.savePattern(pattern)
+        assertEquals(listOf(pattern), repo.state.value.patterns())
+        assertEquals(10, repo.applyPattern(pattern, listOf(anna), monday, weeks = 2, overwrite = false))
+        assertEquals(typeId, repo.state.value.shift(anna, monday.plusDays(8)))
+        assertEquals(0, repo.applyPattern(pattern, listOf(anna), monday, weeks = 2, overwrite = true)) // schon gleich
+        repo.deletePattern(pattern.id)
+        assertTrue(repo.state.value.patterns().isEmpty())
     }
 }

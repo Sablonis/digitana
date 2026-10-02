@@ -8,6 +8,14 @@
     <!-- Hinweis, wenn jemand die eigenen Dienste ändert (ab Android 13 mit Rückfrage). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Kalender-Export: prüfen, ob eine Kalender-App .ics-Dateien öffnet (Paket-Sichtbarkeit). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="text/calendar" />
+        </intent>
+    </queries>
+
     <!--
         Sicherheit:
         - allowBackup=false + dataExtractionRules (Android 12+) + fullBackupContent (bis Android 11):
@@ -39,6 +47,30 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Widget „Meine Dienste“ für den Startbildschirm. -->
+        <receiver
+            android:name=".widget.MyShiftsWidget"
+            android:exported="false"
+            android:label="@string/widget_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_my_shifts_info" />
+        </receiver>
+
+        <!-- Teilen von PDF, Bild und Kalenderdatei: nur der Ordner cache/exports, nur Leserecht auf Zeit. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.exports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/export_paths" />
+        </provider>
 
         <!-- WorkManager erst bei Bedarf initialisieren (DienstplanApp ist Configuration.Provider). -->
         <provider

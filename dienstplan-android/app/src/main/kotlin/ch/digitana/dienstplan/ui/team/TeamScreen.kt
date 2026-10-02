@@ -1,5 +1,7 @@
 package ch.digitana.dienstplan.ui.team
 
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -59,9 +61,13 @@ import ch.digitana.dienstplan.ui.components.SecureWindow
 @Composable
 fun TeamScreen(
     viewModel: TeamViewModel,
-    onBack: () -> Unit,
+    /** null: als Reiter ohne Zurück-Pfeil. */
+    onBack: (() -> Unit)?,
     showCreatedHint: Boolean = false,
     onCreatedHintShown: () -> Unit = {},
+    onOpenShiftTypes: () -> Unit = {},
+    onOpenPatterns: () -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {},
 ) {
     SecureWindow()
     val state by viewModel.teamState.collectAsStateWithLifecycle()
@@ -111,8 +117,10 @@ fun TeamScreen(
             TopAppBar(
                 title = { Text(member?.team?.name?.ifBlank { null } ?: stringResource(R.string.team_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.action_back))
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.action_back))
+                        }
                     }
                 },
             )
@@ -173,6 +181,13 @@ fun TeamScreen(
                     }
                 }
             }
+
+            PlanningSection(
+                readOnly = member == null,
+                onOpenShiftTypes = onOpenShiftTypes,
+                onOpenPatterns = onOpenPatterns,
+                onOpenDiagnostics = onOpenDiagnostics,
+            )
 
             NotificationSection(
                 members = members,
@@ -326,5 +341,52 @@ private fun Section(title: String, text: String, content: @Composable ColumnScop
             Text(text, style = MaterialTheme.typography.bodySmall)
             content()
         }
+    }
+}
+
+/** Einstellungen für die Planung und die Diagnose. */
+@Composable
+private fun PlanningSection(
+    readOnly: Boolean,
+    onOpenShiftTypes: () -> Unit,
+    onOpenPatterns: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
+) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(vertical = 8.dp)) {
+            Text(
+                stringResource(R.string.team_planning_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            if (!readOnly) {
+                PlanningRow(R.drawable.ic_palette, R.string.menu_shift_types, R.string.team_planning_types_hint, onOpenShiftTypes)
+                PlanningRow(R.drawable.ic_repeat, R.string.menu_patterns, R.string.team_planning_patterns_hint, onOpenPatterns)
+            }
+            PlanningRow(R.drawable.ic_cloud, R.string.menu_diagnostics, R.string.team_planning_diagnostics_hint, onOpenDiagnostics)
+        }
+    }
+}
+
+@Composable
+private fun PlanningRow(@DrawableRes icon: Int, @StringRes title: Int, @StringRes hint: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(
+            painterResource(R.drawable.ic_chevron_right),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

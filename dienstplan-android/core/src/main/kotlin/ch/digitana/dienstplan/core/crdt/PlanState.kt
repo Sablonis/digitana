@@ -1,6 +1,7 @@
 package ch.digitana.dienstplan.core.crdt
 
 import java.text.Collator
+import java.time.LocalDate
 import java.util.Locale
 
 data class Member(val id: String, val name: String)
@@ -23,8 +24,43 @@ class PlanState private constructor(private val bucketMap: Map<String, LwwMap>) 
     /** Aktueller Wert eines Schlüssels; leer, wenn unbekannt oder gelöscht. */
     fun value(key: String): String = entry(key)?.value ?: ""
 
-    fun shift(memberId: String, date: java.time.LocalDate): Shift? =
-        Shift.fromCode(value(PlanKeys.shift(memberId, date)))
+    /** ID der Schichtart in diesem Feld; null = leer. */
+    fun shift(memberId: String, date: LocalDate): String? =
+        value(PlanKeys.shift(memberId, date)).ifEmpty { null }
+
+    fun dayNote(date: LocalDate): String? = value(PlanKeys.dayNote(date)).ifEmpty { null }
+
+    fun memberNote(memberId: String, date: LocalDate): String? =
+        value(PlanKeys.memberNote(memberId, date)).ifEmpty { null }
+
+    fun wish(memberId: String, date: LocalDate): Wish? = Wish.fromCode(value(PlanKeys.wish(memberId, date)))
+
+    /**
+     * Alle Schichtarten: Standardarten (überschrieben, falls das Team sie geändert hat) und
+     * eigene. Ungültige Definitionen kommen nicht vor, weil sie beim Empfang verworfen werden.
+     */
+    val shiftTypes: ShiftTypeSet by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        val defined = HashMap<String, ShiftType>()
+        for (type in ShiftTypes.DEFAULTS) defined[type.id] = type
+        for ((key, entry) in bucket(Buckets.TEAM).entries) {
+            val parsed = PlanKeys.parse(key) as? PlanKey.ShiftType ?: continue
+            if (entry.value.isEmpty()) continue
+            ShiftTypes.decode(parsed.typeId, entry.value)?.let { defined[it.id] = it }
+        }
+        ShiftTypeSet(defined.values)
+    }
+
+    /** Gespeicherte Rhythmen, alphabetisch. */
+    fun patterns(): List<ShiftPattern> {
+        val collator = Collator.getInstance(Locale.GERMAN).apply { strength = Collator.SECONDARY }
+        return bucket(Buckets.TEAM).entries.mapNotNull { (key, entry) ->
+            val parsed = PlanKeys.parse(key) as? PlanKey.Pattern ?: return@mapNotNull null
+            if (entry.value.isEmpty()) null else ShiftPatterns.decode(parsed.patternId, entry.value)
+        }.sortedWith { a, b ->
+            val byName = collator.compare(a.name, b.name)
+            if (byName != 0) byName else a.id.compareTo(b.id)
+        }
+    }
 
     fun withEntry(key: String, entry: Entry): PlanState {
         val parsed = requireNotNull(PlanKeys.parse(key)) { "Ungültiger Schlüssel" }

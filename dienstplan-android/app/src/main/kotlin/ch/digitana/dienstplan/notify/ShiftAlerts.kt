@@ -37,7 +37,7 @@ class ShiftAlerts(
             next
         }
         when (val decided = alert) {
-            is ChangeAlert.Show -> notifications.show(decided.changes)
+            is ChangeAlert.Show -> notifications.show(decided.changes, plan.state.value.shiftTypes)
             ChangeAlert.Cancel -> notifications.cancel()
             ChangeAlert.None -> Unit
         }

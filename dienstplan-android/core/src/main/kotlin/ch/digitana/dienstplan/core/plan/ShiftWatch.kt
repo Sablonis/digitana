@@ -4,13 +4,14 @@ import ch.digitana.dienstplan.core.crdt.Buckets
 import ch.digitana.dienstplan.core.crdt.PlanKey
 import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanState
-import ch.digitana.dienstplan.core.crdt.Shift
+import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
+import ch.digitana.dienstplan.core.crdt.ShiftTypes
 import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.data.DeviceSettings
 import java.time.LocalDate
 
-/** Änderung an einem eigenen Dienst; `null` = kein Eintrag. */
-data class ShiftChange(val date: LocalDate, val before: Shift?, val after: Shift?)
+/** Änderung an einem eigenen Dienst (IDs der Schichtarten); `null` = kein Eintrag. */
+data class ShiftChange(val date: LocalDate, val before: String?, val after: String?)
 
 /** Was mit der Benachrichtigung über eigene Dienständerungen geschehen soll. */
 sealed interface ChangeAlert {
@@ -26,11 +27,11 @@ sealed interface ChangeAlert {
  */
 object ShiftWatch {
 
-    /** Künftige Dienste (ab [today]) eines Mitglieds; leere Felder fehlen. */
-    fun upcomingShifts(state: PlanState, memberId: String, today: LocalDate): Map<LocalDate, Shift> {
+    /** Künftige Dienste (ab [today]) eines Mitglieds als IDs der Schichtarten; leere Felder fehlen. */
+    fun upcomingShifts(state: PlanState, memberId: String, today: LocalDate): Map<LocalDate, String> {
         val firstWeek = WeekId.of(today)
         val prefix = "z|$memberId|"
-        val result = HashMap<LocalDate, Shift>()
+        val result = HashMap<LocalDate, String>()
         for ((bucket, map) in state.buckets) {
             val week = Buckets.parseWeek(bucket) ?: continue
             if (week < firstWeek) continue
@@ -38,15 +39,15 @@ object ShiftWatch {
                 if (!key.startsWith(prefix)) continue
                 val parsed = PlanKeys.parse(key) as? PlanKey.Shift ?: continue
                 if (parsed.date.isBefore(today)) continue
-                val shift = Shift.fromCode(entry.value) ?: continue
-                result[parsed.date] = shift
+                if (!ShiftTypes.isValidId(entry.value)) continue
+                result[parsed.date] = entry.value
             }
         }
         return result
     }
 
     /** Abweichungen ab [today], nach Datum sortiert. */
-    fun diff(before: Map<LocalDate, Shift>, after: Map<LocalDate, Shift>, today: LocalDate): List<ShiftChange> =
+    fun diff(before: Map<LocalDate, String>, after: Map<LocalDate, String>, today: LocalDate): List<ShiftChange> =
         (before.keys + after.keys)
             .filter { !it.isBefore(today) && before[it] != after[it] }
             .sorted()
@@ -85,16 +86,18 @@ object ShiftChangeText {
     fun title(changes: List<ShiftChange>): String =
         if (changes.size == 1) "Dein Dienstplan wurde geändert" else "${changes.size} Änderungen an deinem Dienstplan"
 
-    fun line(change: ShiftChange): String {
+    fun line(change: ShiftChange, types: ShiftTypeSet): String {
         val day = "${WeekFormat.weekday(change.date)} ${WeekFormat.shortDate(change.date)}"
-        val before = change.before
-        val after = change.after
+        val before = change.before?.let { label(it, types) }
+        val after = change.after?.let { label(it, types) }
         val what = when {
-            before != null && after != null -> "${before.label} → ${after.label}"
-            after != null -> "${after.label} (neu)"
-            before != null -> "${before.label} entfällt"
+            before != null && after != null -> "$before → $after"
+            after != null -> "$after (neu)"
+            before != null -> "$before entfällt"
             else -> "unverändert"
         }
         return "$day: $what"
     }
+
+    private fun label(typeId: String, types: ShiftTypeSet): String = types[typeId]?.name ?: "Unbekannte Schicht"
 }
