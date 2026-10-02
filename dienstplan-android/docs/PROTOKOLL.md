@@ -99,7 +99,8 @@ entfernen.
 
 ## Commits
 
-Hinzufügen, Entfernen, Admin-Rechte und Schlüsselerneuerung sind MLS-Commits. Ablauf:
+Hinzufügen, Entfernen, Admin-Rechte, die Sperre des Plans und Schlüsselerneuerung sind
+MLS-Commits. Ablauf:
 
 1. Commit erzeugen; ab jetzt ruht die Verarbeitung fremder Gruppen-Events.
 2. Veröffentlichen; ohne Bestätigung eines Relays innerhalb von 30 s wird er verworfen.
@@ -124,6 +125,48 @@ wiederholt das Admin-Gerät sie.
 **Schlüsselerneuerung:** nach dem Beitritt und danach alle 7 Tage, jeweils erst, wenn eine
 Minute lang kein Commit kam (damit sich Commits selten kreuzen).
 
+## Sperre des Plans
+
+Admins können den Plan sperren und wieder öffnen. Die Sperre steht in der **Beschreibung der
+MLS-Gruppe** (Marmot-Erweiterung `NostrGroupData`). Diese ändert nur ein Commit, und MDK
+nimmt solche Commits nur von Admin-Geräten an (beim Erzeugen und beim Empfang). Format:
+
+```json
+{"v":1,"lock":{"seg":[{"until":"2026-10-31","since":1790000000000},{"since":1790500000000}],
+ "admins":["0123456789abcdef"],"by":"0123456789abcdef"}}
+```
+
+- Gesperrt sind alle Tage bis `until` des letzten Abschnitts; fehlt es, der ganze Plan.
+  Leere Beschreibung oder fehlendes `lock` = offen.
+- **Abschnitte:** Jede Erweiterung hängt einen Abschnitt an, gültig ab ihrem Zeitstempel
+  `since` (hybride Uhr des sperrenden Admins). Schon gesperrte Tage behalten ihren Zeitpunkt,
+  bei einer Verkürzung fallen Tage wieder heraus. Höchstens 12 Abschnitte; darüber werden die
+  ältesten zusammengelegt (mit dem jüngeren Zeitpunkt).
+- `admins`: Geräte-IDs, deren Einträge trotz Sperre gelten – alle Admins seit Beginn der
+  Sperre. Wird während der Sperre ein Gerät zum Admin, kommt es im selben Commit dazu.
+- Unlesbares (anderes Format, `v` ≠ 1, mehr als 4096 Byte, ungültige Daten) gilt als offen.
+  Ein Gerät, das eine Sperre nicht versteht, löscht deshalb nie Einträge.
+
+**Was geschützt ist:** Schichten (`z|…`) an gesperrten Tagen, Schichtarten (`s|…`) und das
+Löschen von Personen (`m|…` mit leerem Wert), solange eine Sperre besteht. Wünsche, Notizen,
+Rhythmen, Gerätenamen, Zuordnungen und neue Personen bleiben für alle offen.
+
+**Regel für Einträge** (auf jedem Gerät gleich, für empfangene und gespeicherte): Ein
+geschützter Eintrag gilt, wenn seine Geräte-ID ein aktuelles Admin-Gerät oder in `admins`
+ist, oder wenn sein Zeitstempel ≤ `since` des Abschnitts ist, der den Tag sperrt (für
+Schichtarten und Personen: des ältesten Abschnitts). Sonst wird er beim Empfang verworfen
+(Diagnose „Wegen Sperre“); ein Teil mit solchen Einträgen löst keinen Vergleich aus.
+
+**Wechsel der Sperre:** Ändert sich die Sperre oder die Admin-Liste, entfernt jedes Gerät die
+Einträge, die nicht mehr gelten, ganz aus der LWW-Map (kein Tombstone). Danach bittet es mit
+einer Reparatur um den Stand der anderen: Wer den Eintrag nie übernommen hat – mindestens
+das sperrende Admin-Gerät –, schickt den vorherigen, gültigen Wert zurück. Eigene verworfene
+Änderungen meldet die App. Damit eigene Einträge nach dem Sperren nicht als „älter“ gelten,
+zieht jedes Gerät seine Uhr auf den jüngsten Abschnitt nach.
+
+Lokal schreibt die App geschützte Einträge nur als Admin; Sammeländerungen (Woche kopieren,
+Rhythmus) laufen ganz oder gar nicht.
+
 ## Prüfung beim Empfang
 
 - Relay-Nachrichten: höchstens 2 MB und 8 Ebenen JSON, strikter Parser.
@@ -135,7 +178,8 @@ Minute lang kein Commit kam (damit sich Commits selten kreuzen).
   Nachricht. Einzelne Einträge werden einzeln geprüft: Schlüssel per Regex, echtes Datum
   2000–2100, gültige Schichtart-IDs, Formate der Schichtarten und Rhythmen (siehe oben),
   Namen max. 60 und Notizen max. 200 Zeichen ohne Steuer-, Bidi- oder unsichtbare Zeichen,
-  nur die drei Wunsch-Codes, Zeitstempel > 0 und ≤ jetzt + 24 h, Geräte-ID, richtiger Bucket.
+  nur die Wunsch-Codes (siehe unten), Zeitstempel > 0 und ≤ jetzt + 24 h, Geräte-ID,
+  richtiger Bucket. Danach gilt die Regel der Sperre (siehe oben).
 - Gift Wraps: nur an den eigenen Schlüssel; Einladungen nur während eines Beitritts.
 
 ## Datenmodell (LWW-Map)
@@ -148,12 +192,13 @@ gelöscht bzw. leer.
 |---|---|---|
 | `m\|<id>` | `team` | Name einer Person (max. 60 Zeichen) |
 | `d\|<geräte-id>` | `team` | Name eines Geräts in der Geräteliste |
+| `u\|<geräte-id>` | `team` | Person, der das Gerät gehört („Das bin ich“): ihre ID |
 | `s\|<art-id>` | `team` | Schichtart: `v1\|<kürzel>\|<name>\|<beginn>\|<ende>\|<pause>\|<art>\|<farbe>\|<anrechnung>\|<flags>` |
 | `r\|<rhythmus-id>` | `team` | Rhythmus: `v1\|<name>\|<art-id>,<art-id>,…` (leere Stelle = Tag frei lassen) |
 | `z\|<id>\|<JJJJ-MM-TT>` | Woche | ID einer Schichtart |
 | `n\|<JJJJ-MM-TT>` | Woche | Notiz zum Tag (max. 200 Zeichen) |
 | `n\|<id>\|<JJJJ-MM-TT>` | Woche | Notiz zum Dienst einer Person (max. 200 Zeichen) |
-| `w\|<id>\|<JJJJ-MM-TT>` | Woche | Wunsch: `WF` (Wunschfrei), `FW` (Ferienwunsch), `NV` (nicht verfügbar) |
+| `w\|<id>\|<JJJJ-MM-TT>` | Woche | Wunsch: `WF` (Wunschfrei), `FW` (Ferienwunsch), `NV` (nicht verfügbar), `WA` (Wunscharbeitstag), `WA:<art-id>` (Wunschschicht) |
 
 Buckets: `team` und je eine ISO-Woche (`2026-W40`). `<id>` und `<geräte-id>` sind 16
 Hex-Zeichen, Rhythmus-IDs 8 Hex-Zeichen.
@@ -172,10 +217,17 @@ Zeiten und Farbe lassen sich deshalb ändern, ohne Einträge umzuschreiben. Arch
 
 Stunden: Dauer minus Pause, ohne Zeiten die Anrechnung.
 
+**Wünsche.** Ein Wunsch gilt als erfüllt, wenn die eingetragene Schicht passt: bei `WF`,
+`FW` und `NV` keine Arbeitsschicht, bei `WA` eine Arbeitsschicht, bei `WA:<art-id>` genau
+diese Art. Ohne Eintrag ist er offen. Wünsche einer Person ändern ihre eigenen Geräte
+(`u|…`) und Admins; hat eine Person kein Gerät, alle. Diese Regel prüft die App beim
+Eintragen, nicht beim Empfang (siehe SICHERHEIT.md).
+
 **Kompatibilität.** Die neuen Schlüssel ergänzen DP3. Geräte mit der ersten DP3-Version
 verwerfen sie (und Felder mit eigenen Schichtarten) als ungültig. Weil Teile mit verworfenen
 Einträgen keinen Vergleich auslösen, entsteht dabei kein Hin und Her; alle Geräte sollten aber
-dieselbe Version nutzen.
+dieselbe Version nutzen. Das gilt auch für `WA`, `WA:<art-id>` und `u|…`. Ältere Versionen
+kennen die Sperre nicht: Sie lassen Änderungen zu, die neuere Geräte verwerfen.
 
 ## Relays
 

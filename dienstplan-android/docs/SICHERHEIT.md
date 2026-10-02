@@ -124,7 +124,8 @@ sind gewöhnliche Einträge der LWW-Map und laufen durch dieselbe Prüfung: fest
 JSON (`v1|…` mit genau der erwarteten Zahl Felder), Kürzel nur A–Z/0–9 (1–3 Zeichen), Namen
 höchstens 30 und Notizen höchstens 200 Zeichen ohne Steuer-, Bidi- oder unsichtbare Zeichen,
 Zeiten `HH:MM`, Zahlen ohne führende Nullen und mit Obergrenzen, Farben nur aus der festen
-Palette, Wünsche nur aus drei Codes, Rhythmen 1–8 ganze Wochen. Felder im Plan verweisen nur
+Palette, Wünsche nur aus festen Codes (`WF`, `FW`, `NV`, `WA`, `WA:<art-id>`), Rhythmen 1–8
+ganze Wochen. Felder im Plan verweisen nur
 auf gültige Schichtart-IDs; ob die Art schon bekannt ist, entscheidet die Anzeige („?“).
 
 **17. Exporte verlassen die Verschlüsselung.** Woche oder Monat als PDF oder Bild und die
@@ -138,6 +139,31 @@ Mitglieds-IDs; die festen Termin-IDs sind daraus per SHA-256 abgeleitet.
 Dienste der Person, die auf diesem Gerät unter „Ich“ gewählt ist, und die Stunden der Woche.
 Es liest den Plan aus dem verschlüsselten Speicher der App und erscheint nur, wenn jemand es
 selbst auf den Startbildschirm legt.
+
+**19. Die Sperre des Plans liegt in MLS, nicht im Plan.** Wer sperren und öffnen darf, muss
+fälschungssicher sein. Deshalb steht die Sperre in der Beschreibung der MLS-Gruppe: Sie
+ändert sich nur durch einen Commit, und MDK nimmt Commits, die Gruppendaten ändern, nur von
+Admin-Geräten an – beim Erzeugen wie beim Empfang. Ein Mitglied kann die Sperre also weder
+setzen noch aufheben, auch nicht mit einer veränderten App. Unlesbare Sperren gelten als
+offen, damit ein Formatfehler nie dazu führt, dass Geräte Einträge löschen.
+
+**20. Durchsetzung der Sperre auf jedem Gerät nach derselben Regel.** Welche Einträge trotz
+Sperre gelten, entscheidet jedes Gerät allein aus Eintrag und Sperre (Geräte-ID in der
+Admin-Liste oder Zeitstempel vor dem Abschnitt). Weil die Regel deterministisch ist,
+kommen alle Geräte zum selben Stand, auch wenn Nachrichten in anderer Reihenfolge ankommen.
+Gilt ein Eintrag nach einer neuen Sperre nicht mehr, entfernt ihn jedes Gerät; der Abgleich
+holt den vorherigen Wert vom sperrenden Admin zurück. Die Abschnitte mit eigenem Zeitpunkt
+verhindern, dass ein Verlängern der Sperre Änderungen verwirft, die gemacht wurden, als der
+Bereich noch offen war.
+
+**21. Gleiche Rechte beim Eintragen.** Im offenen Plan dürfen alle Mitglieder alles, auch
+Schichten. Die Sperre schränkt nur Schichten im gesperrten Bereich, Schichtarten und das
+Löschen von Personen ein; Wünsche und Notizen bleiben für alle offen, damit niemand vom
+Planen ausgeschlossen ist. Wünsche gehören der Person: Hat sie mit „Das bin ich“ ein eigenes
+Gerät zugeordnet (Eintrag `u|<geräte-id>`), ändern ihre Wünsche nur dieses Gerät und Admins.
+So kann niemand die Wünsche einer Kollegin überschreiben, und Personen ohne Handy können
+trotzdem vertreten werden. Die Monatsansicht zeigt allen, wie viele Wünsche pro Person
+erfüllt sind – Fairness wird sichtbar statt behauptet.
 
 ## Grenzen
 
@@ -154,13 +180,27 @@ selbst auf den Startbildschirm legt.
   bis 24 h in der Zukunft Konflikte gewinnen. MLS weist nach, welches Gerät eine Nachricht
   geschickt hat; die Geräte-ID einzelner Einträge ist dagegen nicht authentisiert, weil
   Geräte auch die Einträge anderer weitergeben. Das gilt auch für Wünsche, Notizen und
-  Schichtarten: Die App bietet Wünsche zwar für die eigene Person an, verhindern kann sie
-  Einträge für andere aber nicht.
+  Schichtarten.
+- **Die Sperre schützt vor Versehen, nicht vor Absicht.** Sperren und öffnen können nur
+  Admins (MLS). Die Durchsetzung bei den Einträgen beruht aber auf Geräte-ID und Zeitstempel,
+  die ein Mitglied mit einer veränderten App fälschen kann: als Admin-Gerät ausgeben oder
+  auf einen Zeitpunkt vor der Sperre zurückdatieren. Das liesse sich nur mit einzeln
+  signierten Einträgen und einer vertrauenswürdigen Zeitquelle ausschliessen, also mit einem
+  Server. Mit der offiziellen App halten sich alle an die Sperre.
+- **Wunschrechte prüft nur die App.** Dass Wünsche einer Person nur von ihren Geräten und von
+  Admins kommen, prüft die App beim Eintragen, nicht beim Empfang. Die Zuordnung „Das bin
+  ich“ setzt jedes Gerät selbst; zwei Geräte können sich derselben Person zuordnen. Die
+  Geräteliste im Team zeigt deshalb, welches Gerät zu wem gehört.
+- **Wechsel der Sperre:** Änderungen, die beim Sperren noch unterwegs waren, können
+  verworfen werden, besonders bei falsch gehenden Uhren. Die App meldet eigene verworfene
+  Änderungen.
 - **Widget und Exporte:** Wer den entsperrten Startbildschirm sieht, sieht die Dienste im
   Widget. Geteilte PDFs, Bilder und Kalenderdateien sind unverschlüsselt und unterliegen
   danach den Regeln der Empfänger-App.
 - **Ältere App-Versionen** im selben Team verwerfen Schichtarten, Notizen, Wünsche,
-  Rhythmen und Felder mit eigenen Schichtarten. Alle Geräte sollten dieselbe Version nutzen.
+  Rhythmen und Felder mit eigenen Schichtarten, ebenso Wunscharbeitstage und Zuordnungen von
+  Geräten. Die Sperre kennen sie nicht und lassen Änderungen zu, die neuere Geräte verwerfen.
+  Alle Geräte sollten dieselbe Version nutzen.
 - **Uhren:** Falsch gehende Uhren beeinflussen, welche Änderung bei gleichzeitigen
   Konflikten gewinnt.
 - **Verfügbarkeit:** Öffentliche Relays können Events ablehnen, löschen oder nur begrenzt
