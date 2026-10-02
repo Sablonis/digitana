@@ -283,7 +283,7 @@ private fun ShiftOption(type: ShiftType?, typeId: String, selected: Boolean, ena
     val color = LocalShiftPalette.current.of(type)
     val name = type?.name ?: stringResource(R.string.shift_unknown)
     val detail = type?.let { Format.timeRange(it) ?: kindLabel(it.kind) } ?: ""
-    val selectedDescription = stringResource(R.string.selected)
+    val selectedDescription = stringResource(R.string.state_selected)
     Surface(
         onClick = onClick,
         enabled = enabled,

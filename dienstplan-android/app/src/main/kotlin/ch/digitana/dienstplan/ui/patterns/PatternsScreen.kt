@@ -51,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -431,7 +432,7 @@ private fun ApplyDialog(
 ) {
     val selected = remember { mutableStateListOf<String>() }
     var start by remember { mutableStateOf(firstWeek) }
-    var weeks by remember { mutableStateOf(maxOf(pattern.weeks, 4).coerceAtMost(PatternPlanner.MAX_WEEKS)) }
+    var weeks by remember { mutableIntStateOf(maxOf(pattern.weeks, 4).coerceAtMost(PatternPlanner.MAX_WEEKS)) }
     var overwrite by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,

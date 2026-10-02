@@ -13,6 +13,7 @@ import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.FileProvider
+import androidx.core.graphics.createBitmap
 import ch.digitana.dienstplan.R
 import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crdt.ShiftType
@@ -144,7 +145,7 @@ object PlanExport {
                 val width = if (table.compact) 2400f else 1400f
                 val scale = 2f
                 val size = TableRenderer.measure(table, width / scale)
-                val bitmap = Bitmap.createBitmap(width.toInt(), (size.second * scale + 48).toInt(), Bitmap.Config.ARGB_8888)
+                val bitmap = createBitmap(width.toInt(), (size.second * scale + 48).toInt())
                 try {
                     val canvas = Canvas(bitmap)
                     canvas.drawColor(android.graphics.Color.WHITE)

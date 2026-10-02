@@ -241,7 +241,7 @@
     <string name="month_next">Nächster Monat</string>
     <string name="month_total">%1$s geplant</string>
     <string name="shift_unknown">Unbekannte Schicht</string>
-    <string name="selected">ausgewählt</string>
+    <string name="state_selected">ausgewählt</string>
     <string name="member_is_me">Das bin ich</string>
     <string name="member_not_me">Das bin nicht ich</string>
 
