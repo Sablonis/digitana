@@ -1,5 +1,6 @@
 package ch.digitana.dienstplan.core.data
 
+import ch.digitana.dienstplan.core.plan.ReminderMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -19,8 +20,22 @@ class DeviceSettingsTest {
             notifyOnChanges = true,
             seenShifts = mapOf(LocalDate.of(2026, 10, 7) to "F", LocalDate.of(2026, 10, 8) to "U", LocalDate.of(2026, 10, 9) to "0a1b2c3d"),
             notifiedShifts = mapOf(LocalDate.of(2026, 10, 7) to "S"),
+            reminderMode = ReminderMode.TWO_HOURS,
+            deadlineReminders = false,
+            tradeAlerts = false,
+            publishAlerts = false,
+            notifiedTrades = setOf("t|a=P:F:S", "o|b=N"),
+            knownLock = """{"v":1}""",
+            calendarSync = true,
+            tipsSeen = 5,
+            askedWho = true,
         )
         assertEquals(settings, DeviceSettingsCodec.decode(DeviceSettingsCodec.encode(settings)))
+        // Ältere Dateien ohne die neuen Felder: Standardwerte.
+        val old = DeviceSettingsCodec.decode("""{"v":1,"me":"$anna","notify":true}""".toByteArray())
+        assertEquals(DeviceSettings(myMemberId = anna, notifyOnChanges = true), old)
+        // Unbekannte Erinnerungsart (neuere Version): aus.
+        assertEquals(ReminderMode.OFF, DeviceSettingsCodec.decode("""{"v":1,"reminder":"weekly"}""".toByteArray()).reminderMode)
         assertEquals(DeviceSettings(), DeviceSettingsCodec.decode(DeviceSettingsCodec.encode(DeviceSettings())))
     }
 
@@ -38,6 +53,8 @@ class DeviceSettingsTest {
             """{"v":1,"notify":true,"seen":{"2026-10-07":"0A1B2C3D"}}""",
             """{"v":1,"notify":true,"seen":{"2026-10-07":1}}""",
             """{"v":1,"notify":true,"seen":[]}""",
+            """{"v":1,"reminder":3}""",
+            """{"v":1,"calendar":"ja"}""",
         )
         for (json in bad) {
             assertThrows<IllegalArgumentException>(json) { DeviceSettingsCodec.decode(json.toByteArray()) }

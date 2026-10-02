@@ -27,6 +27,12 @@ data class MyShiftsModel(
     val weekMinutes: Int,
     val monthMinutes: Int,
     val types: ShiftTypeSet,
+    /** Soll und Saldo des laufenden Monats (mit angerechneten Abwesenheiten). */
+    val monthBalance: WorkBalance = WorkBalance(monthMinutes, null),
+    /** Saldo seit Jahresbeginn; null ohne Pensum. */
+    val yearDeltaMinutes: Int? = null,
+    /** Feiertage in den angezeigten Tagen. */
+    val holidays: Map<LocalDate, Holiday> = emptyMap(),
 ) {
     /** Der nächste Arbeitsdienst ab heute, sonst null. */
     val next: MyDay? get() = days.firstOrNull { !it.date.isBefore(today) && it.cell.type?.countsForCoverage == true }
@@ -45,7 +51,16 @@ data class MyShiftsModel(
             val weekMinutes = week.days.filter(PlanKeys::isValidDate).sumOf { minutes(state, types, memberId, it) }
             val month = YearMonth.from(today)
             val monthMinutes = (1..month.lengthOfMonth()).map { month.atDay(it) }.sumOf { minutes(state, types, memberId, it) }
-            return MyShiftsModel(member, today, days, weekMinutes, monthMinutes, types)
+            val balance = if (PlanKeys.isValidDate(month.atDay(1)) && PlanKeys.isValidDate(month.atEndOfMonth())) {
+                WorkTime.balance(state, memberId, month)
+            } else {
+                WorkBalance(monthMinutes, null)
+            }
+            val holidays = if (dates.isEmpty()) emptyMap() else SwissHolidays.between(state.canton, dates.first(), dates.last())
+            return MyShiftsModel(
+                member, today, days, weekMinutes, monthMinutes, types, balance,
+                WorkTime.yearToDateDelta(state, memberId, month), holidays,
+            )
         }
 
         /** Die nächsten [limit] Tage ab heute mit eingetragener Schicht (für das Widget). */
@@ -66,7 +81,8 @@ data class MyShiftsModel(
         private fun cellOf(state: PlanState, types: ShiftTypeSet, memberId: String, date: LocalDate): Cell {
             val typeId = state.shift(memberId, date)
             val rest = RestRules.issueBefore(state, types, memberId, date, typeId, state.restMinutes)
-            return Cell(typeId, types[typeId], state.wish(memberId, date), state.memberNote(memberId, date), rest)
+            val offered = typeId != null && state.offer(memberId, date)?.typeId == typeId
+            return Cell(typeId, types[typeId], state.wish(memberId, date), state.memberNote(memberId, date), rest, offered)
         }
 
         private fun minutes(state: PlanState, types: ShiftTypeSet, memberId: String, date: LocalDate): Int {

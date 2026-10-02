@@ -45,6 +45,9 @@ object EntryValidator {
         is PlanKey.DeviceOwner -> PlanKeys.isValidId(value)
         is PlanKey.Setting -> PlanRules.isValidSetting(key.name, value)
         is PlanKey.Target -> PlanRules.decodeTargets(value) != null
+        is PlanKey.Pensum -> PlanRules.isValidPensum(value)
+        is PlanKey.Offer -> ShiftOffer.decode(value)?.let { it.claimedBy != key.memberId } == true
+        is PlanKey.Swap -> SwapRequest.decode(value) != null
     }
 }
 

@@ -18,10 +18,16 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
 /**
- * Persistierter Plan: alle Buckets, Stand der hybriden Uhr und die eigenen Änderungen, die
- * noch kein Relay bestätigt hat (Schlüssel → Zeitstempel des Eintrags).
+ * Persistierter Plan: alle Buckets, Stand der hybriden Uhr, die eigenen Änderungen, die
+ * noch kein Relay bestätigt hat (Schlüssel → Zeitstempel des Eintrags), und Änderungen anderer
+ * Geräte, die auf diesem Gerät noch niemand angesehen hat (Schlüssel → Empfang in ms).
  */
-data class PlanSnapshot(val state: PlanState, val clock: Long, val pending: Map<String, Long> = emptyMap())
+data class PlanSnapshot(
+    val state: PlanState,
+    val clock: Long,
+    val pending: Map<String, Long> = emptyMap(),
+    val unseen: Map<String, Long> = emptyMap(),
+)
 
 /** Lokaler Speicher für den Plan (verschlüsselt in der App). */
 interface PlanStore {
@@ -47,6 +53,14 @@ object PlanSnapshotCodec {
                     addJsonArray {
                         add(key)
                         add(timestamp)
+                    }
+                }
+            }
+            putJsonArray("unseen") {
+                for ((key, received) in snapshot.unseen.toSortedMap()) {
+                    addJsonArray {
+                        add(key)
+                        add(received)
                     }
                 }
             }
@@ -76,14 +90,8 @@ object PlanSnapshotCodec {
         val version = (root["v"] as? JsonPrimitive)?.content
         require(version == "1" || version == VERSION.toString()) { "Unbekannte Planversion" }
         val clock = (root["clock"] as? JsonPrimitive)?.content?.toLongOrNull() ?: 0L
-        val pending = HashMap<String, Long>()
-        (root["pending"] as? JsonArray)?.forEach { item ->
-            val fields = item as? JsonArray ?: return@forEach
-            if (fields.size != 2) return@forEach
-            val key = (fields[0] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@forEach
-            val timestamp = (fields[1] as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toLongOrNull() ?: return@forEach
-            if (PlanKeys.parse(key) != null && timestamp > 0) pending[key] = timestamp
-        }
+        val pending = keyTimes(root["pending"])
+        val unseen = keyTimes(root["unseen"])
         val bucketsJson = root["buckets"] as? JsonObject ?: throw IllegalArgumentException("Buckets fehlen")
         val buckets = HashMap<String, LwwMap>()
         for ((bucket, value) in bucketsJson) {
@@ -105,6 +113,19 @@ object PlanSnapshotCodec {
             }
             if (entries.isNotEmpty()) buckets[bucket] = LwwMap.of(entries)
         }
-        return PlanSnapshot(PlanState.of(buckets), clock, pending)
+        return PlanSnapshot(PlanState.of(buckets), clock, pending, unseen)
+    }
+
+    /** Liste von `[Schlüssel, Zahl]`; Unlesbares wird übersprungen. */
+    private fun keyTimes(element: Any?): Map<String, Long> {
+        val result = HashMap<String, Long>()
+        (element as? JsonArray)?.forEach { item ->
+            val fields = item as? JsonArray ?: return@forEach
+            if (fields.size != 2) return@forEach
+            val key = (fields[0] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@forEach
+            val time = (fields[1] as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toLongOrNull() ?: return@forEach
+            if (PlanKeys.parse(key) != null && time > 0) result[key] = time
+        }
+        return result
     }
 }

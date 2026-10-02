@@ -183,9 +183,10 @@ object PlanLockCodec {
  * Wer welche Planeinträge ändern darf.
  *
  * Ohne Sperre dürfen alle alles. Mit Sperre sind geschützt: Schichten an gesperrten Tagen,
- * Schichtarten, Planungsregeln (Ruhezeit, Soll-Besetzung) und das Löschen von Personen – das
- * ändern nur Admins. Wünsche, Notizen, Rhythmen, Zuordnungen und neue Personen bleiben für
- * alle offen.
+ * Schichtarten, Planungsregeln (Ruhezeit, Wochenstunden, Kanton, Wunschfristen,
+ * Soll-Besetzung), Pensen und das Löschen von Personen – das ändern nur Admins. Wünsche,
+ * Notizen, Rhythmen, Zuordnungen, neue Personen sowie Angebote und Tauschvorschläge bleiben
+ * für alle offen; die Übergabe eines Dienstes an einem gesperrten Tag führt ein Admin aus.
  *
  * Empfangene Einträge prüft jedes Gerät nach derselben Regel ([allows]); so kommen alle zum
  * selben Stand. Die Regel stützt sich auf Geräte-ID und Zeitstempel im Eintrag. Beides ist
@@ -225,13 +226,14 @@ data class PlanAccess(val lock: PlanLock?, val adminDevices: Set<String>) {
     companion object {
         val OPEN = PlanAccess(null, emptySet())
 
-        /** Schnelle Vorprüfung ohne Regex: Nur Schichten, Schichtarten, Regeln und Personen können geschützt sein. */
+        /** Schnelle Vorprüfung ohne Regex: Nur Schichten, Schichtarten, Regeln, Pensen und Personen können geschützt sein. */
         private fun mayBeProtected(key: String): Boolean =
-            key.startsWith("z|") || key.startsWith("s|") || key.startsWith("m|") || key.startsWith("c|") || key.startsWith("b|")
+            key.startsWith("z|") || key.startsWith("s|") || key.startsWith("m|") || key.startsWith("c|") ||
+                key.startsWith("b|") || key.startsWith("p|")
 
         private fun protectedSince(lock: PlanLock, key: PlanKey, value: String): Long? = when (key) {
             is PlanKey.Shift -> lock.segmentFor(key.date)?.since
-            is PlanKey.ShiftType, is PlanKey.Setting, is PlanKey.Target -> lock.since
+            is PlanKey.ShiftType, is PlanKey.Setting, is PlanKey.Target, is PlanKey.Pensum -> lock.since
             is PlanKey.Member -> if (value.isEmpty()) lock.since else null
             else -> null
         }

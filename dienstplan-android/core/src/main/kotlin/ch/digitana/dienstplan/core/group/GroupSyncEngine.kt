@@ -599,7 +599,7 @@ class GroupSyncEngine(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(TAG, "Commit ließ sich nicht abschliessen", e)
+            logger.warn(TAG, "Commit liess sich nicht abschliessen", e)
         }
         commitInFlight = false
         commitIdle.value = true
@@ -1164,7 +1164,7 @@ class GroupSyncEngine(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(TAG, "Gruppen-Events ließen sich nicht verarbeiten", e)
+            logger.warn(TAG, "Gruppen-Events liessen sich nicht verarbeiten", e)
             return
         }
         val deferred = handleOutcomes(outcomes, fresh.associateBy { it.id })
@@ -1559,7 +1559,7 @@ class GroupSyncEngine(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(TAG, "Nachricht ließ sich nicht verschlüsseln", e)
+            logger.warn(TAG, "Nachricht liess sich nicht verschlüsseln", e)
             null
         }
     }
@@ -1587,7 +1587,7 @@ class GroupSyncEngine(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(TAG, "Stand ließ sich nicht speichern", e)
+            logger.warn(TAG, "Stand liess sich nicht speichern", e)
         }
     }
 

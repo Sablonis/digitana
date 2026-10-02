@@ -2,6 +2,7 @@ package ch.digitana.dienstplan.core.data
 
 import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.ShiftTypes
+import ch.digitana.dienstplan.core.plan.ReminderMode
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,13 +12,16 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
@@ -35,9 +39,35 @@ data class DeviceSettings(
     val seenShifts: Map<LocalDate, String>? = null,
     /** Stand, über den zuletzt benachrichtigt wurde; null = keine offene Benachrichtigung. */
     val notifiedShifts: Map<LocalDate, String>? = null,
+    /** Erinnerung an eigene Dienste. */
+    val reminderMode: ReminderMode = ReminderMode.OFF,
+    /** Zwei Tage vor einer Wunschfrist erinnern, falls noch keine Wünsche eingetragen sind. */
+    val deadlineReminders: Boolean = true,
+    /** Benachrichtigen bei Tauschvorschlägen, Antworten und abgegebenen Diensten. */
+    val tradeAlerts: Boolean = true,
+    /** Benachrichtigen, wenn ein Admin den Plan sperrt (veröffentlicht). */
+    val publishAlerts: Boolean = true,
+    /** Tausch-Ereignisse, über die schon benachrichtigt wurde (siehe `TradeEvent.id`). */
+    val notifiedTrades: Set<String> = emptySet(),
+    /** Zuletzt bekannte Sperre (Format der Teambeschreibung), um neue Veröffentlichungen zu erkennen; null = noch keine Grundlage. */
+    val knownLock: String? = null,
+    /** Eigene Dienste in einen lokalen Kalender des Geräts schreiben. */
+    val calendarSync: Boolean = false,
+    /** Gesehene Tipps (Bits, siehe App). */
+    val tipsSeen: Int = 0,
+    /** „Wer bist du?“ wurde schon gefragt (auch wenn übersprungen). */
+    val askedWho: Boolean = false,
 ) {
     init {
         require(myMemberId == null || PlanKeys.isValidId(myMemberId)) { "Ungültige Mitglieds-ID" }
+        require(notifiedTrades.size <= MAX_NOTIFIED_TRADES && notifiedTrades.all { it.length <= MAX_TRADE_ID_LENGTH }) { "Zu viele Ereignisse" }
+        require(knownLock == null || knownLock.length <= MAX_LOCK_LENGTH) { "Sperre zu lang" }
+    }
+
+    companion object {
+        const val MAX_NOTIFIED_TRADES = 500
+        const val MAX_TRADE_ID_LENGTH = 200
+        const val MAX_LOCK_LENGTH = 4096
     }
 }
 
@@ -52,6 +82,15 @@ object DeviceSettingsCodec {
         put("notify", settings.notifyOnChanges)
         settings.seenShifts?.let { putShifts("seen", it) }
         settings.notifiedShifts?.let { putShifts("notified", it) }
+        put("reminder", settings.reminderMode.name.lowercase())
+        put("deadlines", settings.deadlineReminders)
+        put("trades", settings.tradeAlerts)
+        put("publish", settings.publishAlerts)
+        putJsonArray("tradeIds") { settings.notifiedTrades.sorted().forEach { add(it) } }
+        settings.knownLock?.let { put("lock", it) }
+        put("calendar", settings.calendarSync)
+        put("tips", settings.tipsSeen)
+        put("askedWho", settings.askedWho)
     }.toString().toByteArray(Charsets.UTF_8)
 
     fun decode(bytes: ByteArray): DeviceSettings {
@@ -59,9 +98,34 @@ object DeviceSettingsCodec {
             ?: throw IllegalArgumentException("Einstellungen ungültig")
         require((root["v"] as? JsonPrimitive)?.content == VERSION.toString()) { "Unbekannte Einstellungsversion" }
         val me = root["me"]?.let { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content ?: throw IllegalArgumentException("me ungültig") }
-        val notify = root["notify"]?.let { (it as? JsonPrimitive)?.booleanOrNull ?: throw IllegalArgumentException("notify ungültig") } ?: false
-        return DeviceSettings(me, notify, shifts(root["seen"]), shifts(root["notified"]))
+        val defaults = DeviceSettings()
+        val reminder = root["reminder"]?.let { element ->
+            val name = (element as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw IllegalArgumentException("reminder ungültig")
+            ReminderMode.entries.firstOrNull { it.name.lowercase() == name } ?: ReminderMode.OFF
+        } ?: defaults.reminderMode
+        val tradeIds = (root["tradeIds"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
+            ?.filter { it.length <= DeviceSettings.MAX_TRADE_ID_LENGTH }?.take(DeviceSettings.MAX_NOTIFIED_TRADES)?.toSet()
+            ?: emptySet()
+        val lock = (root["lock"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.length <= DeviceSettings.MAX_LOCK_LENGTH }
+        return DeviceSettings(
+            myMemberId = me,
+            notifyOnChanges = flag(root, "notify", false),
+            seenShifts = shifts(root["seen"]),
+            notifiedShifts = shifts(root["notified"]),
+            reminderMode = reminder,
+            deadlineReminders = flag(root, "deadlines", defaults.deadlineReminders),
+            tradeAlerts = flag(root, "trades", defaults.tradeAlerts),
+            publishAlerts = flag(root, "publish", defaults.publishAlerts),
+            notifiedTrades = tradeIds,
+            knownLock = lock,
+            calendarSync = flag(root, "calendar", defaults.calendarSync),
+            tipsSeen = (root["tips"] as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toIntOrNull() ?: 0,
+            askedWho = flag(root, "askedWho", false),
+        )
     }
+
+    private fun flag(root: JsonObject, name: String, default: Boolean): Boolean =
+        root[name]?.let { (it as? JsonPrimitive)?.booleanOrNull ?: throw IllegalArgumentException("$name ungültig") } ?: default
 
     private fun JsonObjectBuilder.putShifts(name: String, shifts: Map<LocalDate, String>) {
         putJsonObject(name) {

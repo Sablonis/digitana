@@ -34,11 +34,26 @@ sealed interface PlanKey {
     /** `u|<geräte-id>` → ID der Person, der das Gerät gehört (leer = keine). */
     data class DeviceOwner(val deviceId: String) : PlanKey
 
-    /** `c|<name>` → Planungsregel des Teams, z. B. `rest`: Mindestruhezeit in Minuten (leer = Standard). */
+    /**
+     * `c|<name>` → Planungsregel des Teams (leer = Standard): `rest` Mindestruhezeit und `hours`
+     * Wochenstunden bei 100 % in Minuten, `canton` Kanton für Feiertage, `wish-JJJJ-MM` Wunschfrist.
+     */
     data class Setting(val name: String) : PlanKey
 
     /** `b|<schichtart-id>` → Soll-Besetzung pro Wochentag, `3,3,3,3,3,2,2` (leer = keins). */
     data class Target(val typeId: String) : PlanKey
+
+    /** `p|<id>` → Pensum der Person in Prozent, 1–100 (leer = nicht angegeben). */
+    data class Pensum(val memberId: String) : PlanKey
+
+    /** `o|<id>|<JJJJ-MM-TT>` → Dienst, den die Person abgeben möchte (leer = kein Angebot), siehe [ShiftOffer]. */
+    data class Offer(val memberId: String, val date: LocalDate) : PlanKey
+
+    /**
+     * `t|<a>|<JJJJ-MM-TT>|<b>|<JJJJ-MM-TT>` → Tauschvorschlag von Person A an Person B (leer =
+     * zurückgezogen), siehe [SwapRequest]. Liegt im Bucket der Woche des ersten Tages.
+     */
+    data class Swap(val fromMember: String, val fromDate: LocalDate, val toMember: String, val toDate: LocalDate) : PlanKey
 }
 
 object PlanKeys {
@@ -56,8 +71,11 @@ object PlanKeys {
     private val MEMBER_NOTE = Regex("n\\|([0-9a-f]{16})\\|$DATE")
     private val WISH = Regex("w\\|([0-9a-f]{16})\\|$DATE")
     private val DEVICE_OWNER = Regex("u\\|([0-9a-f]{16})")
-    private val SETTING = Regex("c\\|(rest)")
+    private val SETTING = Regex("c\\|(${PlanRules.SETTING_NAMES})")
     private val TARGET = Regex("b\\|([FSNXU]|[0-9a-f]{8})")
+    private val PENSUM = Regex("p\\|([0-9a-f]{16})")
+    private val OFFER = Regex("o\\|([0-9a-f]{16})\\|$DATE")
+    private val SWAP = Regex("t\\|([0-9a-f]{16})\\|$DATE\\|([0-9a-f]{16})\\|$DATE")
 
     /** Neue zufällige ID (64 Bit, 16 Hex-Zeichen). */
     fun newId(): String = Hex.encode(SecureRandomBytes.next(8))
@@ -115,13 +133,30 @@ object PlanKeys {
     }
 
     fun setting(name: String): String {
-        require(SETTING.matches("c|$name")) { "Unbekannte Einstellung" }
+        require(SETTING.matches("c|$name") && PlanRules.isValidSettingName(name)) { "Unbekannte Einstellung" }
         return "c|$name"
     }
 
     fun target(typeId: String): String {
         require(ShiftTypes.isValidId(typeId)) { "Ungültige Schichtart-ID" }
         return "b|$typeId"
+    }
+
+    fun pensum(id: String): String {
+        require(isValidId(id)) { "Ungültige ID" }
+        return "p|$id"
+    }
+
+    fun offer(id: String, date: LocalDate): String {
+        require(isValidId(id)) { "Ungültige ID" }
+        require(isValidDate(date)) { "Datum ausserhalb 2000–2100" }
+        return "o|$id|$date"
+    }
+
+    fun swap(fromMember: String, fromDate: LocalDate, toMember: String, toDate: LocalDate): String {
+        require(isValidId(fromMember) && isValidId(toMember) && fromMember != toMember) { "Ungültige IDs" }
+        require(isValidDate(fromDate) && isValidDate(toDate)) { "Datum ausserhalb 2000–2100" }
+        return "t|$fromMember|$fromDate|$toMember|$toDate"
     }
 
     /**
@@ -133,8 +168,12 @@ object PlanKeys {
         MEMBER.matchEntire(key)?.let { return PlanKey.Member(it.groupValues[1]) }
         DEVICE.matchEntire(key)?.let { return PlanKey.Device(it.groupValues[1]) }
         DEVICE_OWNER.matchEntire(key)?.let { return PlanKey.DeviceOwner(it.groupValues[1]) }
-        SETTING.matchEntire(key)?.let { return PlanKey.Setting(it.groupValues[1]) }
+        SETTING.matchEntire(key)?.let { match ->
+            val name = match.groupValues[1]
+            return if (PlanRules.isValidSettingName(name)) PlanKey.Setting(name) else null
+        }
         TARGET.matchEntire(key)?.let { return PlanKey.Target(it.groupValues[1]) }
+        PENSUM.matchEntire(key)?.let { return PlanKey.Pensum(it.groupValues[1]) }
         SHIFT_TYPE.matchEntire(key)?.let { return PlanKey.ShiftType(it.groupValues[1]) }
         PATTERN.matchEntire(key)?.let { return PlanKey.Pattern(it.groupValues[1]) }
         SHIFT.matchEntire(key)?.let { match ->
@@ -152,6 +191,17 @@ object PlanKeys {
         DAY_NOTE.matchEntire(key)?.let { match ->
             val date = date(match, 1) ?: return null
             return PlanKey.DayNote(date)
+        }
+        OFFER.matchEntire(key)?.let { match ->
+            val date = date(match, 2) ?: return null
+            return PlanKey.Offer(match.groupValues[1], date)
+        }
+        SWAP.matchEntire(key)?.let { match ->
+            val fromDate = date(match, 2) ?: return null
+            val toDate = date(match, 6) ?: return null
+            val from = match.groupValues[1]
+            val to = match.groupValues[5]
+            return if (from == to) null else PlanKey.Swap(from, fromDate, to, toDate)
         }
         return null
     }

@@ -2,6 +2,7 @@ package ch.digitana.dienstplan.core.crdt
 
 import java.text.Collator
 import java.time.LocalDate
+import java.time.YearMonth
 import java.util.Locale
 
 data class Member(val id: String, val name: String)
@@ -62,6 +63,56 @@ class PlanState private constructor(private val bucketMap: Map<String, LwwMap>) 
             if (targets.all { it == 0 }) null else parsed.typeId to targets
         }.toMap()
     }
+
+    /** Pensum der Person in Prozent (1–100); null = nicht angegeben. */
+    fun pensum(memberId: String): Int? = value(PlanKeys.pensum(memberId)).toIntOrNull()
+
+    /** Wochenstunden bei 100 % in Minuten. */
+    val weekMinutes: Int
+        get() = value(PlanKeys.setting(PlanRules.HOURS)).toIntOrNull() ?: PlanRules.DEFAULT_WEEK_MINUTES
+
+    /** Kanton für die Feiertage; null = keiner gewählt. */
+    val canton: Canton? get() = Canton.fromCode(value(PlanKeys.setting(PlanRules.CANTON)))
+
+    /** Letzter Tag für Wünsche im Monat [month]; null = keine Frist. */
+    fun wishDeadline(month: YearMonth): LocalDate? {
+        if (month.year !in PlanKeys.MIN_DATE.year..PlanKeys.MAX_DATE.year) return null
+        return PlanRules.decodeDate(value(PlanKeys.setting(PlanRules.wishDeadline(month))))
+    }
+
+    /** Alle Wunschfristen: Monat → letzter Tag für Wünsche. */
+    val wishDeadlines: Map<YearMonth, LocalDate> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        bucket(Buckets.TEAM).entries.mapNotNull { (key, entry) ->
+            val parsed = PlanKeys.parse(key) as? PlanKey.Setting ?: return@mapNotNull null
+            val month = PlanRules.wishDeadlineMonth(parsed.name) ?: return@mapNotNull null
+            PlanRules.decodeDate(entry.value)?.let { month to it }
+        }.toMap()
+    }
+
+    /** Angebot „Dienst abgeben“ einer Person an einem Tag; null = keins. */
+    fun offer(memberId: String, date: LocalDate): ShiftOffer? = ShiftOffer.decode(value(PlanKeys.offer(memberId, date)))
+
+    /** Alle Angebote „Dienst abgeben“ (ohne zurückgezogene), nach Datum. */
+    val offers: List<OfferEntry> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        weekEntries("o|").mapNotNull { (key, entry) ->
+            val parsed = PlanKeys.parse(key) as? PlanKey.Offer ?: return@mapNotNull null
+            ShiftOffer.decode(entry.value)?.let { OfferEntry(parsed.memberId, parsed.date, it, entry) }
+        }.sortedWith(compareBy<OfferEntry> { it.date }.thenBy { it.memberId })
+    }
+
+    /** Alle Tauschvorschläge (ohne zurückgezogene), nach dem ersten Tag. */
+    val swaps: List<SwapEntry> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        weekEntries("t|").mapNotNull { (key, entry) ->
+            val parsed = PlanKeys.parse(key) as? PlanKey.Swap ?: return@mapNotNull null
+            SwapRequest.decode(entry.value)?.let { SwapEntry(parsed, it, entry) }
+        }.sortedWith(compareBy<SwapEntry> { it.swap.fromDate }.thenBy { it.swap.toDate }.thenBy { it.key })
+    }
+
+    /** Einträge mit [prefix] aus allen Wochen-Buckets. */
+    private fun weekEntries(prefix: String): List<Pair<String, Entry>> =
+        bucketMap.entries.filter { it.key != Buckets.TEAM }.flatMap { (_, map) ->
+            map.entries.entries.filter { it.key.startsWith(prefix) }.map { it.key to it.value }
+        }
 
     /** Gespeicherte Rhythmen, alphabetisch. */
     fun patterns(): List<ShiftPattern> {

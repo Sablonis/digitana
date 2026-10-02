@@ -20,6 +20,8 @@ data class DayInfo(
     val editable: Boolean,
     /** Notiz zum Tag oder null. */
     val note: String? = null,
+    /** Feiertag im Kanton des Teams oder null. */
+    val holiday: Holiday? = null,
 )
 
 /** Ein Feld des Plans: Schicht, Wunsch und Notiz einer Person an einem Tag. */
@@ -32,6 +34,8 @@ data class Cell(
     val note: String? = null,
     /** Zu kurze Ruhezeit vor diesem Dienst; null = in Ordnung oder kein Arbeitsdienst. */
     val rest: RestIssue? = null,
+    /** Die Person bietet diesen Dienst zum Abgeben an (Angebot noch gültig). */
+    val offered: Boolean = false,
 ) {
     val isEmpty: Boolean get() = typeId == null
 
@@ -121,6 +125,7 @@ internal data class PlanGrid(
     companion object {
         fun build(state: PlanState, dates: List<LocalDate>, today: LocalDate): PlanGrid {
             val types = state.shiftTypes
+            val holidays = if (dates.isEmpty()) emptyMap() else SwissHolidays.between(state.canton, dates.min(), dates.max())
             val days = dates.map { date ->
                 val editable = PlanKeys.isValidDate(date)
                 DayInfo(
@@ -129,6 +134,7 @@ internal data class PlanGrid(
                     isWeekend = date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY,
                     editable = editable,
                     note = if (editable) state.dayNote(date) else null,
+                    holiday = holidays[date],
                 )
             }
             val restMinutes = state.restMinutes
@@ -156,7 +162,8 @@ internal data class PlanGrid(
             val note = state.memberNote(memberId, date)
             if (typeId == null && wish == null && note == null) return Cell.EMPTY
             val rest = RestRules.issueBefore(state, types, memberId, date, typeId, restMinutes)
-            return Cell(typeId, types[typeId], wish, note, rest)
+            val offered = typeId != null && state.offer(memberId, date)?.typeId == typeId
+            return Cell(typeId, types[typeId], wish, note, rest, offered)
         }
     }
 }
