@@ -30,6 +30,8 @@ data class Cell(
     val type: ShiftType? = null,
     val wish: Wish? = null,
     val note: String? = null,
+    /** Zu kurze Ruhezeit vor diesem Dienst; null = in Ordnung oder kein Arbeitsdienst. */
+    val rest: RestIssue? = null,
 ) {
     val isEmpty: Boolean get() = typeId == null
 
@@ -51,11 +53,28 @@ data class MemberRow(
     val minutes: Int,
 )
 
-/** Besetzung eines Tages: Anzahl pro Arbeitsschicht (in der Reihenfolge der Schichtarten). */
-data class DayCoverage(val counts: List<Pair<ShiftType, Int>>) {
+/**
+ * Besetzung eines Tages: Anzahl pro Arbeitsschicht (in der Reihenfolge der Schichtarten) und
+ * das Soll des Wochentags ([targets]: Schichtart-ID → Soll > 0).
+ */
+data class DayCoverage(val counts: List<Pair<ShiftType, Int>>, val targets: Map<String, Int> = emptyMap()) {
     val total: Int get() = counts.sumOf { it.second }
 
     fun count(typeId: String): Int = counts.firstOrNull { it.first.id == typeId }?.second ?: 0
+
+    /** Soll dieser Art an diesem Tag; 0 = keins. */
+    fun target(typeId: String): Int = targets[typeId] ?: 0
+
+    val hasTargets: Boolean get() = targets.isNotEmpty()
+
+    /** Summe der Soll-Werte aller Arten. */
+    val totalTarget: Int get() = counts.sumOf { (type, _) -> target(type.id) }
+
+    /** Fehlende Personen pro Art (Soll minus Ist, nicht negativ), zusammengezählt. */
+    val shortfall: Int get() = counts.sumOf { (type, count) -> maxOf(0, target(type.id) - count) }
+
+    /** Arten, die unter dem Soll liegen. */
+    val understaffed: List<ShiftType> get() = counts.filter { (type, count) -> count < target(type.id) }.map { it.first }
 }
 
 /** Alles, was die Wochenansicht braucht – reine Daten, ohne Android. */
@@ -70,6 +89,12 @@ data class WeekModel(
 
     /** Wünsche der Woche pro Person. */
     val wishTallies: List<WishTally> get() = WishTally.of(rows)
+
+    /** Dienste mit zu kurzer Ruhezeit davor. */
+    val restIssueCount: Int get() = rows.sumOf { row -> row.cells.count { it.rest != null } }
+
+    /** Schichten (Tag × Art) unter dem Soll. */
+    val understaffedCount: Int get() = coverage.sumOf { it.understaffed.size }
 
     /** Arbeitsschichten, die in der Besetzungszeile erscheinen: aktive und alle in dieser Woche benutzten. */
     val coverageTypes: List<ShiftType> get() = coverage.firstOrNull()?.counts?.map { it.first }.orEmpty()
@@ -106,25 +131,32 @@ internal data class PlanGrid(
                     note = if (editable) state.dayNote(date) else null,
                 )
             }
+            val restMinutes = state.restMinutes
             val rows = state.members().map { member ->
-                val cells = days.map { day -> if (day.editable) cell(state, types, member.id, day.date) else Cell.EMPTY }
+                val cells = days.map { day -> if (day.editable) cell(state, types, member.id, day.date, restMinutes) else Cell.EMPTY }
                 MemberRow(member, cells, cells.sumOf { it.type?.paidMinutes ?: 0 })
             }
             // Spalten der Besetzung: aktive Arbeitsschichten und alle, die im Zeitraum vorkommen.
             val used = rows.flatMap { row -> row.cells.mapNotNull { it.type } }.toSet()
             val coverageTypes = types.all.filter { it.countsForCoverage && (!it.archived || it in used) }
+            val targets = state.targets
             val coverage = days.indices.map { i ->
-                DayCoverage(coverageTypes.map { type -> type to rows.count { it.cells[i].type?.id == type.id } })
+                val weekday = days[i].date.dayOfWeek.value - 1
+                val dayTargets = coverageTypes.mapNotNull { type ->
+                    targets[type.id]?.get(weekday)?.takeIf { it > 0 }?.let { type.id to it }
+                }.toMap()
+                DayCoverage(coverageTypes.map { type -> type to rows.count { it.cells[i].type?.id == type.id } }, dayTargets)
             }
             return PlanGrid(days, rows, coverage, types)
         }
 
-        private fun cell(state: PlanState, types: ShiftTypeSet, memberId: String, date: LocalDate): Cell {
+        internal fun cell(state: PlanState, types: ShiftTypeSet, memberId: String, date: LocalDate, restMinutes: Int): Cell {
             val typeId = state.shift(memberId, date)
             val wish = state.wish(memberId, date)
             val note = state.memberNote(memberId, date)
             if (typeId == null && wish == null && note == null) return Cell.EMPTY
-            return Cell(typeId, types[typeId], wish, note)
+            val rest = RestRules.issueBefore(state, types, memberId, date, typeId, restMinutes)
+            return Cell(typeId, types[typeId], wish, note, rest)
         }
     }
 }

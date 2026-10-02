@@ -7,6 +7,7 @@ import ch.digitana.dienstplan.core.crdt.PlanAccess
 import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanLock
 import ch.digitana.dienstplan.core.crdt.PlanLocks
+import ch.digitana.dienstplan.core.crdt.PlanRules
 import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crdt.ShiftPattern
 import ch.digitana.dienstplan.core.crdt.ShiftType
@@ -403,5 +404,31 @@ class PlanRepositoryTest {
         repo.setDeviceLabel("00000000000000aa", "Stationshandy")
         assertEquals("Stationshandy", repo.state.value.authorName("00000000000000aa"))
         assertThrows<IllegalArgumentException> { repo.setDeviceOwner("Anna") }
+    }
+
+    @Test
+    fun `Ruhezeit und Soll-Besetzung einstellen`() = runTest {
+        val repo = repository()
+        assertEquals(PlanRules.DEFAULT_REST_MINUTES, repo.state.value.restMinutes)
+        repo.setRestMinutes(9 * 60)
+        assertEquals(540, repo.state.value.restMinutes)
+        repo.setRestMinutes(0)
+        assertEquals(0, repo.state.value.restMinutes)
+        repo.setRestMinutes(null)
+        assertEquals(PlanRules.DEFAULT_REST_MINUTES, repo.state.value.restMinutes)
+        assertThrows<IllegalArgumentException> { repo.setRestMinutes(17 * 60) }
+
+        repo.setTargets("F", listOf(3, 3, 3, 3, 3, 2, 2))
+        assertEquals(mapOf("F" to listOf(3, 3, 3, 3, 3, 2, 2)), repo.state.value.targets)
+        repo.setTargets("F", List(7) { 0 })
+        assertTrue(repo.state.value.targets.isEmpty())
+        assertThrows<IllegalArgumentException> { repo.setTargets("F", listOf(1, 2, 3)) }
+        assertThrows<IllegalArgumentException> { repo.setTargets("Q", List(7) { 1 }) }
+
+        // Gesperrt: nur Admins ändern die Regeln.
+        val admin = "00000000000000bb"
+        repo.setAccess(PlanAccess(PlanLock(listOf(PlanLock.Segment(null, repo.lockTimestamp())), setOf(admin)), setOf(admin)))
+        assertThrows<PlanLockedException> { repo.setRestMinutes(600) }
+        assertThrows<PlanLockedException> { repo.setTargets("S", List(7) { 1 }) }
     }
 }

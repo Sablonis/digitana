@@ -50,6 +50,19 @@ class PlanState private constructor(private val bucketMap: Map<String, LwwMap>) 
         ShiftTypeSet(defined.values)
     }
 
+    /** Mindestruhezeit zwischen zwei Diensten in Minuten; 0 = keine Warnung. */
+    val restMinutes: Int
+        get() = value(PlanKeys.setting(PlanRules.REST)).toIntOrNull() ?: PlanRules.DEFAULT_REST_MINUTES
+
+    /** Soll-Besetzung pro Schichtart (Montag zuerst); nur Arten mit mindestens einem Soll. */
+    val targets: Map<String, List<Int>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        bucket(Buckets.TEAM).entries.mapNotNull { (key, entry) ->
+            val parsed = PlanKeys.parse(key) as? PlanKey.Target ?: return@mapNotNull null
+            val targets = PlanRules.decodeTargets(entry.value) ?: return@mapNotNull null
+            if (targets.all { it == 0 }) null else parsed.typeId to targets
+        }.toMap()
+    }
+
     /** Gespeicherte Rhythmen, alphabetisch. */
     fun patterns(): List<ShiftPattern> {
         val collator = Collator.getInstance(Locale.GERMAN).apply { strength = Collator.SECONDARY }

@@ -65,7 +65,8 @@ data class MyShiftsModel(
 
         private fun cellOf(state: PlanState, types: ShiftTypeSet, memberId: String, date: LocalDate): Cell {
             val typeId = state.shift(memberId, date)
-            return Cell(typeId, types[typeId], state.wish(memberId, date), state.memberNote(memberId, date))
+            val rest = RestRules.issueBefore(state, types, memberId, date, typeId, state.restMinutes)
+            return Cell(typeId, types[typeId], state.wish(memberId, date), state.memberNote(memberId, date), rest)
         }
 
         private fun minutes(state: PlanState, types: ShiftTypeSet, memberId: String, date: LocalDate): Int {

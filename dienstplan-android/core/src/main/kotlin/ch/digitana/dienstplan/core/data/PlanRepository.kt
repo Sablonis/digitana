@@ -8,6 +8,7 @@ import ch.digitana.dienstplan.core.crdt.Names
 import ch.digitana.dienstplan.core.crdt.Notes
 import ch.digitana.dienstplan.core.crdt.PlanAccess
 import ch.digitana.dienstplan.core.crdt.PlanKeys
+import ch.digitana.dienstplan.core.crdt.PlanRules
 import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crdt.ShiftPattern
 import ch.digitana.dienstplan.core.crdt.ShiftPatterns
@@ -184,6 +185,18 @@ class PlanRepository(
     suspend fun resetShiftType(typeId: String) {
         require(typeId in ShiftTypes.BUILT_IN_IDS) { "Nur Standardarten lassen sich zurücksetzen" }
         write { listOf(PlanKeys.shiftType(typeId) to "") }
+    }
+
+    /** Mindestruhezeit zwischen zwei Diensten in Minuten (0 = keine Warnung); null = Standard (11 h). */
+    suspend fun setRestMinutes(minutes: Int?) {
+        require(minutes == null || minutes in 0..PlanRules.MAX_REST_MINUTES) { "Ungültige Ruhezeit" }
+        write { listOf(PlanKeys.setting(PlanRules.REST) to (minutes?.toString() ?: "")) }
+    }
+
+    /** Soll-Besetzung einer Schichtart pro Wochentag (Montag zuerst); null oder nur Nullen löscht sie. */
+    suspend fun setTargets(typeId: String, targets: List<Int>?) {
+        val value = if (targets == null || targets.all { it == 0 }) "" else PlanRules.encodeTargets(targets)
+        write { listOf(PlanKeys.target(typeId) to value) }
     }
 
     fun newPatternId(): String = ShiftPatterns.newId(_state.value.patterns().map { it.id }.toSet())

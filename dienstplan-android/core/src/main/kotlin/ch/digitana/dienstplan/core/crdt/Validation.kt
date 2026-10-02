@@ -43,6 +43,8 @@ object EntryValidator {
         is PlanKey.DayNote, is PlanKey.MemberNote -> Notes.isValid(value)
         is PlanKey.Wish -> Wish.fromCode(value) != null
         is PlanKey.DeviceOwner -> PlanKeys.isValidId(value)
+        is PlanKey.Setting -> PlanRules.isValidSetting(key.name, value)
+        is PlanKey.Target -> PlanRules.decodeTargets(value) != null
     }
 }
 

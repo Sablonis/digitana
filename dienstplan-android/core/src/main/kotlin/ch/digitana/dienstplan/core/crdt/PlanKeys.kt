@@ -33,6 +33,12 @@ sealed interface PlanKey {
 
     /** `u|<geräte-id>` → ID der Person, der das Gerät gehört (leer = keine). */
     data class DeviceOwner(val deviceId: String) : PlanKey
+
+    /** `c|<name>` → Planungsregel des Teams, z. B. `rest`: Mindestruhezeit in Minuten (leer = Standard). */
+    data class Setting(val name: String) : PlanKey
+
+    /** `b|<schichtart-id>` → Soll-Besetzung pro Wochentag, `3,3,3,3,3,2,2` (leer = keins). */
+    data class Target(val typeId: String) : PlanKey
 }
 
 object PlanKeys {
@@ -50,6 +56,8 @@ object PlanKeys {
     private val MEMBER_NOTE = Regex("n\\|([0-9a-f]{16})\\|$DATE")
     private val WISH = Regex("w\\|([0-9a-f]{16})\\|$DATE")
     private val DEVICE_OWNER = Regex("u\\|([0-9a-f]{16})")
+    private val SETTING = Regex("c\\|(rest)")
+    private val TARGET = Regex("b\\|([FSNXU]|[0-9a-f]{8})")
 
     /** Neue zufällige ID (64 Bit, 16 Hex-Zeichen). */
     fun newId(): String = Hex.encode(SecureRandomBytes.next(8))
@@ -106,6 +114,16 @@ object PlanKeys {
         return "u|$deviceId"
     }
 
+    fun setting(name: String): String {
+        require(SETTING.matches("c|$name")) { "Unbekannte Einstellung" }
+        return "c|$name"
+    }
+
+    fun target(typeId: String): String {
+        require(ShiftTypes.isValidId(typeId)) { "Ungültige Schichtart-ID" }
+        return "b|$typeId"
+    }
+
     /**
      * Prüft Format (Regex, ganze Zeichenkette) und Datum (existiert, 2000–2100).
      * Gibt `null` für alles andere zurück.
@@ -115,6 +133,8 @@ object PlanKeys {
         MEMBER.matchEntire(key)?.let { return PlanKey.Member(it.groupValues[1]) }
         DEVICE.matchEntire(key)?.let { return PlanKey.Device(it.groupValues[1]) }
         DEVICE_OWNER.matchEntire(key)?.let { return PlanKey.DeviceOwner(it.groupValues[1]) }
+        SETTING.matchEntire(key)?.let { return PlanKey.Setting(it.groupValues[1]) }
+        TARGET.matchEntire(key)?.let { return PlanKey.Target(it.groupValues[1]) }
         SHIFT_TYPE.matchEntire(key)?.let { return PlanKey.ShiftType(it.groupValues[1]) }
         PATTERN.matchEntire(key)?.let { return PlanKey.Pattern(it.groupValues[1]) }
         SHIFT.matchEntire(key)?.let { match ->
