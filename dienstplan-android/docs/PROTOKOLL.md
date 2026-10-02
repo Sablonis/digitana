@@ -147,14 +147,15 @@ nimmt solche Commits nur von Admin-Geräten an (beim Erzeugen und beim Empfang).
 - Unlesbares (anderes Format, `v` ≠ 1, mehr als 4096 Byte, ungültige Daten) gilt als offen.
   Ein Gerät, das eine Sperre nicht versteht, löscht deshalb nie Einträge.
 
-**Was geschützt ist:** Schichten (`z|…`) an gesperrten Tagen, Schichtarten (`s|…`) und das
-Löschen von Personen (`m|…` mit leerem Wert), solange eine Sperre besteht. Wünsche, Notizen,
+**Was geschützt ist:** Schichten (`z|…`) an gesperrten Tagen, Schichtarten (`s|…`),
+Planungsregeln (`c|…`, `b|…`) und das Löschen von Personen (`m|…` mit leerem Wert), solange
+eine Sperre besteht. Wünsche, Notizen,
 Rhythmen, Gerätenamen, Zuordnungen und neue Personen bleiben für alle offen.
 
 **Regel für Einträge** (auf jedem Gerät gleich, für empfangene und gespeicherte): Ein
 geschützter Eintrag gilt, wenn seine Geräte-ID ein aktuelles Admin-Gerät oder in `admins`
 ist, oder wenn sein Zeitstempel ≤ `since` des Abschnitts ist, der den Tag sperrt (für
-Schichtarten und Personen: des ältesten Abschnitts). Sonst wird er beim Empfang verworfen
+Schichtarten, Regeln und Personen: des ältesten Abschnitts). Sonst wird er beim Empfang verworfen
 (Diagnose „Wegen Sperre“); ein Teil mit solchen Einträgen löst keinen Vergleich aus.
 
 **Wechsel der Sperre:** Ändert sich die Sperre oder die Admin-Liste, entfernt jedes Gerät die
@@ -193,6 +194,8 @@ gelöscht bzw. leer.
 | `m\|<id>` | `team` | Name einer Person (max. 60 Zeichen) |
 | `d\|<geräte-id>` | `team` | Name eines Geräts in der Geräteliste |
 | `u\|<geräte-id>` | `team` | Person, der das Gerät gehört („Das bin ich“): ihre ID |
+| `c\|rest` | `team` | Mindestruhezeit zwischen zwei Diensten in Minuten (0–960, `0` = keine Warnung, leer = 11 h) |
+| `b\|<art-id>` | `team` | Soll-Besetzung pro Wochentag, Montag zuerst: `3,3,3,3,3,2,2` (je 0–99) |
 | `s\|<art-id>` | `team` | Schichtart: `v1\|<kürzel>\|<name>\|<beginn>\|<ende>\|<pause>\|<art>\|<farbe>\|<anrechnung>\|<flags>` |
 | `r\|<rhythmus-id>` | `team` | Rhythmus: `v1\|<name>\|<art-id>,<art-id>,…` (leere Stelle = Tag frei lassen) |
 | `z\|<id>\|<JJJJ-MM-TT>` | Woche | ID einer Schichtart |
@@ -223,10 +226,18 @@ diese Art. Ohne Eintrag ist er offen. Wünsche einer Person ändern ihre eigenen
 (`u|…`) und Admins; hat eine Person kein Gerät, alle. Diese Regel prüft die App beim
 Eintragen, nicht beim Empfang (siehe SICHERHEIT.md).
 
+**Ruhezeit und Soll.** Die App warnt, wenn zwischen zwei Arbeitsdiensten einer Person
+weniger Ruhe liegt als `c|rest` (Standard 11 h nach Art. 15a ArG). Es zählen nur
+Arbeitsschichten mit Zeiten; ein Dienst über Mitternacht endet am Folgetag, gerechnet wird in
+Ortszeit. Weil ein Dienst höchstens 24 h dauert und die Grenze höchstens 16 h beträgt, genügen
+die zwei Tage davor. `b|<art-id>` legt fest, wie viele Personen eine Arbeitsschicht pro
+Wochentag braucht; die Besetzungszeile zeigt Ist/Soll. Beides sind nur Hinweise: Die App
+verhindert keine Einträge.
+
 **Kompatibilität.** Die neuen Schlüssel ergänzen DP3. Geräte mit der ersten DP3-Version
 verwerfen sie (und Felder mit eigenen Schichtarten) als ungültig. Weil Teile mit verworfenen
 Einträgen keinen Vergleich auslösen, entsteht dabei kein Hin und Her; alle Geräte sollten aber
-dieselbe Version nutzen. Das gilt auch für `WA`, `WA:<art-id>` und `u|…`. Ältere Versionen
+dieselbe Version nutzen. Das gilt auch für `WA`, `WA:<art-id>`, `u|…`, `c|…` und `b|…`. Ältere Versionen
 kennen die Sperre nicht: Sie lassen Änderungen zu, die neuere Geräte verwerfen.
 
 ## Relays

@@ -366,7 +366,7 @@
     <string name="lock_status_open">Der Plan ist offen: Alle können Schichten eintragen.</string>
     <string name="lock_status_whole">Der ganze Plan ist gesperrt.</string>
     <string name="lock_status_until">Gesperrt bis %1$s.</string>
-    <string name="lock_rules">Während einer Sperre ändern nur Admins Schichten im gesperrten Bereich, Schichtarten und Personen. Wünsche und Notizen bleiben für alle offen.</string>
+    <string name="lock_rules">Während einer Sperre ändern nur Admins Schichten im gesperrten Bereich, Schichtarten, Ruhezeit und Soll-Besetzung sowie Personen. Wünsche und Notizen bleiben für alle offen.</string>
     <string name="lock_admin_hint">Als Admin kannst du auch im gesperrten Bereich ändern.</string>
     <string name="lock_member_hint">Sperren und öffnen können nur Admins.</string>
     <string name="lock_action_lock">Sperren</string>

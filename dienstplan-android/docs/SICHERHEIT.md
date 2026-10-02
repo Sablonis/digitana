@@ -125,7 +125,7 @@ JSON (`v1|…` mit genau der erwarteten Zahl Felder), Kürzel nur A–Z/0–9 (1
 höchstens 30 und Notizen höchstens 200 Zeichen ohne Steuer-, Bidi- oder unsichtbare Zeichen,
 Zeiten `HH:MM`, Zahlen ohne führende Nullen und mit Obergrenzen, Farben nur aus der festen
 Palette, Wünsche nur aus festen Codes (`WF`, `FW`, `NV`, `WA`, `WA:<art-id>`), Rhythmen 1–8
-ganze Wochen. Felder im Plan verweisen nur
+ganze Wochen, Ruhezeit 0–960 Minuten, Soll genau sieben Zahlen 0–99. Felder im Plan verweisen nur
 auf gültige Schichtart-IDs; ob die Art schon bekannt ist, entscheidet die Anzeige („?“).
 
 **17. Exporte verlassen die Verschlüsselung.** Woche oder Monat als PDF oder Bild und die
@@ -157,13 +157,18 @@ verhindern, dass ein Verlängern der Sperre Änderungen verwirft, die gemacht wu
 Bereich noch offen war.
 
 **21. Gleiche Rechte beim Eintragen.** Im offenen Plan dürfen alle Mitglieder alles, auch
-Schichten. Die Sperre schränkt nur Schichten im gesperrten Bereich, Schichtarten und das
-Löschen von Personen ein; Wünsche und Notizen bleiben für alle offen, damit niemand vom
+Schichten. Die Sperre schränkt nur Schichten im gesperrten Bereich, Schichtarten,
+Planungsregeln und das Löschen von Personen ein; Wünsche und Notizen bleiben für alle offen, damit niemand vom
 Planen ausgeschlossen ist. Wünsche gehören der Person: Hat sie mit „Das bin ich“ ein eigenes
 Gerät zugeordnet (Eintrag `u|<geräte-id>`), ändern ihre Wünsche nur dieses Gerät und Admins.
 So kann niemand die Wünsche einer Kollegin überschreiben, und Personen ohne Handy können
 trotzdem vertreten werden. Die Monatsansicht zeigt allen, wie viele Wünsche pro Person
 erfüllt sind – Fairness wird sichtbar statt behauptet.
+
+**22. Ruhezeit und Soll sind Hinweise, keine Sperren.** Zu kurze Ruhe zwischen zwei Diensten
+und Schichten unter dem Soll markiert die App rot und zählt sie über dem Plan. Eintragen bleibt
+möglich: Ausnahmen (Notfall, Tausch) entscheidet das Team, nicht die App. Während einer Sperre
+ändern nur Admins diese Regeln, damit niemand Warnungen im fertigen Plan wegschaltet.
 
 ## Grenzen
 
@@ -203,6 +208,9 @@ erfüllt sind – Fairness wird sichtbar statt behauptet.
   Alle Geräte sollten dieselbe Version nutzen.
 - **Uhren:** Falsch gehende Uhren beeinflussen, welche Änderung bei gleichzeitigen
   Konflikten gewinnt.
+- **Ruhezeit in Ortszeit:** Die Prüfung rechnet ohne Zeitumstellung; in der Nacht der
+  Umstellung liegt sie um eine Stunde daneben. Sie ersetzt keine rechtliche Prüfung (z. B.
+  Ausnahmen nach ArGV 2 im Gesundheitswesen oder die wöchentliche Ruhezeit).
 - **Verfügbarkeit:** Öffentliche Relays können Events ablehnen, löschen oder nur begrenzt
   aufbewahren. Drei Relays und die Übersichten mildern das. Fehlt einem Gerät aber ein
   Commit endgültig oder war es länger als 45 Tage offline (Grenze von MDK), kann es neue

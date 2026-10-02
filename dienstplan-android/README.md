@@ -19,7 +19,7 @@ werden später gesendet.
   Oben die Übersicht für heute (eigener Dienst, Besetzung je Schicht). Tipp auf ein Feld
   öffnet die Auswahl: Schicht, Wunsch, Notiz zum Dienst; langes Drücken leert das Feld.
   Tipp auf einen Tag zeigt, wer welche Schicht hat, wer fehlt, Wünsche (erfüllt oder nicht)
-  und die Notiz zum Tag. Stunden pro Person, Besetzung pro Tag, „Woche kopieren“ und
+  und die Notiz zum Tag. Stunden pro Person, Besetzung pro Tag (Ist/Soll), „Woche kopieren“ und
   „Rhythmus anwenden“ mit „Rückgängig“, „Schnell eintragen“ (Schicht wählen, Felder antippen).
 - **Personen:** unten in der Woche hinzufügen (Name max. 40 Zeichen); Tipp auf einen Namen
   zum Umbenennen, Löschen oder „Das bin ich“.
@@ -31,10 +31,14 @@ werden später gesendet.
   Wunschschicht (eine bestimmte Schichtart). Export in den Kalender als .ics.
 - **Gleiche Rechte:** Im offenen Plan tragen alle alles ein. Wünsche gehören der Person: Hat
   sie auf ihrem Gerät „Das bin ich“ gewählt, ändern sie nur ihre Geräte und Admins.
+- **Ruhezeit und Soll-Besetzung:** Die App warnt, wenn zwischen zwei Diensten einer Person
+  weniger als 11 Stunden Ruhe liegen (einstellbar oder abschaltbar), markiert solche Felder rot
+  und zeigt beim Eintragen, welche Schicht zu knapp wäre. Pro Schicht und Wochentag lässt sich
+  ein Soll festlegen; Tage darunter erscheinen rot, über dem Plan steht eine Zusammenfassung.
 - **Plan sperren (Admins):** im Team-Reiter oder über den Hinweis im Plan – bis Ende dieser
   oder nächster Woche, Ende dieses oder nächsten Monats oder der ganze Plan; jederzeit wieder
-  öffnen. Gesperrt ändern nur Admins Schichten, Schichtarten und Personen; Wünsche und
-  Notizen bleiben für alle offen. Gesperrte Tage tragen ein Schloss.
+  öffnen. Gesperrt ändern nur Admins Schichten, Schichtarten, Ruhezeit und Soll sowie
+  Personen; Wünsche und Notizen bleiben für alle offen. Gesperrte Tage tragen ein Schloss.
 - **Schichtarten:** eigene Arten mit Kürzel, Name, Zeiten, Pause, Art (Arbeit, frei,
   abwesend), angerechneten Stunden und Farbe; archivieren, Standardarten zurücksetzen.
 - **Rhythmen:** Abfolgen über 1–8 Wochen „malen“ und auf Personen und bis zu 52 Wochen
