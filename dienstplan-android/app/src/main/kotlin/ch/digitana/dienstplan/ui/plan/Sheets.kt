@@ -106,8 +106,9 @@ fun CellSheet(
                     }
                 }
                 // Archivierte oder (noch) unbekannte Art in diesem Feld trotzdem zeigen.
-                if (cell.typeId != null && types.active.none { it.id == cell.typeId }) {
-                    ShiftOption(type = cell.type, typeId = cell.typeId, selected = true, enabled = false) {}
+                val currentId = cell.typeId
+                if (currentId != null && types.active.none { it.id == currentId }) {
+                    ShiftOption(type = cell.type, typeId = currentId, selected = true, enabled = false) {}
                 }
             }
             if (cell.typeId != null && !readOnly) {
