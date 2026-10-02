@@ -37,6 +37,8 @@ const MAX_DEFERRED: usize = 500;
 const MAX_DEFER_ATTEMPTS: u8 = 20;
 /// Toleranz für vorgehende Uhren anderer Geräte (MDK-Standard: 5 Minuten).
 const MAX_FUTURE_SKEW_SECS: u64 = 60 * 60;
+/// Höchstlänge der Teambeschreibung in Bytes (dort liegt der Sperrstatus des Plans).
+const MAX_DESCRIPTION_BYTES: usize = 4096;
 /// Kinds, die [MlsEngine::sign_event] mit dem Identitätsschlüssel signiert:
 /// Löschanfragen (NIP-09) und Anmeldungen bei Relays (NIP-42).
 const SIGNABLE_KINDS: [u16; 2] = [5, 22242];
@@ -77,6 +79,9 @@ pub struct TeamInfo {
     /// Öffentliche Schlüssel der Admins (hex), sortiert.
     pub admins: Vec<String>,
     pub relays: Vec<String>,
+    /// Beschreibung der Gruppe. Die App legt dort den Sperrstatus des Plans ab (JSON). Nur
+    /// Admins können sie ändern: MDK lehnt Commits anderer Geräte beim Empfang ab.
+    pub description: String,
 }
 
 /// Ergebnis einer Einladung: zuerst den Commit veröffentlichen, nach der Bestätigung
@@ -248,10 +253,32 @@ impl MlsEngine {
 
     /// Setzt die Admin-Liste neu (nur Admins). Liefert den zu veröffentlichenden Commit.
     pub fn set_admins(&self, group_id: String, admins: Vec<String>) -> Result<String, MlsError> {
+        self.update_team(group_id, Some(admins), None)
+    }
+
+    /// Ändert Admin-Liste und/oder Beschreibung in einem einzigen Commit (nur Admins);
+    /// `None` lässt den Wert, wie er ist. Liefert den zu veröffentlichenden Commit.
+    pub fn update_team(
+        &self,
+        group_id: String,
+        admins: Option<Vec<String>>,
+        description: Option<String>,
+    ) -> Result<String, MlsError> {
         let inner = self.lock()?;
         let gid = parse_group_id(&group_id)?;
         let mut update = NostrGroupDataUpdate::new();
-        update.admins = Some(parse_pubkeys(&admins)?);
+        if let Some(admins) = admins {
+            update.admins = Some(parse_pubkeys(&admins)?);
+        }
+        if let Some(description) = description {
+            if description.len() > MAX_DESCRIPTION_BYTES {
+                return Err(invalid("Beschreibung zu lang"));
+            }
+            update.description = Some(description);
+        }
+        if update.admins.is_none() && update.description.is_none() {
+            return Err(invalid("nichts zu ändern"));
+        }
         let result = inner.mdk.update_group_data(&gid, update).map_err(protocol)?;
         Ok(result.evolution_event.as_json())
     }
@@ -678,6 +705,7 @@ fn team_info(mdk: &MDK<MdkSqliteStorage>, gid: &GroupId) -> Result<TeamInfo, Mls
         members,
         admins: group.admin_pubkeys.iter().map(|pk| pk.to_hex()).collect(),
         relays,
+        description: group.description.clone(),
     })
 }
 

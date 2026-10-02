@@ -32,6 +32,18 @@ class LwwMap private constructor(entries: Map<String, Entry>) {
 
     fun merge(other: LwwMap): LwwMap = mergeEntries(other.entries).map
 
+    /**
+     * Entfernt Schlüssel ganz (nicht als Tombstone). Nur für Einträge, die nach einer neuen
+     * Sperre auf keinem Gerät mehr gelten: Ein älterer Eintrag desselben Schlüssels kann
+     * danach wieder übernommen werden.
+     */
+    fun without(keys: Collection<String>): LwwMap {
+        if (keys.none { it in entries }) return this
+        val copy = HashMap(entries)
+        for (key in keys) copy.remove(key)
+        return if (copy.isEmpty()) EMPTY else LwwMap(copy)
+    }
+
     /** Führt [incoming] ein und meldet die Schlüssel, deren Wert sich dadurch geändert hat. */
     fun mergeEntries(incoming: Map<String, Entry>): MergeResult {
         var result: HashMap<String, Entry>? = null

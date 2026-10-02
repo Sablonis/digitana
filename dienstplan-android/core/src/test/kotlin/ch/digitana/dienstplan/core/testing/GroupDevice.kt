@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import java.io.File
@@ -78,6 +79,11 @@ class GroupDevice(
     val state: PlanState get() = plan.state.value
     val publicKey: String get() = team.publicKey!!
     val teamState: TeamState get() = team.state.value
+
+    init {
+        // Wie in der App: Sperre und Admins des Teams gelten für den Plan.
+        scope.launch { team.state.collect { plan.setAccess(it.planAccess) } }
+    }
 
     suspend fun load() {
         team.load()

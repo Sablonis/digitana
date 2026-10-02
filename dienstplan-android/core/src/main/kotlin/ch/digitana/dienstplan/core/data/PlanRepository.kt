@@ -1,10 +1,12 @@
 package ch.digitana.dienstplan.core.data
 
+import ch.digitana.dienstplan.core.crdt.Buckets
 import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.HybridClock
 import ch.digitana.dienstplan.core.crdt.NameProblem
 import ch.digitana.dienstplan.core.crdt.Names
 import ch.digitana.dienstplan.core.crdt.Notes
+import ch.digitana.dienstplan.core.crdt.PlanAccess
 import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crdt.ShiftPattern
@@ -15,6 +17,7 @@ import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.crdt.Wish
 import ch.digitana.dienstplan.core.plan.PatternPlanner
 import ch.digitana.dienstplan.core.group.PlanSync
+import ch.digitana.dienstplan.core.group.RemoteMerge
 import ch.digitana.dienstplan.core.util.Clock
 import ch.digitana.dienstplan.core.util.Logger
 import kotlinx.coroutines.CoroutineDispatcher
@@ -37,6 +40,9 @@ import java.time.LocalDate
 
 /** Ungültige lokale Eingabe (z. B. leerer oder zu langer Name oder Notiz). */
 class InvalidInputException(val problem: NameProblem) : IllegalArgumentException("Ungültige Eingabe: $problem")
+
+/** Der Plan ist gesperrt: Diese Änderung dürfen nur Admins machen. */
+class PlanLockedException : IllegalStateException("Plan gesperrt")
 
 /**
  * CRDT-Speicher des Plans. Lokale Änderungen bekommen einen Zeitstempel der hybriden Uhr
@@ -62,6 +68,19 @@ class PlanRepository(
 
     private val _localChanges = MutableSharedFlow<Any>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val localChanges: Flow<Any> = _localChanges.asSharedFlow()
+
+    private val _access = MutableStateFlow(PlanAccess.OPEN)
+
+    /** Sperre und Admin-Geräte des Teams (siehe [setAccess]). */
+    val access: StateFlow<PlanAccess> = _access.asStateFlow()
+
+    private val _discarded = MutableSharedFlow<Int>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Anzahl eigener Änderungen, die eine neue Sperre ungültig gemacht hat. */
+    val discarded: Flow<Int> = _discarded.asSharedFlow()
+
+    private val _purged = MutableSharedFlow<Set<String>>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val purged: Flow<Set<String>> = _purged.asSharedFlow()
 
     private val saveRequests = Channel<Unit>(Channel.CONFLATED)
     private val _loaded = MutableStateFlow(false)
@@ -200,24 +219,63 @@ class PlanRepository(
         }
     }
 
-    override suspend fun mergeRemote(bucket: String, entries: Map<String, Entry>): Boolean {
-        val changed = mutex.withLock {
-            val result = _state.value.merge(bucket, entries)
-            if (result.changedKeys.isEmpty()) return@withLock false
+    override suspend fun mergeRemote(bucket: String, entries: Map<String, Entry>): RemoteMerge {
+        val outcome = mutex.withLock {
+            val access = _access.value
+            val accepted = if (access.lock == null) entries else entries.filter { (key, entry) -> access.allows(key, entry) }
+            val rejected = entries.size - accepted.size
+            val result = _state.value.merge(bucket, accepted)
+            if (result.changedKeys.isEmpty()) return@withLock RemoteMerge(false, rejected)
             _state.value = result.state
             var maxTimestamp = 0L
             for (key in result.changedKeys) {
-                val ts = entries.getValue(key).timestamp
+                val ts = accepted.getValue(key).timestamp
                 if (ts > maxTimestamp) maxTimestamp = ts
                 // Ein neuerer Eintrag von aussen hat die eigene Änderung überholt.
                 pending.remove(key)
             }
             hybridClock.observe(maxTimestamp)
-            true
+            RemoteMerge(true, rejected)
         }
-        if (changed) saveRequests.trySend(Unit)
-        return changed
+        if (outcome.changed) saveRequests.trySend(Unit)
+        return outcome
     }
+
+    /**
+     * Neue Sperre oder neue Admins aus der MLS-Gruppe. Einträge, die danach nicht mehr gelten,
+     * werden entfernt – auf jedem Gerät nach derselben Regel. Den vorherigen Wert eines
+     * Feldes liefert der Abgleich mit den anderen Geräten zurück.
+     * @return Anzahl entfernter Einträge.
+     */
+    suspend fun setAccess(access: PlanAccess): Int {
+        var removed = 0
+        var own = 0
+        var buckets: Set<String> = emptySet()
+        mutex.withLock {
+            if (_access.value == access) return@withLock
+            _access.value = access
+            val lock = access.lock ?: return@withLock
+            // Eigene Einträge nach dem Sperren müssen jünger sein als jeder Abschnitt.
+            hybridClock.observe(lock.changedAt)
+            val result = _state.value.filter { key, entry -> access.allows(key, entry) }
+            if (result.removed.isEmpty()) return@withLock
+            _state.value = result.state
+            removed = result.removed.size
+            val device = deviceId
+            own = result.removed.values.count { it.device == device }
+            for (key in result.removed.keys) pending.remove(key)
+            buckets = result.removed.keys.mapNotNullTo(HashSet()) { key -> PlanKeys.parse(key)?.let(Buckets::forKey) }
+        }
+        if (removed > 0) {
+            logger.debug(TAG, "Sperre: $removed Einträge entfernt")
+            _purged.tryEmit(buckets)
+            if (own > 0) _discarded.tryEmit(own)
+            saveRequests.trySend(Unit)
+        }
+        return removed
+    }
+
+    override suspend fun lockTimestamp(): Long = mutex.withLock { hybridClock.next() }
 
     /** Aktuelle Einträge der eigenen, noch nicht bestätigten Änderungen. */
     override suspend fun pendingEntries(): Map<String, Entry> = mutex.withLock {
@@ -280,7 +338,13 @@ class PlanRepository(
         var written = 0
         mutex.withLock {
             var state = _state.value
-            for ((key, value) in compute(state)) {
+            val changes = compute(state)
+            // Alles oder nichts: Ist ein Feld gesperrt, unterbleibt die ganze Änderung.
+            val access = _access.value
+            if (changes.any { (key, value) -> state.value(key) != value && !access.mayWrite(device, key, value) }) {
+                throw PlanLockedException()
+            }
+            for ((key, value) in changes) {
                 // Unveränderte Felder nicht neu schreiben (spart Sync-Verkehr, vermeidet unnötige Konflikte).
                 if (state.value(key) == value) continue
                 val entry = Entry(value, hybridClock.next(), device)

@@ -4,6 +4,8 @@ import ch.digitana.dienstplan.core.crdt.Buckets
 import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.Limits
 import ch.digitana.dienstplan.core.crdt.PlanKeys
+import ch.digitana.dienstplan.core.crdt.PlanLockCodec
+import ch.digitana.dienstplan.core.crdt.PlanLocks
 import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.crypto.SecureRandomBytes
 import ch.digitana.dienstplan.core.nostr.Nip01
@@ -50,6 +52,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
@@ -138,6 +141,8 @@ data class GroupDiagnostics(
     /** Ungültige Nachrichten von Mitgliedern (Format) oder einzelne verworfene Einträge. */
     val invalidMessages: Int = 0,
     val droppedEntries: Int = 0,
+    /** Empfangene Einträge, die wegen der Sperre des Plans nicht gelten. */
+    val lockedEntries: Int = 0,
     /**
      * Ein eigener Commit hat einen Wettlauf verloren, nachdem er schon übernommen war: Dieses
      * Gerät kann die Nachrichten des Teams nicht mehr lesen und muss neu hinzugefügt werden.
@@ -281,6 +286,8 @@ class GroupSyncEngine(
         _status.value = SyncStatus(0, sessions.size, sessions.size, 0, running = true)
         engineScope.launch { runLoop() }
         engineScope.launch { plan.localChanges.collect { inputs.send(Input.LocalChanged) } }
+        // Eine Sperre hat Einträge entfernt: Die anderen Geräte haben dort den gültigen Stand.
+        engineScope.launch { plan.purged.collect { buckets -> inputs.send(Input.Run { buckets.forEach(::scheduleRepair) }) } }
         engineScope.launch { team.record.collect { inputs.send(Input.TargetChanged) } }
         for (session in sessions) engineScope.launch { connectionLoop(session) }
     }
@@ -384,7 +391,33 @@ class GroupSyncEngine(
             val current = info.admins.filter { it in info.members }.toMutableSet()
             if (admin) current += publicKey else current -= publicKey
             if (current.isEmpty() || publicKey !in info.members || current == info.admins.toSet()) return@commit null
-            mls.setAdmins(groupId, current.sorted()) to Unit
+            // Ist der Plan gesperrt, kommt ein neuer Admin im selben Commit in die Sperre.
+            val description = PlanLockCodec.decode(info.description)
+                ?.let { PlanLockCodec.encode(PlanLocks.withAdmins(it, current.mapTo(HashSet()) { key -> DeviceKeys.deviceIdOf(key) })) }
+                ?.takeIf { it != info.description }
+            mls.updateTeam(groupId, current.sorted(), description) to Unit
+        }
+    }
+
+    /**
+     * Sperrt den Plan bis [until] (null = ganz) oder öffnet ihn ([locked] = false); nur Admins.
+     * Die Sperre steht in der Beschreibung der MLS-Gruppe, die nur Admins ändern können.
+     */
+    suspend fun setPlanLock(locked: Boolean, until: LocalDate? = null) = operation {
+        require(until == null || PlanKeys.isValidDate(until)) { "Datum ausserhalb 2000–2100" }
+        val member = requireMember()
+        if (!member.isAdmin) throw TeamOperationException(TeamOperationException.Reason.NOT_ADMIN)
+        val groupId = member.team.groupId
+        val since = plan.lockTimestamp()
+        val by = DeviceKeys.deviceIdOf(member.me)
+        commit(groupId) { mls ->
+            val info = mls.team(groupId) ?: return@commit null
+            val current = PlanLockCodec.decode(info.description)
+            val admins = info.admins.filter { it in info.members }.mapTo(HashSet()) { DeviceKeys.deviceIdOf(it) }
+            val next = if (locked) PlanLocks.lock(current, until, since, admins, by) else null
+            val description = PlanLockCodec.encode(next)
+            if (description == info.description) return@commit null
+            mls.updateTeam(groupId, null, description) to Unit
         }
     }
 
@@ -1263,18 +1296,25 @@ class GroupSyncEngine(
 
     private suspend fun applyState(message: GroupMessages.Message.State, now: Long) {
         var dropped = 0
+        var locked = 0
         for (part in message.parts) {
-            if (part.entries.isNotEmpty()) plan.mergeRemote(part.bucket, part.entries)
+            val rejected = if (part.entries.isNotEmpty()) plan.mergeRemote(part.bucket, part.entries).rejected else 0
             dropped += part.dropped
+            locked += rejected
             // Jemand hat genau den eigenen Stand geschickt: eigene Antwort ist überflüssig.
             if (part.digest == digest(part.bucket)) repairAt.remove(part.bucket)
             // Mit verworfenen Einträgen ist der Digest des Absenders nie erreichbar – kein Vergleich.
-            if (part.dropped == 0) {
+            if (part.dropped == 0 && rejected == 0) {
                 lastSeenDigest[part.bucket] = part.digest
                 checkAt[part.bucket] = now + config.checkDelayMillis
             }
         }
-        if (dropped > 0) groupDiagnosticsState = groupDiagnosticsState.copy(droppedEntries = groupDiagnosticsState.droppedEntries + dropped)
+        if (dropped > 0 || locked > 0) {
+            groupDiagnosticsState = groupDiagnosticsState.copy(
+                droppedEntries = groupDiagnosticsState.droppedEntries + dropped,
+                lockedEntries = groupDiagnosticsState.lockedEntries + locked,
+            )
+        }
     }
 
     private fun applyOverview(message: GroupMessages.Message.Overview) {

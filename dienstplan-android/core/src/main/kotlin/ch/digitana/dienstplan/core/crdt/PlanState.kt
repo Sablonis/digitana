@@ -78,6 +78,22 @@ class PlanState private constructor(private val bucketMap: Map<String, LwwMap>) 
         return PlanMerge(PlanState(bucketMap + (bucketName to result.map)), result.changedKeys)
     }
 
+    /** Behält nur die Einträge, für die [keep] true liefert, und meldet die entfernten. */
+    fun filter(keep: (String, Entry) -> Boolean): PlanFilter {
+        var buckets: HashMap<String, LwwMap>? = null
+        val removed = HashMap<String, Entry>()
+        for ((name, map) in bucketMap) {
+            val drop = map.entries.filter { (key, entry) -> !keep(key, entry) }
+            if (drop.isEmpty()) continue
+            removed.putAll(drop)
+            val copy = buckets ?: HashMap(bucketMap).also { buckets = it }
+            val kept = map.without(drop.keys)
+            if (kept.isEmpty()) copy.remove(name) else copy[name] = kept
+        }
+        val result = buckets ?: return PlanFilter(this, emptyMap())
+        return PlanFilter(PlanState(result), removed)
+    }
+
     /** Aktive (nicht gelöschte) Mitarbeitende, alphabetisch nach deutscher Sortierung. */
     fun members(): List<Member> {
         val collator = Collator.getInstance(Locale.GERMAN).apply { strength = Collator.SECONDARY }
@@ -119,3 +135,5 @@ class PlanState private constructor(private val bucketMap: Map<String, LwwMap>) 
 }
 
 data class PlanMerge(val state: PlanState, val changedKeys: Set<String>)
+
+data class PlanFilter(val state: PlanState, val removed: Map<String, Entry>)

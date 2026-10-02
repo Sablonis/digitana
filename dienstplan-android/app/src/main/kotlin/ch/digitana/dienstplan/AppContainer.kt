@@ -122,9 +122,11 @@ class AppContainer(context: Context) {
                 runCatching { loadAll() }
             }
             // Planeinträge schreibt nur ein Mitglied; nach dem Entfernen bleibt der Plan lesbar.
+            // Sperre und Admins des Teams gelten sofort für den Plan.
             launch {
                 teamRepository.state.collect { state ->
                     planRepository.deviceId = if (state is TeamState.Member) teamRepository.deviceId else null
+                    planRepository.setAccess(state.planAccess)
                 }
             }
             // Widget „Meine Dienste“ nach Änderungen am Plan oder an „Ich“ neu zeichnen (gebündelt).

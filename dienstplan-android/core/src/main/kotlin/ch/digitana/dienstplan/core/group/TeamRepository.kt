@@ -255,6 +255,7 @@ class TeamRepository(
             epoch = epoch.toLong(),
             members = members.sorted(),
             admins = admins.sorted(),
+            description = description,
         )
 
         internal fun PendingInvite.toInvite() = Invite(

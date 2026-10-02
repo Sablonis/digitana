@@ -194,6 +194,44 @@ fn admin_rechte_weitergeben() {
 }
 
 #[test]
+fn beschreibung_aendern_nur_admins() {
+    let dir = TempDir::new().unwrap();
+    let alice = device(&dir, "alice", 36);
+    let bob = device(&dir, "bob", 37);
+    let team = alice.engine.create_team("Team".into(), relays()).unwrap();
+    assert_eq!(team.description, "");
+    join(&alice, &team, &bob, &[]);
+
+    // Alice (Admin) sperrt den Plan: Die Beschreibung kommt mit dem Commit bei Bob an.
+    let lock = r#"{"v":1,"lock":{"seg":[{"since":5}],"admins":["0123456789abcdef"]}}"#.to_string();
+    let commit = alice.engine.update_team(team.group_id.clone(), None, Some(lock.clone())).unwrap();
+    alice.engine.confirm_published(team.group_id.clone()).unwrap();
+    bob.engine.ingest(vec![commit]).unwrap();
+    let bob_view = bob.engine.team(team.group_id.clone()).unwrap().unwrap();
+    assert_eq!(bob_view.description, lock);
+    assert_eq!(bob_view.admins, vec![alice.pubkey.clone()]);
+
+    // Bob ist kein Admin: Er kann die Beschreibung nicht ändern.
+    assert!(bob.engine.update_team(team.group_id.clone(), None, Some(String::new())).is_err());
+
+    // Admins und Beschreibung in einem Commit; Grenzen der Eingabe.
+    let both = alice
+        .engine
+        .update_team(team.group_id.clone(), Some(vec![alice.pubkey.clone(), bob.pubkey.clone()]), Some(String::new()))
+        .unwrap();
+    alice.engine.confirm_published(team.group_id.clone()).unwrap();
+    bob.engine.ingest(vec![both]).unwrap();
+    let bob_view = bob.engine.team(team.group_id.clone()).unwrap().unwrap();
+    assert_eq!(bob_view.description, "");
+    assert_eq!(bob_view.admins.len(), 2);
+    assert!(matches!(
+        alice.engine.update_team(team.group_id.clone(), None, Some("x".repeat(4097))),
+        Err(MlsError::InvalidInput { .. })
+    ));
+    assert!(matches!(alice.engine.update_team(team.group_id.clone(), None, None), Err(MlsError::InvalidInput { .. })));
+}
+
+#[test]
 fn zu_frueh_eingetroffene_nachricht_wird_nachgeholt() {
     let dir = TempDir::new().unwrap();
     let alice = device(&dir, "alice", 12);

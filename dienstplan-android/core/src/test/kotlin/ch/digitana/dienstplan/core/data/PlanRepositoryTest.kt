@@ -3,7 +3,10 @@ package ch.digitana.dienstplan.core.data
 import ch.digitana.dienstplan.core.crdt.Buckets
 import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.NameProblem
+import ch.digitana.dienstplan.core.crdt.PlanAccess
 import ch.digitana.dienstplan.core.crdt.PlanKeys
+import ch.digitana.dienstplan.core.crdt.PlanLock
+import ch.digitana.dienstplan.core.crdt.PlanLocks
 import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crdt.ShiftPattern
 import ch.digitana.dienstplan.core.crdt.ShiftType
@@ -12,7 +15,9 @@ import ch.digitana.dienstplan.core.crdt.WeekId
 import ch.digitana.dienstplan.core.crdt.Wish
 import ch.digitana.dienstplan.core.util.Clock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -146,8 +151,8 @@ class PlanRepositoryTest {
         val repo = repository()
         val key = PlanKeys.member("0000000000000001")
         val remote = Entry("Remote", now + 60_000, "00000000000000bb")
-        assertTrue(repo.mergeRemote(Buckets.TEAM, mapOf(key to remote)))
-        assertFalse(repo.mergeRemote(Buckets.TEAM, mapOf(key to remote)))
+        assertTrue(repo.mergeRemote(Buckets.TEAM, mapOf(key to remote)).changed)
+        assertFalse(repo.mergeRemote(Buckets.TEAM, mapOf(key to remote)).changed)
         repo.renameMember("0000000000000001", "Lokal")
         val entry = repo.state.value.entry(key)!!
         assertEquals("Lokal", entry.value)
@@ -281,5 +286,88 @@ class PlanRepositoryTest {
         assertEquals(0, repo.applyPattern(pattern, listOf(anna), monday, weeks = 2, overwrite = true)) // schon gleich
         repo.deletePattern(pattern.id)
         assertTrue(repo.state.value.patterns().isEmpty())
+    }
+
+    @Test
+    fun `Sperre schuetzt Schichten, Schichtarten und das Loeschen von Personen`() = runTest {
+        val repo = repository()
+        val anna = repo.addMember("Anna")
+        val ben = repo.addMember("Ben")
+        val october = LocalDate.of(2026, 10, 5)
+        val december = LocalDate.of(2026, 12, 7)
+        repo.setShift(anna, october, "F")
+        val admin = "00000000000000bb"
+        val lock = PlanLocks.lock(null, LocalDate.of(2026, 10, 31), repo.lockTimestamp(), setOf(admin), admin)
+        assertEquals(0, repo.setAccess(PlanAccess(lock, setOf(admin))))
+
+        // Mitglied: gesperrte Tage, Schichtarten und Löschen gehen nicht; alles andere schon.
+        assertThrows<PlanLockedException> { repo.setShift(anna, october, "S") }
+        assertThrows<PlanLockedException> { repo.copyWeekToNext(WeekId.of(october)) }
+        assertThrows<PlanLockedException> { repo.saveShiftType(ShiftTypes.default("F")!!.copy(name = "Frühdienst")) }
+        assertThrows<PlanLockedException> { repo.deleteMember(ben) }
+        assertEquals("F", repo.state.value.shift(anna, october))
+        repo.setShift(anna, december, "S")
+        repo.setWish(ben, october, Wish.DAY_OFF)
+        repo.setMemberNote(anna, october, "Tausch mit Ben?")
+        repo.renameMember(ben, "Ben K.")
+        repo.addMember("Chiara")
+        // Unverändertes zu „schreiben“ ist kein Verstoss (z. B. Woche kopieren ohne Unterschied).
+        repo.setShift(anna, october, "F")
+
+        // Als Admin geht alles.
+        repo.deviceId = admin
+        repo.setShift(anna, october, "N")
+        repo.deleteMember(ben)
+        assertEquals("N", repo.state.value.shift(anna, october))
+    }
+
+    @Test
+    fun `neue Sperre entfernt spaetere Eintraege von Mitgliedern und meldet eigene`() = runTest {
+        val repo = repository()
+        val me = "00000000000000aa"
+        val admin = "00000000000000bb"
+        val other = "00000000000000cc"
+        val anna = "0123456789abcdef"
+        val day = LocalDate.of(2026, 10, 5)
+        val bucket = WeekId.of(day).bucketName
+        val key = PlanKeys.shift(anna, day)
+        val noteKey = PlanKeys.memberNote(anna, day)
+        // Vor der Sperre (Zeitpunkt 1000) bzw. danach eingetragen.
+        repo.mergeRemote(bucket, mapOf(key to Entry("F", 900, other), noteKey to Entry("Notiz", 2000, other)))
+        repo.setShift(anna, day.plusDays(1), "S") // eigene Änderung, jünger als die Sperre
+        val ownKey = PlanKeys.shift(anna, day.plusDays(1))
+        assertTrue(ownKey in repo.pendingEntries())
+        val lock = PlanLock(listOf(PlanLock.Segment(LocalDate.of(2026, 10, 31), 1000)), setOf(admin), admin)
+        val discarded = backgroundScope.async { repo.discarded.first() }
+        runCurrent()
+
+        assertEquals(1, repo.setAccess(PlanAccess(lock, setOf(admin))))
+        assertEquals(1, discarded.await())
+        assertNull(repo.state.value.entry(ownKey))
+        assertTrue(ownKey !in repo.pendingEntries())
+        assertEquals("F", repo.state.value.shift(anna, day), "älterer Eintrag bleibt")
+        assertEquals("Notiz", repo.state.value.memberNote(anna, day), "Notizen sind nicht gesperrt")
+
+        // Empfang: spätere Einträge von Mitgliedern verworfen, vom Admin übernommen.
+        val rejected = repo.mergeRemote(bucket, mapOf(key to Entry("N", 3000, other)))
+        assertEquals(1, rejected.rejected)
+        assertFalse(rejected.changed)
+        val fromAdmin = repo.mergeRemote(bucket, mapOf(key to Entry("U", 3000, admin), noteKey to Entry("Neu", 3001, other)))
+        assertEquals(0, fromAdmin.rejected)
+        assertEquals("U", repo.state.value.shift(anna, day))
+        // Was der Abgleich nachliefert, kommt wieder rein, falls es vor der Sperre lag.
+        repo.mergeRemote(bucket, mapOf(ownKey to Entry("X", 950, other)))
+        assertEquals("X", repo.state.value.shift(anna, day.plusDays(1)))
+
+        // Eigene neue Einträge sind jünger als jeder Abschnitt, auch wenn die eigene Uhr nachgeht.
+        now = 10
+        repo.setShift(anna, LocalDate.of(2026, 11, 2), "F")
+        assertTrue(repo.state.value.entry(PlanKeys.shift(anna, LocalDate.of(2026, 11, 2)))!!.timestamp > 1000)
+
+        // Öffnen entfernt nichts.
+        assertEquals(0, repo.setAccess(PlanAccess.OPEN))
+        repo.setShift(anna, day, "S")
+        assertEquals("S", repo.state.value.shift(anna, day))
+        assertEquals(me, repo.state.value.entry(key)!!.device)
     }
 }

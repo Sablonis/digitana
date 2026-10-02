@@ -1,5 +1,8 @@
 package ch.digitana.dienstplan.core.group
 
+import ch.digitana.dienstplan.core.crdt.PlanAccess
+import ch.digitana.dienstplan.core.crdt.PlanLock
+import ch.digitana.dienstplan.core.crdt.PlanLockCodec
 import ch.digitana.dienstplan.core.data.SecureFileStore
 import ch.digitana.dienstplan.core.util.Hex
 import kotlinx.serialization.json.Json
@@ -19,7 +22,18 @@ data class Team(
     val members: List<String>,
     /** Öffentliche Schlüssel der Admin-Geräte, sortiert. */
     val admins: List<String>,
-)
+    /** Beschreibung der MLS-Gruppe; enthält die Sperre des Plans (nur Admins ändern sie). */
+    val description: String = "",
+) {
+    /** Sperre des Plans; null = offen. */
+    val planLock: PlanLock? by lazy(LazyThreadSafetyMode.PUBLICATION) { PlanLockCodec.decode(description) }
+
+    /** Geräte-IDs (wie in den Planeinträgen) der Admins. */
+    val adminDevices: Set<String> get() = admins.mapTo(HashSet()) { DeviceKeys.deviceIdOf(it) }
+
+    /** Wer am Plan was ändern darf. */
+    val planAccess: PlanAccess get() = PlanAccess(planLock, adminDevices)
+}
 
 /** Eine eingegangene, noch nicht beantwortete Einladung. */
 data class Invite(
@@ -53,6 +67,12 @@ sealed interface TeamState {
     data class Member(val team: Team, val me: String) : TeamState {
         val isAdmin: Boolean get() = me in team.admins
     }
+
+    /**
+     * Rechte am Plan in diesem Zustand: Nur Mitglieder kennen eine Sperre. Ein entferntes
+     * Gerät schreibt nicht mehr und bekommt nichts mehr, also gibt es dort nichts zu prüfen.
+     */
+    val planAccess: PlanAccess get() = (this as? Member)?.team?.planAccess ?: PlanAccess.OPEN
 
     /** Dieses Gerät wurde aus dem Team entfernt; der Plan bleibt lesbar, bis es gelöscht wird. */
     data class Removed(val teamName: String) : TeamState

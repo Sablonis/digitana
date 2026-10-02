@@ -3,14 +3,20 @@ package ch.digitana.dienstplan.core.group
 import ch.digitana.dienstplan.core.crdt.Entry
 import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.WeekId
+import ch.digitana.dienstplan.core.crdt.Wish
+import ch.digitana.dienstplan.core.data.PlanLockedException
 import ch.digitana.dienstplan.core.nostr.Nip01
 import ch.digitana.dienstplan.core.testing.FakeRelay
 import ch.digitana.dienstplan.core.testing.GroupDevice
 import ch.digitana.dienstplan.core.testing.GroupDevice.Companion.awaitCondition
 import ch.digitana.dienstplan.core.testing.GroupDevice.Companion.awaitConvergence
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
@@ -153,6 +159,56 @@ class GroupSyncEngineTest {
         assertTrue(c.state.members().none { it.name == "Geheim" }, "entferntes Gerät liest weiter mit")
         // Was C schon gesehen hat, bleibt auf C (dokumentierte Grenze).
         assertTrue(c.state.members().any { it.name == "Anna" })
+    }
+
+    @Test
+    fun `Admin sperrt den Plan, Mitglieder tragen nur noch Wuensche ein, Verstoesse verschwinden ueberall`() = runBlocking {
+        val a = device("A")
+        a.createTeam("Team")
+        a.startEngine()
+        awaitLive(a)
+        val anna = a.plan.addMember("Anna")
+        a.plan.setShift(anna, week.days[0], "F")
+        val b = device("B")
+        join(a, b)
+        assertTrue(awaitConvergence(listOf(a, b), 30_000))
+
+        val notAdmin = assertThrows<TeamOperationException> { b.engine!!.setPlanLock(true, week.sunday) }
+        assertEquals(TeamOperationException.Reason.NOT_ADMIN, notAdmin.reason)
+        a.engine!!.setPlanLock(true, week.sunday)
+        assertEquals(week.sunday, member(a).team.planLock?.until)
+        assertTrue(awaitCondition(15_000) { b.plan.access.value.lock?.until == week.sunday }, "B kennt die Sperre nicht")
+
+        // B ist Mitglied: in der gesperrten Woche nur Wünsche, danach alles. A ist Admin.
+        assertThrows<PlanLockedException> { b.plan.setShift(anna, week.days[1], "S") }
+        b.plan.setWish(anna, week.days[1], Wish.DAY_OFF)
+        b.plan.setShift(anna, week.next().days[0], "N")
+        a.plan.setShift(anna, week.days[2], "S")
+        assertTrue(
+            awaitCondition(15_000) {
+                a.state.wish(anna, week.days[1]) == Wish.DAY_OFF && a.state.shift(anna, week.next().days[0]) == "N" &&
+                    b.state.shift(anna, week.days[2]) == "S"
+            },
+            "Wunsch, offene Woche oder Admin-Änderung kam nicht an",
+        )
+
+        // B ist offline, während A die Sperre auf die nächste Woche ausdehnt, und ändert dort.
+        b.stopEngine()
+        a.engine!!.setPlanLock(true, week.next().sunday)
+        assertEquals(2, member(a).team.planLock?.segments?.size)
+        b.plan.setShift(anna, week.next().days[0], "U")
+        val discarded = b.scope.async(start = CoroutineStart.UNDISPATCHED) { b.plan.discarded.first() }
+        b.restart()
+        assertEquals(1, withTimeoutOrNull(20_000) { discarded.await() }, "B meldet die verworfene Änderung nicht")
+        assertTrue(awaitConvergence(listOf(a, b), 30_000), "A und B konvergieren nach der Sperre nicht")
+        assertEquals("N", a.state.shift(anna, week.next().days[0]))
+        assertEquals("N", b.state.shift(anna, week.next().days[0]), "Abgleich holt den gültigen Stand zurück")
+
+        // Öffnen: B darf wieder alles.
+        a.engine!!.setPlanLock(false)
+        assertTrue(awaitCondition(15_000) { b.plan.access.value.lock == null }, "B merkt das Öffnen nicht")
+        b.plan.setShift(anna, week.days[1], "S")
+        assertTrue(awaitCondition(15_000) { a.state.shift(anna, week.days[1]) == "S" })
     }
 
     @Test
