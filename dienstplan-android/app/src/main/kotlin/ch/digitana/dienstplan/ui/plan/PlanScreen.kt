@@ -309,6 +309,7 @@ fun PlanScreen(
                 onWish = { viewModel.setWish(ref, it) },
                 onSaveNote = { viewModel.setMemberNote(ref, it) },
                 onDismiss = { openCell = null },
+                lastChange = lastChangeText(state.plan, ref),
             )
         }
     }

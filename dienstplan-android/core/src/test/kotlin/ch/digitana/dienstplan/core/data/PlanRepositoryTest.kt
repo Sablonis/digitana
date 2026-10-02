@@ -387,6 +387,7 @@ class PlanRepositoryTest {
         repo.setWish(ben, day, Wish.WORK)
         repo.setDeviceOwner(anna)
         assertEquals(mapOf("00000000000000aa" to anna), repo.state.value.deviceOwners())
+        assertEquals("Anna", repo.state.value.authorName("00000000000000aa"))
         repo.setWish(anna, day, Wish.shift("F"))
         assertEquals(Wish.shift("F"), repo.state.value.wish(anna, day))
         // Ben hat ein eigenes Gerät: Seine Wünsche ändert nur er (oder ein Admin).
@@ -398,6 +399,9 @@ class PlanRepositoryTest {
         assertNull(repo.state.value.wish(ben, day))
         repo.setDeviceOwner(null)
         assertEquals(mapOf("00000000000000bb" to ben), repo.state.value.deviceOwners())
+        assertNull(repo.state.value.authorName("00000000000000aa"))
+        repo.setDeviceLabel("00000000000000aa", "Stationshandy")
+        assertEquals("Stationshandy", repo.state.value.authorName("00000000000000aa"))
         assertThrows<IllegalArgumentException> { repo.setDeviceOwner("Anna") }
     }
 }

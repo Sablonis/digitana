@@ -120,6 +120,16 @@ class PlanState private constructor(private val bucketMap: Map<String, LwwMap>) 
             if (entry.value.isEmpty()) null else parsed.deviceId to entry.value
         }.toMap()
 
+    /**
+     * Wer einen Eintrag geschrieben hat: die Person, der das Gerät gehört („Das bin ich“),
+     * sonst der Gerätename; null, wenn beides unbekannt ist.
+     */
+    fun authorName(device: String): String? {
+        val owner = deviceOwners()[device]
+        if (owner != null) members().firstOrNull { it.id == owner }?.let { return it.name }
+        return deviceLabels()[device]
+    }
+
     val maxTimestamp: Long
         get() = bucketMap.values.maxOfOrNull { map -> map.entries.values.maxOfOrNull { it.timestamp } ?: 0L } ?: 0L
 

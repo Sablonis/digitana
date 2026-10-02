@@ -426,4 +426,6 @@
 
     <!-- Geräte und Personen -->
     <string name="device_owner">Gehört zu %1$s</string>
+    <string name="change_last">Zuletzt geändert von %1$s · %2$s</string>
+    <string name="change_unknown_device">Gerät %1$s…</string>
 </resources>

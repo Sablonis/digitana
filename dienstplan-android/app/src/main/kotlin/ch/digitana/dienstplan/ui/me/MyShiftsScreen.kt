@@ -66,6 +66,7 @@ import ch.digitana.dienstplan.ui.plan.MenuItem
 import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
 import ch.digitana.dienstplan.ui.plan.cellOf
+import ch.digitana.dienstplan.ui.plan.lastChangeText
 import ch.digitana.dienstplan.ui.plan.kindLabel
 import ch.digitana.dienstplan.ui.plan.wishStatusText
 import java.time.LocalDate
@@ -166,6 +167,7 @@ fun MyShiftsScreen(viewModel: PlanViewModel, onExportCalendar: (String) -> Unit)
             onWish = { viewModel.setWish(ref, it) },
             onSaveNote = { viewModel.setMemberNote(ref, it) },
             onDismiss = { openDate = null },
+            lastChange = lastChangeText(state.plan, ref),
         )
     }
 }

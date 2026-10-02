@@ -49,6 +49,7 @@ import ch.digitana.dienstplan.R
 import ch.digitana.dienstplan.core.crdt.Member
 import ch.digitana.dienstplan.core.crdt.NameProblem
 import ch.digitana.dienstplan.core.crdt.Notes
+import ch.digitana.dienstplan.core.crdt.PlanKeys
 import ch.digitana.dienstplan.core.crdt.PlanState
 import ch.digitana.dienstplan.core.crdt.ShiftKind
 import ch.digitana.dienstplan.core.crdt.ShiftType
@@ -82,6 +83,8 @@ fun CellSheet(
     onWish: (Wish?) -> Unit,
     onSaveNote: (String) -> Unit,
     onDismiss: () -> Unit,
+    /** „Zuletzt geändert von … · …“ für die Schicht; null = unbekannt. */
+    lastChange: String? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var choosingShiftWish by rememberSaveable(member.id, date) { mutableStateOf(false) }
@@ -127,6 +130,9 @@ fun CellSheet(
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.sheet_clear))
                 }
+            }
+            lastChange?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             SheetLabel(stringResource(R.string.sheet_wish))
@@ -284,6 +290,15 @@ fun DaySheet(
             )
         }
     }
+}
+
+/** „Zuletzt geändert von Anna · 2. Okt., 09:15“ für die Schicht eines Feldes; null ohne Eintrag. */
+@Composable
+internal fun lastChangeText(plan: PlanState, ref: CellRef): String? {
+    if (!PlanKeys.isValidDate(ref.date)) return null
+    val entry = plan.entry(PlanKeys.shift(ref.memberId, ref.date)) ?: return null
+    val who = plan.authorName(entry.device) ?: stringResource(R.string.change_unknown_device, entry.device.take(6))
+    return stringResource(R.string.change_last, who, Format.changeTime(entry.timestamp))
 }
 
 /** Wunsch einer Person an einem Tag und ob der Plan ihn erfüllt. */

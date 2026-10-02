@@ -75,6 +75,7 @@ import ch.digitana.dienstplan.ui.plan.PlanMessages
 import ch.digitana.dienstplan.ui.plan.PlanViewModel
 import ch.digitana.dienstplan.ui.plan.ShiftCellView
 import ch.digitana.dienstplan.ui.plan.cellOf
+import ch.digitana.dienstplan.ui.plan.lastChangeText
 import ch.digitana.dienstplan.ui.plan.dayTint
 import java.time.LocalDate
 import java.time.YearMonth
@@ -290,6 +291,7 @@ fun MonthScreen(viewModel: PlanViewModel, onOpenDiagnostics: () -> Unit, onShare
                 onWish = { viewModel.setWish(ref, it) },
                 onSaveNote = { viewModel.setMemberNote(ref, it) },
                 onDismiss = { openCell = null },
+                lastChange = lastChangeText(state.plan, ref),
             )
         }
     }

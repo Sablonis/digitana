@@ -4,8 +4,10 @@ import ch.digitana.dienstplan.core.crdt.ShiftType
 import ch.digitana.dienstplan.core.crdt.ShiftTypes
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -13,6 +15,7 @@ import java.util.Locale
 object Format {
     private val MONTH_YEAR = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.GERMAN)
     private val DAY_MONTH = DateTimeFormatter.ofPattern("d. MMMM", Locale.GERMAN)
+    private val CHANGE_TIME = DateTimeFormatter.ofPattern("d. MMM, HH:mm", Locale.GERMAN)
 
     /** „8“, „8.5“, „37.75“ – ohne Einheit. */
     fun hoursNumber(minutes: Int): String {
@@ -44,6 +47,9 @@ object Format {
 
     /** „1. Oktober“ */
     fun dayMonth(date: LocalDate): String = date.format(DAY_MONTH)
+
+    /** Zeitpunkt einer Änderung (Zeitstempel der hybriden Uhr), z. B. „2. Okt., 09:15“. */
+    fun changeTime(millis: Long): String = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(CHANGE_TIME)
 
     /** Initialen für den Avatar: „Anna Muster“ → „AM“, „ben“ → „B“. */
     fun initials(name: String): String {
