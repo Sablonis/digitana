@@ -127,6 +127,10 @@ Zeiten `HH:MM`, Zahlen ohne führende Nullen und mit Obergrenzen, Farben nur aus
 Palette, Wünsche nur aus festen Codes (`WF`, `FW`, `NV`, `WA`, `WA:<art-id>`), Rhythmen 1–8
 ganze Wochen, Ruhezeit 0–960 Minuten, Soll genau sieben Zahlen 0–99. Felder im Plan verweisen nur
 auf gültige Schichtart-IDs; ob die Art schon bekannt ist, entscheidet die Anzeige („?“).
+Ebenso streng sind die neueren Einträge: Pensum 1–100, Wochenarbeitszeit 60–4200 Minuten,
+Kanton nur aus den 26 Kürzeln, Wunschfristen nur für gültige Monate mit echtem Datum
+2000–2100, Angebote `<art-id>` oder `<art-id>@<id>` (nie die eigene Person), Tauschvorschläge
+nur zwischen zwei verschiedenen Personen mit Status aus `P`, `A`, `X`, `D`.
 
 **17. Exporte verlassen die Verschlüsselung.** Woche oder Monat als PDF oder Bild und die
 eigenen Dienste als Kalenderdatei entstehen nur auf Wunsch. Vor dem Teilen weist die App
@@ -170,6 +174,59 @@ und Schichten unter dem Soll markiert die App rot und zählt sie über dem Plan.
 möglich: Ausnahmen (Notfall, Tausch) entscheidet das Team, nicht die App. Während einer Sperre
 ändern nur Admins diese Regeln, damit niemand Warnungen im fertigen Plan wegschaltet.
 
+**23. Kamera nur zum Scannen, Erkennung auf dem Gerät.** Die Kamera-Berechtigung fragt die
+App erst, wenn ein Admin auf „QR-Code scannen“ tippt; die Vorschau läuft nur, solange der
+Scanner offen ist. Die Bilder wertet ZXing lokal aus – ohne Google-Dienste, ohne Netz, ohne
+Speichern. Der QR-Code enthält nur den Beitrittscode, also den öffentlichen Schlüssel des
+neuen Geräts, und ist so wenig geheim wie der Code als Text. Ein gescannter Code durchläuft
+dieselbe Prüfung wie ein eingetippter, danach zeigt die App den Fingerabdruck zum
+Vergleichen. Geräte ohne Kamera können die App trotzdem installieren und den Code einfügen.
+
+**24. Erinnerungen ohne Server.** Erinnerungen vor dem eigenen Dienst und vor Wunschfristen
+plant das Gerät selbst mit ungenauen Alarmen des AlarmManagers (keine Berechtigung für exakte
+Alarme). Der Alarm geht nur an einen nicht exportierten Empfänger der App, über einen
+unveränderlichen PendingIntent. Auf dem gesperrten Bildschirm steht nur „Du hast eine
+Erinnerung.“ Nach einem Neustart setzt die App die Alarme beim nächsten Start oder Abgleich im
+Hintergrund neu; eine Berechtigung für den Systemstart braucht sie dafür nicht.
+
+**25. Team-Hinweise nur für einen selbst.** Nach einem Abgleich im Hintergrund meldet die App
+nur, was einen selbst betrifft: Tauschvorschläge an einen, Antworten auf eigene Vorschläge,
+abgegebene Dienste und – für Admins – was auf eine Bestätigung wartet. Welche Ereignisse schon
+gemeldet wurden, steht verschlüsselt in den Geräte-Einstellungen (höchstens 500). „Plan
+veröffentlicht“ beruht auf der Sperre in der MLS-Gruppe und kann deshalb nur von einem Admin
+ausgelöst werden. Auch hier zeigt der gesperrte Bildschirm keine Details.
+
+**26. Gerätekalender nur auf Wunsch und nur lokal.** Die Kalender-Berechtigungen fragt die App
+erst beim Einschalten. Sie legt einen eigenen Kalender „Dienstplan“ an, der zu keinem Konto
+gehört (`ACCOUNT_TYPE_LOCAL`) und deshalb mit keiner Cloud abgeglichen wird. Darin stehen nur
+die eigenen Dienste (Schicht und Zeit) von 30 Tagen zurück bis 120 Tage voraus, keine Namen
+anderer und keine Notizen. Ausschalten, „Team verlassen“ und „Lokale Daten löschen“ entfernen
+den Kalender samt Terminen.
+
+**27. Keine Anfragen nebenbei.** Die Schrift Inter ist in der App enthalten (keine
+nachladbaren Schriften von Google Fonts), Symbole und Lizenztexte ebenso. Feiertage und der
+Plan-Vorschlag werden auf dem Gerät berechnet. Ausser den Relays kontaktiert die App niemanden.
+
+**28. Tausch und Abgabe mit denselben Rechten wie Wünsche.** Abgeben, Übernehmen, Tauschen und
+Antworten prüft die App beim Eintragen: eigene Dienste anbieten, nur auf Vorschläge an sich
+antworten, an gesperrten Tagen bestätigt ein Admin. Ausgeführt wird ein Tausch als gewöhnliche
+Änderung der Schichten; an gesperrten Tagen gilt dafür die Regel der Sperre, sodass nur die
+Ausführung durch einen Admin bestehen bleibt. Pensum, Wochenarbeitszeit, Kanton und
+Wunschfristen sind Teameinstellungen: im offenen Plan für alle änderbar, während einer Sperre
+nur für Admins.
+
+**29. Was nur das Gerät wissen muss, bleibt dort.** Welche Änderungen anderer noch niemand auf
+diesem Gerät angesehen hat (höchstens 2000, 14 Tage), welche eigenen noch kein Relay bestätigt
+hat, welche Tipps gesehen wurden und welche Erinnerungen eingestellt sind, wird nie gesendet.
+Darstellung (Thema, Systemfarben, Rasterdichte) liegt unverschlüsselt in den
+SharedPreferences, weil sie vor dem Entschlüsseln gebraucht wird und nichts über den Plan
+verrät; alles andere liegt im verschlüsselten Speicher.
+
+**30. Absicherung der Oberfläche.** Screenshot- und Barrierefreiheitstests laufen auf der JVM
+mit einem erfundenen Beispielteam, nie mit echten Daten. Für Robolectric registriert der Test
+die leere Test-Activity selbst, statt das `ui-test-manifest` in den Debug-Build zu nehmen –
+sonst enthielte die verteilte Debug-APK eine exportierte Activity.
+
 ## Grenzen
 
 - **Admins entscheiden, wer dazukommt.** Wer ein Admin-Gerät bedienen kann, kann Geräte
@@ -196,6 +253,16 @@ möglich: Ausnahmen (Notfall, Tausch) entscheidet das Team, nicht die App. Währ
   Admins kommen, prüft die App beim Eintragen, nicht beim Empfang. Die Zuordnung „Das bin
   ich“ setzt jedes Gerät selbst; zwei Geräte können sich derselben Person zuordnen. Die
   Geräteliste im Team zeigt deshalb, welches Gerät zu wem gehört.
+- **Tausch- und Abgaberechte prüft nur die App,** wie bei den Wünschen. Mit einer veränderten
+  App kann ein Mitglied Angebote oder Tauschvorschläge anderer ändern; Schichten an gesperrten
+  Tagen schützt aber weiterhin die Sperre.
+- **Gerätekalender:** Andere Apps mit Kalender-Berechtigung können die Termine lesen, und der
+  Kalender liegt ausserhalb der Verschlüsselung der App – wie die Exporte. Die Einstellungen
+  weisen beim Schalter darauf hin.
+- **Erinnerungen nach einem Neustart** kommen erst wieder, wenn die App gestartet wurde oder
+  im Hintergrund abgeglichen hat (ohne Team erst beim nächsten Öffnen).
+- **Feiertage und Soll** sind eine Planungshilfe: Feiertage einzelner Gemeinden, halbe Tage
+  und betriebliche Regelungen fehlen, das Soll rechnet mit fünf Werktagen pro Woche.
 - **Wechsel der Sperre:** Änderungen, die beim Sperren noch unterwegs waren, können
   verworfen werden, besonders bei falsch gehenden Uhren. Die App meldet eigene verworfene
   Änderungen.
@@ -203,8 +270,8 @@ möglich: Ausnahmen (Notfall, Tausch) entscheidet das Team, nicht die App. Währ
   Widget. Geteilte PDFs, Bilder und Kalenderdateien sind unverschlüsselt und unterliegen
   danach den Regeln der Empfänger-App.
 - **Ältere App-Versionen** im selben Team verwerfen Schichtarten, Notizen, Wünsche,
-  Rhythmen und Felder mit eigenen Schichtarten, ebenso Wunscharbeitstage und Zuordnungen von
-  Geräten. Die Sperre kennen sie nicht und lassen Änderungen zu, die neuere Geräte verwerfen.
+  Rhythmen und Felder mit eigenen Schichtarten, ebenso Wunscharbeitstage, Zuordnungen von
+  Geräten, Pensum, Teameinstellungen, Angebote und Tauschvorschläge. Die Sperre kennen sie nicht und lassen Änderungen zu, die neuere Geräte verwerfen.
   Alle Geräte sollten dieselbe Version nutzen.
 - **Uhren:** Falsch gehende Uhren beeinflussen, welche Änderung bei gleichzeitigen
   Konflikten gewinnt.

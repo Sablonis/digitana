@@ -27,7 +27,7 @@ internal const val TABLET = "w1280dp-h800dp-land-xhdpi"
  * Meldet ComponentActivity bei Robolectric an. So braucht es kein ui-test-manifest im
  * Debug-Build (das würde eine exportierte Activity in die verteilte Debug-APK bringen).
  */
-internal class RegisterComponentActivity : TestRule {
+class RegisterComponentActivity : TestRule {
     override fun apply(base: Statement, description: Description): Statement = object : Statement() {
         override fun evaluate() {
             val app = ApplicationProvider.getApplicationContext<Application>()

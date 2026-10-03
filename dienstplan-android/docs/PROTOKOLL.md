@@ -148,9 +148,10 @@ nimmt solche Commits nur von Admin-Geräten an (beim Erzeugen und beim Empfang).
   Ein Gerät, das eine Sperre nicht versteht, löscht deshalb nie Einträge.
 
 **Was geschützt ist:** Schichten (`z|…`) an gesperrten Tagen, Schichtarten (`s|…`),
-Planungsregeln (`c|…`, `b|…`) und das Löschen von Personen (`m|…` mit leerem Wert), solange
-eine Sperre besteht. Wünsche, Notizen,
-Rhythmen, Gerätenamen, Zuordnungen und neue Personen bleiben für alle offen.
+Planungsregeln und Teameinstellungen (`c|…`, `b|…`), das Pensum (`p|…`) und das Löschen von
+Personen (`m|…` mit leerem Wert), solange eine Sperre besteht. Wünsche, Notizen, Rhythmen,
+Gerätenamen, Zuordnungen, neue Personen, Angebote (`o|…`) und Tauschvorschläge (`t|…`)
+bleiben für alle offen – an gesperrten Tagen führt aber nur ein Admin sie aus (siehe unten).
 
 **Regel für Einträge** (auf jedem Gerät gleich, für empfangene und gespeicherte): Ein
 geschützter Eintrag gilt, wenn seine Geräte-ID ein aktuelles Admin-Gerät oder in `admins`
@@ -202,6 +203,12 @@ gelöscht bzw. leer.
 | `n\|<JJJJ-MM-TT>` | Woche | Notiz zum Tag (max. 200 Zeichen) |
 | `n\|<id>\|<JJJJ-MM-TT>` | Woche | Notiz zum Dienst einer Person (max. 200 Zeichen) |
 | `w\|<id>\|<JJJJ-MM-TT>` | Woche | Wunsch: `WF` (Wunschfrei), `FW` (Ferienwunsch), `NV` (nicht verfügbar), `WA` (Wunscharbeitstag), `WA:<art-id>` (Wunschschicht) |
+| `p\|<id>` | `team` | Pensum der Person in Prozent, 1–100 (leer = nicht angegeben) |
+| `c\|hours` | `team` | Wochenarbeitszeit bei vollem Pensum in Minuten (60–4200, leer = 42 h) |
+| `c\|canton` | `team` | Kanton für die Feiertage, Kürzel wie `ZH` (leer = keiner) |
+| `c\|wish-<JJJJ-MM>` | `team` | Wunschfrist für diesen Monat: `JJJJ-MM-TT` (leer = keine) |
+| `o\|<id>\|<JJJJ-MM-TT>` | Woche | Angebot „Dienst abgeben“: `<art-id>` oder, wenn sich an einem gesperrten Tag jemand gemeldet hat, `<art-id>@<id>` (leer = zurückgezogen oder erledigt) |
+| `t\|<a>\|<tag-a>\|<b>\|<tag-b>` | Woche von `tag-a` | Tauschvorschlag von A an B: `<status>:<art-a>:<art-b>`; Status `P` vorgeschlagen, `A` angenommen (wartet auf einen Admin), `X` ausgeführt, `D` abgelehnt; ohne `art-b` übernimmt B nur (leer = zurückgezogen) |
 
 Buckets: `team` und je eine ISO-Woche (`2026-W40`). `<id>` und `<geräte-id>` sind 16
 Hex-Zeichen, Rhythmus-IDs 8 Hex-Zeichen.
@@ -234,10 +241,39 @@ die zwei Tage davor. `b|<art-id>` legt fest, wie viele Personen eine Arbeitsschi
 Wochentag braucht; die Besetzungszeile zeigt Ist/Soll. Beides sind nur Hinweise: Die App
 verhindert keine Einträge.
 
+**Pensum, Soll und Saldo.** Soll pro Monat = Wochenarbeitszeit (`c|hours`) × Pensum ÷ 5
+für jeden Werktag (Montag bis Freitag) ohne Feiertag des Kantons (`c|canton`). Geplant zählen
+Arbeitsschichten (Dauer minus Pause) und Abwesenheiten: mit angerechneten Stunden diese,
+sonst an Werktagen das Tagessoll. Saldo = geplant − Soll. Als Nachtdienst zählt, was
+mindestens 3 Stunden zwischen 23 und 6 Uhr liegt. Die Feiertage berechnet die App offline
+(Ostern nach Meeus/Jones/Butcher, kantonale Regeln); Feiertage einzelner Gemeinden fehlen.
+
+**Abgeben, Übernehmen und Tauschen.** Wer einen Dienst abgibt, schreibt `o|…` mit der
+Schichtart; das Angebot gilt nur, solange genau diese Schicht eingetragen ist. Ist der Tag
+offen, übernimmt jemand mit einem Batch: Schicht bei sich eintragen, beim Anbietenden leeren,
+Angebot leeren. Ist der Tag gesperrt, schreibt die Person nur `<art-id>@<id>` (Anmeldung);
+ein Admin bestätigt mit demselben Batch oder lehnt ab (Anmeldung entfernen). Ein Tausch läuft
+gleich: B antwortet mit `A` oder `D`; sind beide Tage offen, führt B ihn sofort aus (`X` und
+beide Schichten in einem Batch), sonst ein Admin. Offene Dienste sind Schichten unter dem
+Soll; „Ich übernehme“ trägt die Schicht direkt ein (nur an offenen Tagen). Wer was ändern
+darf (eigene Dienste anbieten, auf eigene Vorschläge antworten, Admins bestätigen), prüft die
+App beim Eintragen, nicht beim Empfang – wie bei den Wünschen.
+
+**Plan-Vorschlag.** Rein lokal und deterministisch: Für jeden Tag und jede Arbeitsschicht
+unter dem Soll wählt die App freie Personen nach Wunsch (Wunschschicht und Wunscharbeitstag
+zuerst, Wunschfrei, Ferienwunsch, nicht verfügbar und Abwesenheiten nie), Ruhezeit, höchstens
+sechs Arbeitstagen am Stück und bisheriger Belastung (Stunden im Verhältnis zum Pensum,
+Wochenend- und Nachtdienste). Vorhandene Einträge bleiben; übernommen wird als ein Batch.
+
+**Ungesehenes und Ausstehendes.** Neue Werte anderer Geräte merkt sich jedes Gerät lokal als
+„ungesehen“ (höchstens 2000 Schlüssel, 14 Tage), bis sie jemand ansieht. Eigene Änderungen
+gelten als ausstehend, bis ein Relay sie bestätigt hat. Beides wird nie gesendet.
+
 **Kompatibilität.** Die neuen Schlüssel ergänzen DP3. Geräte mit der ersten DP3-Version
 verwerfen sie (und Felder mit eigenen Schichtarten) als ungültig. Weil Teile mit verworfenen
 Einträgen keinen Vergleich auslösen, entsteht dabei kein Hin und Her; alle Geräte sollten aber
-dieselbe Version nutzen. Das gilt auch für `WA`, `WA:<art-id>`, `u|…`, `c|…` und `b|…`. Ältere Versionen
+dieselbe Version nutzen. Das gilt auch für `WA`, `WA:<art-id>`, `u|…`, `c|…`, `b|…`, `p|…`,
+`o|…` und `t|…`. Ältere Versionen
 kennen die Sperre nicht: Sie lassen Änderungen zu, die neuere Geräte verwerfen.
 
 ## Relays
