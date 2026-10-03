@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -345,34 +346,41 @@ private fun MemberRowView(
     val meDescription = stringResource(R.string.member_me_description, row.member.name)
     val haptics = LocalHapticFeedback.current
     val nameWidthPx = with(LocalDensity.current) { metrics.nameWidth.toPx() }
+    // Jede Änderung am Plan erzeugt neue Rückrufe und Tage. Die Geste darf deshalb nicht davon
+    // abhängen, sonst bricht sie nach dem ersten gemalten Feld ab: Sie liest die aktuellen Werte.
+    val currentBrush by rememberUpdatedState(brush)
+    val currentDays by rememberUpdatedState(days)
+    val dayCount = days.size
     // Schnell eintragen: Wischen über die Zeile setzt jedes überstrichene Feld (mit kurzem Tick).
     val paint = if (brush != null && !readOnly) {
-        Modifier.pointerInput(brush, row.member.id, days) {
+        Modifier.pointerInput(row.member.id, dayCount, nameWidthPx) {
             var last = -1
             fun paintAt(x: Float) {
-                val cellWidth = (size.width - nameWidthPx) / days.size
+                val shown = currentDays
+                val cellWidth = (size.width - nameWidthPx) / shown.size
                 if (x < nameWidthPx || cellWidth <= 0f) return
-                val index = ((x - nameWidthPx) / cellWidth).toInt().coerceIn(0, days.size - 1)
+                val index = ((x - nameWidthPx) / cellWidth).toInt().coerceIn(0, shown.size - 1)
                 if (index == last) return
                 last = index
-                val day = days[index]
+                val day = shown[index]
                 if (!day.editable) return
+                val target = currentBrush ?: return
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                brush.onPaint(CellRef(row.member.id, day.date))
+                target.onPaint(CellRef(row.member.id, day.date))
             }
             detectHorizontalDragGestures(
                 onDragStart = { offset ->
                     last = -1
-                    brush.onStart()
+                    currentBrush?.onStart()
                     paintAt(offset.x)
                 },
                 onDragEnd = {
                     last = -1
-                    brush.onEnd()
+                    currentBrush?.onEnd()
                 },
                 onDragCancel = {
                     last = -1
-                    brush.onEnd()
+                    currentBrush?.onEnd()
                 },
                 onHorizontalDrag = { change, _ ->
                     change.consume()
