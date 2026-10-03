@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nur dieser Ordner lässt sich über den FileProvider teilen. -->
+<paths>
+    <cache-path
+        name="exports"
+        path="exports/" />
+</paths>

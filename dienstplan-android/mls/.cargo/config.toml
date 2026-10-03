@@ -1,0 +1,13 @@
+# Git-Abhängigkeiten über die git-Kommandozeile holen (Proxys, Zugangsdaten wie bei git).
+[net]
+git-fetch-with-cli = true
+
+# Android 15+ verlangt auf Geräten mit 16-KB-Speicherseiten passend ausgerichtete Bibliotheken.
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+
+[target.armv7-linux-androideabi]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

@@ -1,0 +1,378 @@
+package ch.digitana.dienstplan
+
+import android.content.Context
+import android.os.Build
+import ch.digitana.dienstplan.calendar.DeviceCalendar
+import ch.digitana.dienstplan.core.crdt.PlanState
+import ch.digitana.dienstplan.core.data.EncryptedPlanStore
+import ch.digitana.dienstplan.core.data.EncryptedSettingsStore
+import ch.digitana.dienstplan.core.data.PlanRepository
+import ch.digitana.dienstplan.core.data.SecureFileStore
+import ch.digitana.dienstplan.core.data.SettingsRepository
+import ch.digitana.dienstplan.core.group.DeviceKeys
+import ch.digitana.dienstplan.core.group.EncryptedDeviceKeyStore
+import ch.digitana.dienstplan.core.group.EncryptedGroupRecordStore
+import ch.digitana.dienstplan.core.group.Team
+import ch.digitana.dienstplan.core.group.TeamRepository
+import ch.digitana.dienstplan.core.group.TeamState
+import ch.digitana.dienstplan.core.plan.ReminderMode
+import ch.digitana.dienstplan.core.sync.OkHttpRelayTransport
+import ch.digitana.dienstplan.core.sync.RelayUrls
+import ch.digitana.dienstplan.core.sync.SecureHttp
+import ch.digitana.dienstplan.core.util.Logger
+import ch.digitana.dienstplan.export.PlanExport
+import ch.digitana.dienstplan.notify.ReminderScheduler
+import ch.digitana.dienstplan.notify.ShiftAlerts
+import ch.digitana.dienstplan.notify.ShiftNotifications
+import ch.digitana.dienstplan.notify.TeamAlerts
+import ch.digitana.dienstplan.security.AndroidKeystoreKeyWrapper
+import ch.digitana.dienstplan.sync.BackgroundSyncScheduler
+import ch.digitana.dienstplan.sync.SyncController
+import ch.digitana.dienstplan.ui.UiPreferences
+import ch.digitana.dienstplan.util.AndroidLogger
+import ch.digitana.dienstplan.widget.WidgetUpdater
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicBoolean
+
+enum class StorageState { LOADING, READY, RESET_AFTER_ERROR }
+
+/**
+ * Handverdrahtete Abhängigkeiten (kein DI-Framework): Speicher, Repositories, Sync.
+ * Lebt so lange wie der Prozess.
+ */
+class AppContainer(context: Context) {
+
+    val context: Context = context.applicationContext
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val logger: Logger = if (BuildConfig.DEBUG) AndroidLogger else Logger.None
+
+    // noBackupFilesDir ist per Definition von Auto Backup ausgenommen.
+    private val secureDir = File(this.context.noBackupFilesDir, "secure")
+    private val mlsDir = File(this.context.noBackupFilesDir, "mls")
+    private val secureFiles = SecureFileStore(
+        secureDir,
+        AndroidKeystoreKeyWrapper(preferStrongBox = hasStrongBox(this.context)),
+    )
+
+    val teamRepository = TeamRepository(
+        keyStore = EncryptedDeviceKeyStore(secureFiles),
+        recordStore = EncryptedGroupRecordStore(secureFiles),
+        databaseDir = mlsDir,
+        relays = RelayUrls.DEFAULT,
+        logger = logger,
+    )
+    val planRepository = PlanRepository(EncryptedPlanStore(secureFiles), scope, logger = logger)
+    val settingsRepository = SettingsRepository(EncryptedSettingsStore(secureFiles))
+
+    /** Darstellung (Thema, Systemfarben, Rasterdichte); sofort lesbar, nicht vertraulich. */
+    val uiPreferences = UiPreferences(this.context)
+
+    private val notifications = ShiftNotifications(this.context)
+    val shiftAlerts = ShiftAlerts(settingsRepository, planRepository, notifications)
+
+    /** Erinnerungen vor dem eigenen Dienst und vor Wunschfristen, nur auf diesem Gerät. */
+    val reminders = ReminderScheduler(this.context)
+
+    /** Benachrichtigungen zu Tausch, Abgabe und neuen Sperren. */
+    val teamAlerts = TeamAlerts(this.context, settingsRepository)
+
+    /** Eigene Dienste im Kalender des Geräts, nur auf Wunsch. */
+    val deviceCalendar = DeviceCalendar(this.context, logger)
+
+    private val httpClient by lazy { SecureHttp.newClient() }
+
+    val syncController = SyncController(
+        scope = scope,
+        teamRepository = teamRepository,
+        planRepository = planRepository,
+        relayUrls = RelayUrls.DEFAULT,
+        transportFactory = { OkHttpRelayTransport(httpClient) },
+        logger = logger,
+    )
+
+    private val _storageState = MutableStateFlow(StorageState.LOADING)
+    val storageState: StateFlow<StorageState> = _storageState.asStateFlow()
+
+    /** true nach dem Wechsel von der alten Teamversion (DP2): einmaliger Hinweis. */
+    private val _upgradedFromDp2 = MutableStateFlow(false)
+    val upgradedFromDp2: StateFlow<Boolean> = _upgradedFromDp2.asStateFlow()
+
+    private val teamMutex = Mutex()
+    private val justCreatedTeam = AtomicBoolean(false)
+
+    @OptIn(FlowPreview::class)
+    fun initialize() {
+        notifications.createChannel()
+        reminders.createChannel()
+        teamAlerts.createChannel()
+        scope.launch {
+            // Geteilte Exporte (PDF, Bild, Kalender) nicht länger als nötig aufbewahren.
+            withContext(Dispatchers.IO) { runCatching { PlanExport.cleanUp(context) } }
+            val readable = try {
+                loadAll()
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Keystore-Schlüssel verloren oder Datei beschädigt: nicht mehr lesbar.
+                logger.warn(TAG, "Lokale Daten nicht lesbar – werden zurückgesetzt", e)
+                false
+            }
+            if (!readable) {
+                wipeEverything()
+                runCatching { loadAll() }
+            }
+            // Planeinträge schreibt nur ein Mitglied; nach dem Entfernen bleibt der Plan lesbar.
+            // Sperre und Admins des Teams gelten sofort für den Plan.
+            launch {
+                teamRepository.state.collect { state ->
+                    planRepository.deviceId = if (state is TeamState.Member) teamRepository.deviceId else null
+                    planRepository.setAccess(state.planAccess)
+                }
+            }
+            // „Das bin ich“ für das Team sichtbar machen: Danach ändert nur dieses Gerät (und
+            // Admins) die eigenen Wünsche. Auch für Geräte, die die Person schon vorher gewählt hatten.
+            launch {
+                combine(planRepository.deviceIdFlow, settingsRepository.settings, planRepository.state) { device, settings, plan ->
+                    if (device != null && plan.deviceOwners()[device] != settings.myMemberId) settings.myMemberId else NO_CHANGE
+                }
+                    .distinctUntilChanged()
+                    .collect { owner ->
+                        if (owner == NO_CHANGE) return@collect
+                        runCatching { planRepository.setDeviceOwner(owner) }
+                            .onFailure { logger.warn(TAG, "Zuordnung des Geräts nicht gespeichert", it) }
+                    }
+            }
+            // Widget „Meine Dienste“ nach Änderungen am Plan oder an „Ich“ neu zeichnen (gebündelt).
+            launch {
+                combine(planRepository.state, settingsRepository.settings) { plan, settings -> plan to settings.myMemberId }
+                    .distinctUntilChanged()
+                    .debounce(WIDGET_DEBOUNCE_MILLIS)
+                    .collect { (plan, me) ->
+                        runCatching { WidgetUpdater.updateAll(context, plan, me) }
+                            .onFailure { logger.warn(TAG, "Widget nicht aktualisiert", it) }
+                    }
+            }
+            // Erinnerungen nach jeder Änderung am Plan oder an den Einstellungen neu setzen.
+            launch {
+                combine(planRepository.state, settingsRepository.settings) { plan, settings ->
+                    ReminderInput(plan, settings.myMemberId, settings.reminderMode, settings.deadlineReminders)
+                }
+                    .distinctUntilChanged()
+                    .debounce(REMINDER_DEBOUNCE_MILLIS)
+                    .collect { scheduleReminders() }
+            }
+            // Eigene Dienste im Gerätekalender nachführen; ausgeschaltet wird der Kalender entfernt.
+            launch {
+                combine(planRepository.state, settingsRepository.settings) { plan, settings ->
+                    if (settings.calendarSync) plan to settings.myMemberId else null
+                }
+                    .distinctUntilChanged()
+                    .debounce(CALENDAR_DEBOUNCE_MILLIS)
+                    .collect { wanted -> updateCalendar(wanted) }
+            }
+            // Hintergrund-Abgleich nur, solange das Gerät einem Team angehört oder beitritt.
+            launch {
+                teamRepository.state
+                    .map { it is TeamState.Member || it is TeamState.Joining }
+                    .distinctUntilChanged()
+                    .collect { BackgroundSyncScheduler.update(context, enabled = it) }
+            }
+            syncController.start()
+            _storageState.value = if (readable) StorageState.READY else StorageState.RESET_AFTER_ERROR
+        }
+    }
+
+    private suspend fun loadAll() {
+        // Teams der alten Version (gemeinsames Geheimnis, DP2) gibt es nicht mehr. Der Plan
+        // bleibt erhalten und lässt sich in ein neues Team übernehmen.
+        val legacy = withContext(Dispatchers.IO) { File(secureDir, LEGACY_TEAM_FILE).exists() }
+        if (legacy) {
+            withContext(Dispatchers.IO) { secureFiles.delete(LEGACY_TEAM_FILE) }
+            _upgradedFromDp2.value = true
+        }
+        teamRepository.load()
+        planRepository.load()
+        settingsRepository.load()
+    }
+
+    private fun scheduleReminders() {
+        runCatching { reminders.schedule(planRepository.state.value, settingsRepository.settings.value) }
+            .onFailure { logger.warn(TAG, "Erinnerung nicht gesetzt", it) }
+    }
+
+    private suspend fun updateCalendar(wanted: Pair<PlanState, String?>?) = withContext(Dispatchers.IO) {
+        runCatching { if (wanted == null) deviceCalendar.remove() else deviceCalendar.sync(wanted.first, wanted.second) }
+            .onFailure { logger.warn(TAG, "Kalender nicht nachgeführt", it) }
+    }
+
+    /** App geöffnet oder verlassen: Plan, Tausch und Sperre gelten als gesehen. */
+    suspend fun planSeen() {
+        shiftAlerts.planSeen()
+        teamAlerts.seen(planRepository.state.value, teamRepository.state.value, teamRepository.deviceId)
+    }
+
+    /**
+     * Nach einem Abgleich im Hintergrund: Neues melden ([synced]), dann Erinnerungen und Kalender
+     * nachführen – auch ohne Änderung, denn „heute“ wandert weiter.
+     */
+    suspend fun afterBackgroundSync(synced: Boolean) {
+        if (synced) {
+            shiftAlerts.afterBackgroundSync()
+            teamAlerts.afterBackgroundSync(planRepository.state.value, teamRepository.state.value, teamRepository.deviceId)
+        }
+        scheduleReminders()
+        val settings = settingsRepository.settings.value
+        if (settings.calendarSync) updateCalendar(planRepository.state.value to settings.myMemberId)
+    }
+
+    /** Wartet, bis die lokalen Daten geladen sind (oder nach einem Fehler zurückgesetzt wurden). */
+    suspend fun awaitReady(timeoutMillis: Long): Boolean =
+        withTimeoutOrNull(timeoutMillis) { storageState.first { it != StorageState.LOADING } } != null
+
+    fun acknowledgeStorageReset() {
+        _storageState.value = StorageState.READY
+    }
+
+    fun acknowledgeUpgrade() {
+        _upgradedFromDp2.value = false
+    }
+
+    /** true genau einmal nach „Neues Team“ – die App zeigt dann zuerst die Teamseite. */
+    fun consumeJustCreatedTeam(): Boolean = justCreatedTeam.getAndSet(false)
+
+    /** Eigener öffentlicher Schlüssel (für Fingerabdruck und Geräteliste). */
+    val publicKey: String? get() = teamRepository.publicKey
+
+    /**
+     * „Neues Team“: Dieses Gerät ist einziges Mitglied und Admin. Ein vorhandener Plan
+     * (z. B. aus der alten Version) bleibt und wird ins Team übernommen.
+     */
+    suspend fun createTeam(name: String, deviceLabel: String): Team = teamMutex.withLock {
+        val team = teamRepository.createTeam(name.trim())
+        planRepository.deviceId = teamRepository.deviceId
+        if (!planRepository.state.value.isEmpty()) planRepository.markAllPending()
+        labelOwnDevice(deviceLabel)
+        justCreatedTeam.set(true)
+        team
+    }
+
+    /** Beitritt beginnen: Code anzeigen, auf eine Einladung warten. */
+    suspend fun startJoining() = teamMutex.withLock { teamRepository.startJoining() }
+
+    /** Beitritt abbrechen; ohne laufende Engine nur lokal. */
+    suspend fun cancelJoining() = teamMutex.withLock {
+        try {
+            syncController.cancelJoining()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            teamRepository.reset()
+        }
+    }
+
+    /**
+     * Einladung annehmen. [keepLocalData]: einen vorhandenen Plan ins Team übernehmen
+     * (sonst wird er verworfen).
+     */
+    suspend fun acceptInvite(inviteId: String, keepLocalData: Boolean, deviceLabel: String): Team = teamMutex.withLock {
+        if (!keepLocalData) {
+            planRepository.replaceAll(PlanState.EMPTY)
+            // „Das bin ich“ bezieht sich auf Personen des bisherigen Plans.
+            settingsRepository.clear()
+            notifications.cancel()
+        }
+        val team = teamRepository.acceptInvite(inviteId)
+        planRepository.deviceId = teamRepository.deviceId
+        if (keepLocalData && !planRepository.state.value.isEmpty()) planRepository.markAllPending()
+        labelOwnDevice(deviceLabel)
+        team
+    }
+
+    suspend fun declineInvite(inviteId: String) = teamMutex.withLock { teamRepository.declineInvite(inviteId) }
+
+    /** Gerät hinzufügen (nur Admins); der Name erscheint in der Geräteliste aller Geräte. */
+    suspend fun addDevice(publicKey: String, label: String) {
+        if (label.isNotBlank()) planRepository.setDeviceLabel(DeviceKeys.deviceIdOf(publicKey), label)
+        syncController.addDevice(publicKey)
+    }
+
+    suspend fun removeDevice(publicKey: String) = syncController.removeDevice(publicKey)
+
+    suspend fun setAdmin(publicKey: String, admin: Boolean) = syncController.setAdmin(publicKey, admin)
+
+    /** Plan sperren bis [until] (null = ganz) oder öffnen; nur Admins. */
+    suspend fun setPlanLock(locked: Boolean, until: LocalDate?) = syncController.setPlanLock(locked, until)
+
+    suspend fun renameDevice(publicKey: String, label: String) =
+        planRepository.setDeviceLabel(DeviceKeys.deviceIdOf(publicKey), label)
+
+    /**
+     * Team verlassen: Die Admins werden gebeten, dieses Gerät zu entfernen; danach wird alles
+     * Lokale gelöscht. Scheitert die Bitte (z. B. offline), bleibt alles, wie es ist.
+     */
+    suspend fun leaveTeam() = teamMutex.withLock {
+        syncController.leave()
+        wipeEverything()
+    }
+
+    /** Nur auf diesem Gerät löschen (offline, nach dem Entfernen oder bei verlorenem Anschluss). */
+    suspend fun deleteLocalData() = teamMutex.withLock { wipeEverything() }
+
+    /** Löscht Schlüssel, MLS-Zustand, Plan, Einstellungen und den Keystore-Schlüssel. */
+    private suspend fun wipeEverything() {
+        teamRepository.reset()
+        planRepository.deviceId = null
+        planRepository.replaceAll(PlanState.EMPTY)
+        settingsRepository.clear()
+        notifications.cancel()
+        reminders.cancelAll()
+        withContext(Dispatchers.IO) {
+            runCatching { deviceCalendar.remove() }
+            secureFiles.wipe()
+            mlsDir.deleteRecursively()
+        }
+    }
+
+    private suspend fun labelOwnDevice(label: String) {
+        val deviceId = teamRepository.deviceId ?: return
+        if (label.isNotBlank()) planRepository.setDeviceLabel(deviceId, label)
+    }
+
+    /** Was die Erinnerungen bestimmt; Änderungen an anderen Einstellungen lösen nichts aus. */
+    private data class ReminderInput(val plan: PlanState, val me: String?, val mode: ReminderMode, val deadlines: Boolean)
+
+    private companion object {
+        const val TAG = "AppContainer"
+        const val WIDGET_DEBOUNCE_MILLIS = 1_000L
+        const val REMINDER_DEBOUNCE_MILLIS = 1_000L
+        const val CALENDAR_DEBOUNCE_MILLIS = 3_000L
+        /** Markiert „Zuordnung stimmt schon“ (eine Personen-ID ist nie so lang). */
+        const val NO_CHANGE = "-"
+        /** Teamdatei der alten Version (DP2). */
+        const val LEGACY_TEAM_FILE = "team.bin"
+
+        fun hasStrongBox(context: Context): Boolean =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                context.packageManager.hasSystemFeature("android.hardware.strongbox_keystore")
+    }
+}

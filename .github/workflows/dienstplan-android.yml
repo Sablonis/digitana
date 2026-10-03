@@ -1,0 +1,100 @@
+name: Dienstplan Android
+
+on:
+  push:
+    paths:
+      - 'dienstplan-android/**'
+      - '.github/workflows/dienstplan-android.yml'
+  pull_request:
+    paths:
+      - 'dienstplan-android/**'
+      - '.github/workflows/dienstplan-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dienstplan-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Tests, Lint und APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: dienstplan-android
+    steps:
+      - uses: actions/checkout@v7
+
+      # JDK 21: AGP 9 braucht mindestens 17; die JNI-Tests von secp256k1 laufen ab 21.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Prüft auch die Checksumme von gradle-wrapper.jar.
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Rust für die MLS-Bibliothek: Version und Android-Ziele stehen in mls/rust-toolchain.toml.
+      - name: Rust einrichten
+        working-directory: dienstplan-android/mls
+        run: rustup toolchain install || cargo --version
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: dienstplan-android/mls -> target
+
+      # Baut die nativen Bibliotheken für Android (NDK des Runners über ANDROID_NDK_HOME).
+      - name: cargo-ndk installieren
+        run: cargo install cargo-ndk --version 4.1.2 --locked
+
+      - name: Rust-Tests der MLS-Schicht (Einladen, Entfernen, Austritt, SQLCipher)
+        working-directory: dienstplan-android/mls
+        run: cargo test --locked
+
+      - name: Kern-Tests (JVM, inkl. lokaler TLS-Relays)
+        run: ./gradlew --stacktrace :core:test
+
+      - name: App bauen (Debug), Lint, Release mit R8 (unsigniert)
+        run: ./gradlew --stacktrace :app:assembleDebug :app:lintDebug :app:assembleRelease
+
+      # Gradle nennt bei Lint-Fehlern nur den ersten; hier steht die vollständige Liste im Log.
+      - name: Lint-Befunde ausgeben
+        if: always()
+        run: |
+          if [ -d app/build ]; then
+            find app/build -name 'lint-results-*.txt' -print -exec cat {} \;
+          fi
+
+      - name: Berichte hochladen
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: berichte
+          path: |
+            dienstplan-android/core/build/reports/tests/
+            dienstplan-android/app/build/reports/
+          if-no-files-found: ignore
+
+      - name: Debug-APK hochladen
+        uses: actions/upload-artifact@v7
+        with:
+          name: dienstplan-debug-apk
+          path: dienstplan-android/app/build/outputs/apk/debug/*.apk
+
+      # Nach dem APK, damit es auch dann bereitsteht, wenn hier etwas scheitert.
+      - name: Screenshots und Barrierefreiheit (Robolectric, Roborazzi, ATF)
+        run: ./gradlew --stacktrace :app:testDebugUnitTest
+
+      - name: Screenshots hochladen
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dienstplan-screenshots
+          path: |
+            dienstplan-android/app/build/outputs/roborazzi/
+            dienstplan-android/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore

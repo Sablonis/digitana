@@ -1,0 +1,38 @@
+package ch.digitana.dienstplan.core.plan
+
+import ch.digitana.dienstplan.core.crdt.PlanKeys
+import ch.digitana.dienstplan.core.crdt.PlanState
+import ch.digitana.dienstplan.core.crdt.ShiftTypeSet
+import java.time.LocalDate
+import java.time.YearMonth
+
+/** Monatsansicht: alle Personen über alle Tage eines Monats, mit Stunden pro Monat. */
+data class MonthModel(
+    val month: YearMonth,
+    val days: List<DayInfo>,
+    val rows: List<MemberRow>,
+    val coverage: List<DayCoverage>,
+    val types: ShiftTypeSet,
+) {
+    val totalMinutes: Int get() = rows.sumOf { it.minutes }
+
+    /** Wünsche des Monats pro Person: wie viele der Plan erfüllt (Fairness auf einen Blick). */
+    val wishTallies: List<WishTally> get() = WishTally.of(rows)
+
+    /** Dienste mit zu kurzer Ruhezeit davor. */
+    val restIssueCount: Int get() = rows.sumOf { row -> row.cells.count { it.rest != null } }
+
+    /** Schichten (Tag × Art) unter dem Soll. */
+    val understaffedCount: Int get() = coverage.sumOf { it.understaffed.size }
+
+    companion object {
+        val FIRST_MONTH: YearMonth = YearMonth.from(PlanKeys.MIN_DATE)
+        val LAST_MONTH: YearMonth = YearMonth.from(PlanKeys.MAX_DATE)
+
+        fun build(state: PlanState, month: YearMonth, today: LocalDate): MonthModel {
+            val dates = (1..month.lengthOfMonth()).map { month.atDay(it) }
+            val grid = PlanGrid.build(state, dates, today)
+            return MonthModel(month, grid.days, grid.rows, grid.coverage, grid.types)
+        }
+    }
+}

@@ -1,0 +1,16 @@
+HSPLch/digitana/dienstplan/DienstplanApp**->**(**)**
+HSPLch/digitana/dienstplan/AppContainer**->**(**)**
+HSPLch/digitana/dienstplan/ui/MainActivity**->**(**)**
+HSPLch/digitana/dienstplan/ui/MainViewModel**->**(**)**
+HSPLch/digitana/dienstplan/ui/DienstplanRoot**->**(**)**
+HSPLch/digitana/dienstplan/ui/Motion**->**(**)**
+HSPLch/digitana/dienstplan/ui/UiPreferences**->**(**)**
+HSPLch/digitana/dienstplan/ui/theme/**->**(**)**
+HSPLch/digitana/dienstplan/ui/components/**->**(**)**
+HSPLch/digitana/dienstplan/ui/plan/**->**(**)**
+HSPLch/digitana/dienstplan/ui/month/**->**(**)**
+HSPLch/digitana/dienstplan/ui/me/**->**(**)**
+HSPLch/digitana/dienstplan/core/crdt/**->**(**)**
+HSPLch/digitana/dienstplan/core/plan/**->**(**)**
+HSPLch/digitana/dienstplan/core/data/**->**(**)**
+HSPLch/digitana/dienstplan/security/**->**(**)**
