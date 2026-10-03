@@ -100,6 +100,8 @@ private fun CameraPreview(onCode: (String) -> Unit, modifier: Modifier = Modifie
     val currentOnCode by rememberUpdatedState(onCode)
     val executor = remember { Executors.newSingleThreadExecutor() }
     val reported = remember { AtomicBoolean(false) }
+    // Wird der Scanner geschlossen, bevor die Kamera bereit ist, darf sie danach nicht mehr starten.
+    val disposed = remember { AtomicBoolean(false) }
     val decoder = remember { QrDecoder() }
     AndroidView(
         modifier = modifier,
@@ -108,7 +110,8 @@ private fun CameraPreview(onCode: (String) -> Unit, modifier: Modifier = Modifie
             val future = ProcessCameraProvider.getInstance(viewContext)
             future.addListener(
                 {
-                    val provider = future.get()
+                    if (disposed.get()) return@addListener
+                    val provider = runCatching { future.get() }.getOrNull() ?: return@addListener
                     val preview = Preview.Builder().build()
                     preview.setSurfaceProvider(view.surfaceProvider)
                     val analysis = ImageAnalysis.Builder()
@@ -132,8 +135,15 @@ private fun CameraPreview(onCode: (String) -> Unit, modifier: Modifier = Modifie
     )
     DisposableEffect(Unit) {
         onDispose {
+            disposed.set(true)
+            // Erst die Kamera lösen (die Instanz steht nach dem ersten Start sofort bereit), dann
+            // den Thread der Bildanalyse beenden.
             val future = ProcessCameraProvider.getInstance(context)
-            future.addListener({ runCatching { future.get().unbindAll() } }, ContextCompat.getMainExecutor(context))
+            if (future.isDone) {
+                runCatching { future.get().unbindAll() }
+            } else {
+                future.addListener({ runCatching { future.get().unbindAll() } }, ContextCompat.getMainExecutor(context))
+            }
             executor.shutdown()
         }
     }
@@ -156,6 +166,9 @@ private class QrDecoder {
         return try {
             reader.decodeWithState(BinaryBitmap(HybridBinarizer(source))).text?.takeIf { it.length <= MAX_TEXT }
         } catch (e: ReaderException) {
+            null
+        } catch (e: RuntimeException) {
+            // Ein seltsames Bild darf die App nicht beenden; das nächste Bild kommt gleich.
             null
         } finally {
             reader.reset()

@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,6 +113,9 @@ private sealed interface ShareRequest {
 
 /** Ab dieser Breite steht die Navigation am Rand statt unten (Tablet, Querformat). */
 private val RAIL_MIN_WIDTH = 600.dp
+
+/** Schlüssel für den gespeicherten Zustand der Reiter (Seiten nutzen ihren Namen). */
+private const val TABS_STATE = "reiter"
 
 @Composable
 fun DienstplanRoot(container: AppContainer) {
@@ -195,6 +199,9 @@ private fun MainNavigation(container: AppContainer, startWithTeam: () -> Boolean
     val page = pages.lastOrNull()
     var forward by remember { mutableStateOf(true) }
     var share by remember { mutableStateOf<ShareRequest?>(null) }
+    // Zustand der Reiter (Scrollposition, Schnell eintragen …) bleibt erhalten, während eine
+    // Seite darüber liegt; geschlossene Seiten vergessen ihren Zustand.
+    val saveableStates = rememberSaveableStateHolder()
     val planViewModel: PlanViewModel = viewModel { PlanViewModel(container) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -206,6 +213,7 @@ private fun MainNavigation(container: AppContainer, startWithTeam: () -> Boolean
 
     fun back() {
         forward = false
+        pages.lastOrNull()?.let { saveableStates.removeState(it.name) }
         stack = pages.dropLast(1).joinToString(",") { it.name }
     }
 
@@ -263,52 +271,54 @@ private fun MainNavigation(container: AppContainer, startWithTeam: () -> Boolean
         label = "Seite",
     ) { shown ->
         val gestured = shown != null && shown == gesturePage
-        Box(
-            Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    if (gestured) {
-                        val p = backProgress
-                        val scale = 1f - 0.1f * p
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = (if (backFromLeft) 1 else -1) * p * 24.dp.toPx()
-                        shape = RoundedCornerShape((28 * p).dp)
-                        clip = p > 0f
-                    }
-                },
-        ) {
-            when (shown) {
-                Page.SHIFT_TYPES -> ShiftTypesScreen(planViewModel, onBack = ::back)
-                Page.PATTERNS -> PatternsScreen(planViewModel, onBack = ::back)
-                Page.RULES -> RulesScreen(planViewModel, onBack = ::back)
-                Page.DIAGNOSTICS -> DiagnosticsScreen(container = container, onBack = ::back)
-                Page.SETTINGS -> SettingsScreen(viewModel { SettingsViewModel(container) }, onBack = ::back, onOpenLicenses = { open(Page.LICENSES) })
-                Page.LICENSES -> LicensesScreen(onBack = ::back)
-                Page.ACTIVITY -> ActivityScreen(
-                    viewModel = planViewModel,
-                    onBack = ::back,
-                    onOpenWeek = { week ->
-                        planViewModel.selectWeek(week)
-                        tab = Tab.WEEK
-                        back()
+        saveableStates.SaveableStateProvider(shown?.name ?: TABS_STATE) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        if (gestured) {
+                            val p = backProgress
+                            val scale = 1f - 0.1f * p
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = (if (backFromLeft) 1 else -1) * p * 24.dp.toPx()
+                            shape = RoundedCornerShape((28 * p).dp)
+                            clip = p > 0f
+                        }
                     },
-                )
-                Page.STATS -> StatsScreen(planViewModel, onBack = ::back)
-                null -> Tabs(
-                    container = container,
-                    planViewModel = planViewModel,
-                    tab = tab,
-                    onTab = { tab = it },
-                    createdHintPending = createdHintPending,
-                    onCreatedHintShown = { createdHintPending = false },
-                    onOpen = ::open,
-                    onShare = { share = it },
-                    onExportCalendar = { memberId ->
-                        val state = planViewModel.uiState.value
-                        export { PlanExport.shareCalendar(context, state.plan, memberId, state.today) }
-                    },
-                )
+            ) {
+                when (shown) {
+                    Page.SHIFT_TYPES -> ShiftTypesScreen(planViewModel, onBack = ::back)
+                    Page.PATTERNS -> PatternsScreen(planViewModel, onBack = ::back)
+                    Page.RULES -> RulesScreen(planViewModel, onBack = ::back)
+                    Page.DIAGNOSTICS -> DiagnosticsScreen(container = container, onBack = ::back)
+                    Page.SETTINGS -> SettingsScreen(viewModel { SettingsViewModel(container) }, onBack = ::back, onOpenLicenses = { open(Page.LICENSES) })
+                    Page.LICENSES -> LicensesScreen(onBack = ::back)
+                    Page.ACTIVITY -> ActivityScreen(
+                        viewModel = planViewModel,
+                        onBack = ::back,
+                        onOpenWeek = { week ->
+                            planViewModel.selectWeek(week)
+                            tab = Tab.WEEK
+                            back()
+                        },
+                    )
+                    Page.STATS -> StatsScreen(planViewModel, onBack = ::back)
+                    null -> Tabs(
+                        container = container,
+                        planViewModel = planViewModel,
+                        tab = tab,
+                        onTab = { tab = it },
+                        createdHintPending = createdHintPending,
+                        onCreatedHintShown = { createdHintPending = false },
+                        onOpen = ::open,
+                        onShare = { share = it },
+                        onExportCalendar = { memberId ->
+                            val state = planViewModel.uiState.value
+                            export { PlanExport.shareCalendar(context, state.plan, memberId, state.today) }
+                        },
+                    )
+                }
             }
         }
     }
