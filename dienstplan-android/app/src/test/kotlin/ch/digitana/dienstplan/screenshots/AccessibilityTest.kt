@@ -2,13 +2,20 @@ package ch.digitana.dienstplan.screenshots
 
 import android.app.Application
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.digitana.dienstplan.ui.plan.DENSE_TARGET_TAG
 import com.github.takahirom.roborazzi.AccessibilityCheckAfterTestStrategy
@@ -22,6 +29,7 @@ import com.google.android.apps.common.testing.accessibility.framework.matcher.El
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ExpectedException
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
@@ -37,6 +45,11 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(application = Application::class, sdk = [36], qualifiers = PHONE)
 class AccessibilityTest {
+
+    /** Ganz aussen, damit auch die Prüfung nach dem Test (Roborazzi-Regel) abgefangen wird. */
+    @Suppress("DEPRECATION")
+    @get:Rule(order = -1)
+    val thrown: ExpectedException = ExpectedException.none()
 
     @get:Rule(order = 0)
     val registerActivity = RegisterComponentActivity()
@@ -59,6 +72,17 @@ class AccessibilityTest {
             accessibilityCheckStrategy = AccessibilityCheckAfterTestStrategy(),
         ),
     )
+
+    /** Gegenprobe: Ohne Beschriftung muss die Prüfung anschlagen – sonst liefe sie gar nicht. */
+    @Test
+    fun checksDetectMissingLabel() {
+        thrown.expectMessage("SpeakableTextPresentCheck")
+        compose.setContent {
+            Themed {
+                Box(Modifier.size(56.dp).background(Color.DarkGray).clickable {})
+            }
+        }
+    }
 
     @Test
     fun weekLight() = check { SampleWeek() }
