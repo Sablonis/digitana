@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -83,6 +84,18 @@ android {
                 it.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
                 // Roborazzi schreibt die Bilder immer (zum Durchsehen, kein Pixelvergleich).
                 it.systemProperty("roborazzi.test.record", "true")
+                // Robolectrics native Grafik greift auf JDK-Interna zu (FileDescriptor); ab JDK 17
+                // nur mit ausdrücklicher Freigabe.
+                it.jvmArgs(
+                    "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+                    "--add-opens=java.base/java.io=ALL-UNNAMED",
+                    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                )
+                // Fehlschläge mit vollständigem Stacktrace im Log (die CI zeigt sonst nur eine Zeile).
+                it.testLogging {
+                    events("failed")
+                    exceptionFormat = TestExceptionFormat.FULL
+                }
             }
         }
     }
